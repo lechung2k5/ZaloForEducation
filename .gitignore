@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Environment Variables (CRITICAL: DO NOT PUSH!)
+.env
+.env.local
+.env.development
+.env.production
+*.env
+
+# Exceptions for env templates
+!.env.example
+
+# Build Outputs
+dist/
+build/
+out/
+.next/
+.expo/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# AWS / Cloud credentials (if any local file exists)
+aws-credentials.json
