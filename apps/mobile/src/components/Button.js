@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Typography } from '../constants/Theme';
 
 export default function Button({ onPress, title, variant = 'primary', disabled, icon }) {
@@ -21,7 +22,14 @@ export default function Button({ onPress, title, variant = 'primary', disabled, 
           style={styles.gradient}
         >
           <View style={styles.innerGlow} />
-          {icon && <Text style={styles.iconPrimary}>{icon}</Text>}
+          {icon && (
+            <MaterialIcons
+              name={icon.replace(/_/g, '-')}
+              size={20}
+              color="#ffffff"
+              style={styles.iconSpacing}
+            />
+          )}
           <Text style={[styles.text, styles.textPrimary]}>{title}</Text>
         </LinearGradient>
       </TouchableOpacity>
@@ -35,7 +43,14 @@ export default function Button({ onPress, title, variant = 'primary', disabled, 
       activeOpacity={0.85}
       disabled={disabled}
     >
-      {icon && <Text style={styles.iconSecondary}>{icon}</Text>}
+      {icon && (
+        <MaterialIcons
+          name={icon.replace(/_/g, '-')}
+          size={20}
+          color={Colors.primary}
+          style={styles.iconSpacing}
+        />
+      )}
       <Text style={[styles.text, styles.textSecondary]}>{title}</Text>
     </TouchableOpacity>
   );
@@ -81,14 +96,8 @@ const styles = StyleSheet.create({
   textSecondary: {
     color: Colors.primary,
   },
-  iconPrimary: {
-    color: '#ffffff',
-    fontSize: 20,
+  iconSpacing: {
     marginRight: 8,
+    marginTop: 2, // Slight tweak to align center with text visually
   },
-  iconSecondary: {
-    color: Colors.primary,
-    fontSize: 20,
-    marginRight: 8,
-  }
 });

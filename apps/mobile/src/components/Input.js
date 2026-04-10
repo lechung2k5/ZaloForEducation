@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { TouchableOpacity } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Typography } from '../constants/Theme';
 
 export default function Input({ 
@@ -27,7 +29,11 @@ export default function Input({
       ]}>
         {icon && (
           <View style={styles.iconContainer}>
-            <Text style={[styles.icon, isFocused && { color: Colors.primary }]}>{icon}</Text>
+            <MaterialIcons
+              name={icon.replace(/_/g, '-')}
+              size={20}
+              color={isFocused ? Colors.primary : Colors.outline}
+            />
           </View>
         )}
         <TextInput
@@ -47,7 +53,11 @@ export default function Input({
             style={styles.eyeIcon}
             onPress={() => setIsSecure(!isSecure)}
           >
-            <Text style={{ fontSize: 16 }}>{isSecure ? '👁️' : '🙈'}</Text>
+            <MaterialIcons
+              name={isSecure ? 'visibility-off' : 'visibility'}
+              size={20}
+              color={Colors.outline}
+            />
           </TouchableOpacity>
         )}
       </View>
@@ -82,14 +92,13 @@ const styles = StyleSheet.create({
   },
   inputWrapperFocused: {
     backgroundColor: Colors.surfaceContainerLowest,
-    borderColor: 'rgba(0, 65, 143, 0.4)', // primary/40
+    borderColor: 'rgba(0, 65, 143, 0.4)',
   },
   iconContainer: {
     paddingLeft: 16,
-  },
-  icon: {
-    fontSize: 20,
-    color: Colors.outline,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 2, // Slight tweak to match text baseline vertically
   },
   input: {
     flex: 1,

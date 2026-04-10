@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Platform, View, Text } from 'react-native';
+import * as Font from 'expo-font';
 import { 
-  useFonts, 
   PlusJakartaSans_300Light, 
   PlusJakartaSans_400Regular, 
   PlusJakartaSans_500Medium, 
@@ -17,19 +17,31 @@ import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import HomeScreen from './src/screens/HomeScreen';
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
-    PlusJakartaSans_300Light,
-    PlusJakartaSans_400Regular,
-    PlusJakartaSans_500Medium,
-    PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold,
-    PlusJakartaSans_800ExtraBold,
-  });
-
+  const [fontsLoaded, setFontsLoaded] = useState(false);
   const [screen, setScreen] = useState('login');
 
   useEffect(() => {
-    // Kiểm tra nếu URL có token reset mật khẩu (dành cho Web)
+    async function loadFonts() {
+      try {
+        await Font.loadAsync({
+          PlusJakartaSans: PlusJakartaSans_400Regular,
+          PlusJakartaSans_300Light,
+          PlusJakartaSans_400Regular,
+          PlusJakartaSans_500Medium,
+          PlusJakartaSans_600SemiBold,
+          PlusJakartaSans_700Bold,
+          PlusJakartaSans_800ExtraBold,
+          'Material Symbols Outlined': require('./assets/fonts/MaterialSymbolsOutlined-Regular.ttf') // Just in case, standard MS. Often expo uses material icons via vector-icons but since we used direct TS styling, let's keep it safe. 
+        });
+        setFontsLoaded(true);
+      } catch (e) {
+        console.warn(e);
+        setFontsLoaded(true); // fallback to defaults if fail
+      }
+    }
+    loadFonts();
+
+    // Lấy token cho reset-password
     if (Platform.OS === 'web') {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.has('token')) {

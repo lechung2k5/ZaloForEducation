@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 export const Colors = {
   primary: '#00418f',
   onPrimary: '#ffffff',
@@ -37,28 +39,40 @@ export const Colors = {
   surfaceDim: '#d8dadc',
 };
 
+// Platform-aware shadows:
+//  • Web (react-native-web ≥0.20): only boxShadow is accepted (shadow* props are deprecated)
+//  • Native (iOS/Android): shadow* props + elevation
 export const Shadows = {
-  soft: {
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 3,
-  },
-  medium: {
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.1,
-    shadowRadius: 25,
-    elevation: 5,
-  },
-  glow: {
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 15,
-    elevation: 8,
-  }
+  soft: Platform.select({
+    web: { boxShadow: '0px 10px 20px rgba(0, 65, 143, 0.08)' },
+    default: {
+      shadowColor: '#00418f',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.08,
+      shadowRadius: 20,
+      elevation: 3,
+    },
+  }),
+  medium: Platform.select({
+    web: { boxShadow: '0px 15px 25px rgba(0, 65, 143, 0.10)' },
+    default: {
+      shadowColor: '#00418f',
+      shadowOffset: { width: 0, height: 15 },
+      shadowOpacity: 0.1,
+      shadowRadius: 25,
+      elevation: 5,
+    },
+  }),
+  glow: Platform.select({
+    web: { boxShadow: '0px 8px 15px rgba(0, 65, 143, 0.25)' },
+    default: {
+      shadowColor: '#00418f',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25,
+      shadowRadius: 15,
+      elevation: 8,
+    },
+  }),
 };
 
 export const Typography = {
