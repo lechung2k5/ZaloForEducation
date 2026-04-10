@@ -10,14 +10,16 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import Input from '../components/Input';
 import Button from '../components/Button';
+import { Colors, Typography, Shadows } from '../constants/Theme';
 
 export default function LoginScreen({ onNavigate }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  // Tạo deviceId cố định cho thiết bị này (dùng để quản lý phiên 1 thiết bị)
   const deviceId = useRef(`${Platform.OS}-${Math.random().toString(36).slice(2)}`).current;
 
   const handleLogin = async () => {
@@ -40,7 +42,6 @@ export default function LoginScreen({ onNavigate }) {
       const data = await response.json();
       
       if (response.ok) {
-        // Alert.alert('Thành công', 'Đăng nhập thành công!'); 
         if (onNavigate) onNavigate('home');
       } else {
         Alert.alert('Đăng nhập thất bại', data.message || 'Sai tài khoản hoặc mật khẩu');
@@ -68,59 +69,80 @@ export default function LoginScreen({ onNavigate }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Background Decorative Blobs */}
+      <View style={[styles.blob, styles.blobTopRight]} />
+      <View style={[styles.blob, styles.blobBottomLeft]} />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.card}>
-            {/* Header / Logo */}
-            <View style={styles.brandBar}>
-              <View style={styles.logoCircle}>
-                <Text style={styles.logoText}>Z</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          
+          <View style={styles.headerContainer}>
+            <LinearGradient
+              colors={['#0058bc', '#00418f']}
+              style={styles.logoBox}
+            >
+              <Text style={styles.logoIcon}>edu</Text>
+            </LinearGradient>
+            <Text style={styles.brandTitle}>ZaloEdu</Text>
+            <Text style={styles.brandSubtitle}>Khai phóng tiềm năng tri thức</Text>
+          </View>
+
+          {/* Glass Card for Login */}
+          <View style={styles.cardContainer}>
+            <BlurView intensity={80} tint="light" style={styles.glassCard}>
+              <Text style={styles.cardTitle}>Đăng nhập</Text>
+
+              <View style={styles.form}>
+                <Input
+                  label="Email hoặc Tên đăng nhập"
+                  placeholder="user@example.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  icon="person"
+                />
+                <Input
+                  label="Mật khẩu"
+                  placeholder="••••••••"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  icon="lock"
+                  rightElement={<ForgotLink />}
+                />
+                
+                <Button 
+                  title={loading ? "Đang xử lý..." : "Đăng nhập"} 
+                  onPress={handleLogin} 
+                  variant="primary" 
+                  disabled={loading}
+                  icon={!loading ? "arrow_forward" : null}
+                />
               </View>
-              <Text style={styles.brandName}>ZaloEdu</Text>
-            </View>
 
-            {/* Title */}
-            <View style={styles.titleSection}>
-              <Text style={styles.title}>Đăng nhập</Text>
-              <Text style={styles.subtitle}>
-                Chào mừng bạn quay lại hệ thống ZaloEdu
-              </Text>
-            </View>
+              {/* Social Login Divider */}
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>Hoặc đăng nhập với</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
-            {/* Form */}
-            <View style={styles.form}>
-              <Input
-                label="Email"
-                placeholder="email@example.com"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-              />
-              <Input
-                label="Mật khẩu"
-                placeholder="••••••••"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                rightElement={<ForgotLink />}
-              />
               <Button 
-                title={loading ? "Đang xử lý..." : "Đăng nhập"} 
-                onPress={handleLogin} 
-                variant="primary" 
+                title="Tiếp tục với Google"
+                variant="secondary"
+                onPress={() => Alert.alert("Sắp ra mắt")}
               />
-            </View>
 
-            {/* Register Link */}
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Chưa có tài khoản? </Text>
-              <TouchableOpacity onPress={handleRegister}>
-                <Text style={styles.footerLink}>Đăng ký ngay</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Bạn mới sử dụng ZaloEdu? </Text>
+                <TouchableOpacity onPress={handleRegister}>
+                  <Text style={styles.footerLink}>Đăng ký ngay</Text>
+                </TouchableOpacity>
+              </View>
+            </BlurView>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -131,7 +153,7 @@ export default function LoginScreen({ onNavigate }) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: Colors.surface,
   },
   flex: {
     flex: 1,
@@ -139,81 +161,113 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 40,
-    width: '100%',
-    maxWidth: 440,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    elevation: 8,
+  blob: {
+    position: 'absolute',
+    borderRadius: 200,
+    opacity: 0.5,
   },
-  brandBar: {
-    flexDirection: 'row',
+  blobTopRight: {
+    top: -100,
+    right: -100,
+    width: 300,
+    height: 300,
+    backgroundColor: 'rgba(0, 65, 143, 0.08)',
+  },
+  blobBottomLeft: {
+    bottom: -100,
+    left: -100,
+    width: 250,
+    height: 250,
+    backgroundColor: 'rgba(75, 94, 134, 0.1)',
+  },
+  headerContainer: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 40,
+  },
+  logoBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 24,
+    alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 16,
+    ...Shadows.glow,
   },
-  logoCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#135bec',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  logoText: {
-    color: '#fff',
-    fontWeight: '800',
+  logoIcon: {
+    color: '#ffffff',
+    ...Typography.heading,
     fontSize: 20,
   },
-  brandName: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#111318',
-  },
-  titleSection: {
-    marginBottom: 32,
-    alignItems: 'center',
-  },
-  title: {
+  brandTitle: {
+    ...Typography.heading,
     fontSize: 32,
-    fontWeight: '900',
-    color: '#111318',
-    marginBottom: 8,
+    color: Colors.primary,
+    marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 15,
-    color: '#6b7280',
+  brandSubtitle: {
+    ...Typography.body,
+    fontSize: 14,
+    color: Colors.onSurfaceVariant,
+  },
+  cardContainer: {
+    borderRadius: 32,
+    overflow: 'hidden',
+    ...Shadows.medium,
+  },
+  glassCard: {
+    padding: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+    borderRadius: 32,
+  },
+  cardTitle: {
+    ...Typography.heading,
+    fontSize: 24,
+    color: Colors.onSurface,
+    marginBottom: 24,
   },
   form: {
     marginBottom: 16,
   },
   forgotText: {
+    ...Typography.label,
     fontSize: 13,
-    color: '#135bec',
-    fontWeight: '600',
+    color: Colors.primary,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.outlineVariant,
+    opacity: 0.5,
+  },
+  dividerText: {
+    ...Typography.body,
+    fontSize: 13,
+    color: Colors.onSurfaceVariant,
+    marginHorizontal: 16,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 24,
   },
   footerText: {
-    fontSize: 15,
-    color: '#6b7280',
+    ...Typography.body,
+    fontSize: 14,
+    color: Colors.onSurfaceVariant,
   },
   footerLink: {
-    fontSize: 15,
-    color: '#135bec',
-    fontWeight: '700',
+    ...Typography.label,
+    fontSize: 14,
+    color: Colors.primary,
   },
 });

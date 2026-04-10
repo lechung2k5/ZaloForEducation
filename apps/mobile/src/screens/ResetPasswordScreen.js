@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Alert,
+  View, Text, TouchableOpacity, SafeAreaView,
+  KeyboardAvoidingView, Platform, ScrollView,
+  StyleSheet, Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import Input from '../components/Input';
 import Button from '../components/Button';
+import { Colors, Typography, Shadows } from '../constants/Theme';
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
 export default function ResetPasswordScreen({ onNavigate }) {
   const [newPassword, setNewPassword] = useState('');
@@ -21,7 +20,6 @@ export default function ResetPasswordScreen({ onNavigate }) {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    // Lấy token từ URL (Dùng cho bản Web)
     if (Platform.OS === 'web') {
       const urlParams = new URLSearchParams(window.location.search);
       const tokenParam = urlParams.get('token');
@@ -42,15 +40,16 @@ export default function ResetPasswordScreen({ onNavigate }) {
       Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp!');
       return;
     }
+    if (newPassword.length < 8) {
+      Alert.alert('Lỗi', 'Mật khẩu phải có ít nhất 8 ký tự!');
+      return;
+    }
 
     setLoading(true);
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
     try {
-      const response = await fetch(`${apiUrl}/auth/reset-password`, {
+      const response = await fetch(`${API_URL}/auth/reset-password`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword }),
       });
 
@@ -67,64 +66,71 @@ export default function ResetPasswordScreen({ onNavigate }) {
     }
   };
 
-  if (success) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.scrollContent}>
-          <View style={styles.card}>
-            <View style={styles.successIcon}>
-              <Text style={styles.successEmoji}>✅</Text>
-            </View>
-            <Text style={styles.title}>Thành công!</Text>
-            <Text style={styles.subtitle}>Mật khẩu của bạn đã được thay đổi.</Text>
-            <Button title="Đăng nhập ngay" onPress={() => onNavigate('login')} variant="primary" />
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.card}>
-            <View style={styles.brandBar}>
-              <View style={styles.logoCircle}>
-                <Text style={styles.logoText}>Z</Text>
-              </View>
-              <Text style={styles.brandName}>ZaloEdu</Text>
-            </View>
+      <View style={[styles.blob, styles.blobTopRight]} />
+      <View style={[styles.blob, styles.blobBottomLeft]} />
 
-            <View style={styles.titleSection}>
-              <Text style={styles.title}>Mật khẩu mới</Text>
-              <Text style={styles.subtitle}>Nhập mật khẩu mới cho tài khoản của bạn</Text>
-            </View>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          
+          <View style={styles.headerContainer}>
+            <LinearGradient
+              colors={['#0058bc', '#00418f']}
+              style={styles.logoBox}
+            >
+              <Text style={styles.logoIcon}>edu</Text>
+            </LinearGradient>
+            <Text style={styles.brandTitle}>ZaloEdu</Text>
+          </View>
 
-            <View style={styles.form}>
-              <Input
-                label="Mật khẩu mới"
-                placeholder="••••••••"
-                value={newPassword}
-                onChangeText={setNewPassword}
-                secureTextEntry
-              />
-              <Input
-                label="Xác nhận mật khẩu"
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-              />
-              <Button 
-                title={loading ? "Đang cập nhật..." : "Đổi mật khẩu"} 
-                onPress={handleReset} 
-                variant="primary" 
-              />
-            </View>
+          <View style={styles.cardContainer}>
+            <BlurView intensity={80} tint="light" style={styles.glassCard}>
+              {success ? (
+                <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                  <Text style={{ fontFamily: 'Material Symbols Outlined', fontSize: 64, color: Colors.primaryContainer, marginBottom: 24 }}>check_circle</Text>
+                  <Text style={styles.cardTitle}>Giao dịch thành công</Text>
+                  <Text style={[styles.subtitle, { textAlign: 'center', marginBottom: 32 }]}>Mật khẩu của bạn đã được đặt lại thành công. Vui lòng đăng nhập hệ thống.</Text>
+                  <View style={{ width: '100%' }}>
+                    <Button title="Đăng nhập ngay" onPress={() => onNavigate && onNavigate('login')} icon="login" />
+                  </View>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.cardTitle}>Tạo mật khẩu mới</Text>
+                  <Text style={styles.subtitle}>Thiết lập mật khẩu vững vàng để bảo vệ dữ liệu học tập.</Text>
+
+                  <View style={styles.form}>
+                    <Input
+                      label="Mật khẩu mới"
+                      placeholder="Tối thiểu 8 ký tự"
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                      secureTextEntry
+                      icon="key"
+                    />
+                    <Input
+                      label="Xác nhận mật khẩu"
+                      placeholder="Nhập lại chính xác"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      secureTextEntry
+                      icon="lock_reset"
+                    />
+                    <Button 
+                      title={loading ? 'Đang cập nhật...' : 'Xác nhận đổi mật khẩu'} 
+                      onPress={handleReset} 
+                      disabled={loading} 
+                      icon="done_all" 
+                    />
+                  </View>
+
+                  <TouchableOpacity onPress={() => onNavigate && onNavigate('login')} style={styles.footer}>
+                    <Text style={styles.footerLink}>← Về trang đăng nhập</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </BlurView>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -133,85 +139,24 @@ export default function ResetPasswordScreen({ onNavigate }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f0f2f5',
-  },
-  flex: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 32,
-    width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 24,
-    elevation: 8,
-    alignItems: 'center',
-  },
-  brandBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  logoCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#135bec',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  logoText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  brandName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111318',
-  },
-  titleSection: {
-    marginBottom: 24,
-    width: '100%',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#111318',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-  },
-  form: {
-    width: '100%',
-  },
-  successIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#ecfdf5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  successEmoji: {
-    fontSize: 32,
-  },
+  safeArea: { flex: 1, backgroundColor: Colors.surface },
+  flex: { flex: 1 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingVertical: 40 },
+  blob: { position: 'absolute', borderRadius: 200, opacity: 0.5 },
+  blobTopRight: { top: -100, right: -100, width: 300, height: 300, backgroundColor: 'rgba(0, 65, 143, 0.08)' },
+  blobBottomLeft: { bottom: -100, left: -100, width: 250, height: 250, backgroundColor: 'rgba(75, 94, 134, 0.1)' },
+  
+  headerContainer: { alignItems: 'center', marginBottom: 32 },
+  logoBox: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 12, ...Shadows.glow },
+  logoIcon: { color: '#ffffff', ...Typography.heading, fontSize: 16 },
+  brandTitle: { ...Typography.heading, fontSize: 20, color: Colors.primary },
+  
+  cardContainer: { borderRadius: 32, overflow: 'hidden', ...Shadows.medium },
+  glassCard: { padding: 24, backgroundColor: 'rgba(255, 255, 255, 0.8)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.6)', borderRadius: 32 },
+  cardTitle: { ...Typography.heading, fontSize: 24, color: Colors.onSurface, marginBottom: 8, textAlign: 'center' },
+  subtitle: { ...Typography.body, fontSize: 14, color: Colors.onSurfaceVariant, textAlign: 'center', marginBottom: 24, lineHeight: 22 },
+  
+  form: { width: '100%', marginTop: 8 },
+  footer: { alignItems: 'center', marginTop: 16 },
+  footerLink: { ...Typography.label, fontSize: 14, color: Colors.primary },
 });

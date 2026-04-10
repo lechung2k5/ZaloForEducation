@@ -10,8 +10,11 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import Input from '../components/Input';
 import Button from '../components/Button';
+import { Colors, Typography, Shadows } from '../constants/Theme';
 
 export default function RegisterScreen({ onNavigate }) {
   const [step, setStep] = useState(1);
@@ -44,7 +47,6 @@ export default function RegisterScreen({ onNavigate }) {
       const data = await response.json();
       if (response.ok) {
         setStep(2);
-        Alert.alert('Thông báo', data.message);
       } else {
         Alert.alert('Lỗi', data.message);
       }
@@ -104,8 +106,12 @@ export default function RegisterScreen({ onNavigate }) {
     <View style={styles.stepContainer}>
       {[1, 2, 3].map((s) => (
         <React.Fragment key={s}>
-          <View style={[styles.stepCircle, step >= s ? styles.stepCircleActive : styles.stepCircleInactive]}>
-            <Text style={[styles.stepText, step >= s ? styles.stepTextActive : styles.stepTextInactive]}>{s}</Text>
+          <View style={[styles.stepCircle, step === s ? styles.stepCircleActive : (step > s ? styles.stepCircleCompleted : styles.stepCircleInactive)]}>
+             {step > s ? (
+                <Text style={styles.stepTextCompleted}>check</Text>
+             ) : (
+                <Text style={[styles.stepText, step === s ? styles.stepTextActive : styles.stepTextInactive]}>{s}</Text>
+             )}
           </View>
           {s < 3 && <View style={[styles.stepLine, step > s ? styles.stepLineActive : styles.stepLineInactive]} />}
         </React.Fragment>
@@ -115,109 +121,131 @@ export default function RegisterScreen({ onNavigate }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <View style={[styles.blob, styles.blobTopRight]} />
+      <View style={[styles.blob, styles.blobBottomLeft]} />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.card}>
-            <View style={styles.brandBar}>
-              <View style={styles.logoCircle}>
-                <Text style={styles.logoText}>Z</Text>
-              </View>
-              <Text style={styles.brandName}>ZaloEdu</Text>
-            </View>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.headerContainer}>
+            <LinearGradient
+              colors={['#0058bc', '#00418f']}
+              style={styles.logoBox}
+            >
+              <Text style={styles.logoIcon}>edu</Text>
+            </LinearGradient>
+            <Text style={styles.brandTitle}>ZaloEdu</Text>
+          </View>
 
-            <View style={styles.titleSection}>
-              <Text style={styles.title}>Tạo tài khoản</Text>
-              <Text style={styles.subtitle}>Gia nhập cộng đồng học tập thông minh</Text>
-            </View>
+          <StepIndicator />
 
-            <StepIndicator />
+          <View style={styles.cardContainer}>
+            <BlurView intensity={80} tint="light" style={styles.glassCard}>
+              <Text style={styles.cardTitle}>
+                {step === 1 && "Tạo tài khoản"}
+                {step === 2 && "Xác thực OTP"}
+                {step === 3 && "Thông tin cá nhân"}
+              </Text>
 
-            {step === 1 && (
-              <View style={styles.form}>
-                <Input
-                  label="Email Gmail"
-                  placeholder="example@gmail.com"
-                  value={email}
-                  onChangeText={(val) => {
-                    setEmail(val);
-                    if (val && !val.endsWith('@gmail.com')) {
-                      setEmailError('Chỉ chấp nhận tài khoản Gmail (@gmail.com)');
-                    } else {
-                      setEmailError('');
-                    }
-                  }}
-                  keyboardType="email-address"
-                />
-                {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
-                <Button title={loading ? "Đang gửi..." : "Nhận mã OTP"} onPress={handleRequestOtp} />
-              </View>
-            )}
-
-            {step === 2 && (
-              <View style={styles.form}>
-                <Text style={styles.otpLabel}>Nhập mã OTP 6 chữ số gửi đến {email}</Text>
-                <Input
-                  label="Mã OTP"
-                  placeholder="000000"
-                  value={otp}
-                  onChangeText={setOtp}
-                  keyboardType="number-pad"
-                />
-                <View style={styles.row}>
-                  <TouchableOpacity style={styles.backBtn} onPress={() => setStep(1)}>
-                    <Text style={styles.backBtnText}>Quay lại</Text>
-                  </TouchableOpacity>
-                  <View style={{ flex: 2 }}>
-                    <Button title="Tiếp tục" onPress={handleVerifyOtp} />
-                  </View>
+              {step === 1 && (
+                <View style={styles.form}>
+                  <Text style={styles.subtitle}>Gia nhập cộng đồng học tập thông minh.</Text>
+                  
+                  <Input
+                    label="Email của bạn"
+                    placeholder="example@gmail.com"
+                    value={email}
+                    onChangeText={(val) => {
+                      setEmail(val);
+                      if (val && !val.endsWith('@gmail.com')) {
+                        setEmailError('Chỉ chấp nhận tài khoản (@gmail.com)');
+                      } else {
+                        setEmailError('');
+                      }
+                    }}
+                    keyboardType="email-address"
+                    icon="alternate_email"
+                  />
+                  {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+                  
+                  <Button 
+                    title={loading ? "Đang gửi..." : "Nhận mã xác thực"} 
+                    onPress={handleRequestOtp} 
+                    icon="arrow_forward"
+                    disabled={loading || !!emailError || !email}
+                  />
                 </View>
-              </View>
-            )}
+              )}
 
-            {step === 3 && (
-              <View style={styles.form}>
-                <Input label="Họ và tên" placeholder="Nguyễn Văn A" value={fullName} onChangeText={setFullName} />
-                <View style={styles.row}>
-                  <View style={{ flex: 1, marginRight: 8 }}>
-                    <Input label="Số điện thoại" placeholder="090..." value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Input label="Ngày sinh" placeholder="DD/MM/YYYY" value={dataOfBirth} onChangeText={setDataOfBirth} />
-                  </View>
+              {step === 2 && (
+                <View style={styles.form}>
+                  <Text style={styles.otpLabel}>Nhập mã OTP 6 chữ số gửi đến {'\n'}<Text style={{fontWeight: '700'}}>{email}</Text></Text>
+                  <Input
+                    label="Mã OTP"
+                    placeholder="000000"
+                    value={otp}
+                    onChangeText={setOtp}
+                    keyboardType="number-pad"
+                    icon="pin"
+                  />
+                  <Button 
+                    title="Xác thực OTP" 
+                    onPress={handleVerifyOtp} 
+                    icon="arrow_forward"
+                  />
+                  <Button 
+                    title="Quay lại" 
+                    onPress={() => setStep(1)} 
+                    variant="secondary" 
+                  />
                 </View>
+              )}
 
-                <Text style={styles.genderLabel}>Giới tính</Text>
-                <View style={styles.genderContainer}>
-                  <TouchableOpacity 
-                    style={[styles.genderBox, gender && styles.genderBoxActive]} 
-                    onPress={() => setGender(true)}
-                  >
-                    <Text style={[styles.genderBoxText, gender && styles.genderBoxTextActive]}>Nam</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.genderBox, !gender && styles.genderBoxActiveFemale]} 
-                    onPress={() => setGender(false)}
-                  >
-                    <Text style={[styles.genderBoxText, !gender && styles.genderBoxTextActiveFemale]}>Nữ</Text>
-                  </TouchableOpacity>
+              {step === 3 && (
+                <View style={styles.form}>
+                  <Input label="Họ và tên" placeholder="Nguyễn Văn A" value={fullName} onChangeText={setFullName} icon="badge" />
+                  <Input label="Số điện thoại" placeholder="0901 234 567" value={phone} onChangeText={setPhone} keyboardType="phone-pad" icon="phone" />
+                  <Input label="Ngày sinh" placeholder="DD/MM/YYYY" value={dataOfBirth} onChangeText={setDataOfBirth} icon="calendar_today" />
+
+                  <View style={{ marginBottom: 24 }}>
+                    <Text style={styles.genderLabel}>Giới tính</Text>
+                    <View style={styles.genderContainer}>
+                      <TouchableOpacity 
+                        style={[styles.genderBox, gender ? styles.genderBoxActive : styles.genderBoxInactive]} 
+                        onPress={() => setGender(true)}
+                      >
+                        <Text style={[styles.genderBoxText, gender ? styles.genderBoxTextActive : styles.genderBoxTextInactive]}>Nam</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.genderBox, !gender ? styles.genderBoxActive : styles.genderBoxInactive]} 
+                        onPress={() => setGender(false)}
+                      >
+                        <Text style={[styles.genderBoxText, !gender ? styles.genderBoxTextActive : styles.genderBoxTextInactive]}>Nữ</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <Input label="Mật khẩu" placeholder="••••••••" value={password} onChangeText={setPassword} secureTextEntry icon="lock" />
+                  <Input label="Xác nhận mật khẩu" placeholder="••••••••" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry icon="lock_reset" />
+                  
+                  <Button 
+                    title={loading ? "Đang xử lý..." : "Hoàn tất đăng ký"} 
+                    onPress={handleRegister} 
+                    icon="check_circle"
+                    disabled={loading}
+                  />
                 </View>
+              )}
 
-                <Input label="Mật khẩu" placeholder="••••••••" value={password} onChangeText={setPassword} secureTextEntry />
-                <Input label="Xác nhận mật khẩu" placeholder="••••••••" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
-                
-                <Button title={loading ? "Đang xử lý..." : "Hoàn tất đăng ký"} onPress={handleRegister} />
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Đã có tài khoản? </Text>
+                <TouchableOpacity onPress={() => onNavigate && onNavigate('login')}>
+                  <Text style={styles.footerLink}>Đăng nhập ngay</Text>
+                </TouchableOpacity>
               </View>
-            )}
-
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Đã có tài khoản? </Text>
-              <TouchableOpacity onPress={() => onNavigate && onNavigate('login')}>
-                <Text style={styles.footerLink}>Đăng nhập</Text>
-              </TouchableOpacity>
-            </View>
+            </BlurView>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -226,61 +254,51 @@ export default function RegisterScreen({ onNavigate }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f8fafc' },
+  safeArea: { flex: 1, backgroundColor: Colors.surface },
   flex: { flex: 1 },
-  scrollContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 30,
-    padding: 24,
-    width: '100%',
-    maxWidth: 450,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  brandBar: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  logoCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#135bec',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  logoText: { color: '#fff', fontWeight: '900', fontSize: 16 },
-  brandName: { fontSize: 22, fontWeight: '900', color: '#135bec', letterSpacing: -1 },
-  titleSection: { marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: '800', color: '#111318', marginBottom: 4 },
-  subtitle: { fontSize: 14, color: '#64748b' },
-  stepContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 30 },
-  stepCircle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  stepCircleActive: { backgroundColor: '#135bec' },
-  stepCircleInactive: { backgroundColor: '#f1f5f9' },
-  stepText: { fontWeight: 'bold', fontSize: 14 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingVertical: 40 },
+  blob: { position: 'absolute', borderRadius: 200, opacity: 0.5 },
+  blobTopRight: { top: -100, left: -100, width: 300, height: 300, backgroundColor: 'rgba(0, 65, 143, 0.08)' },
+  blobBottomLeft: { bottom: -100, right: -100, width: 250, height: 250, backgroundColor: 'rgba(75, 94, 134, 0.1)' },
+  
+  headerContainer: { alignItems: 'center', marginBottom: 24 },
+  logoBox: { width: 56, height: 56, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 12, ...Shadows.glow },
+  logoIcon: { color: '#ffffff', ...Typography.heading, fontSize: 18 },
+  brandTitle: { ...Typography.heading, fontSize: 24, color: Colors.primary },
+  
+  stepContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 32 },
+  stepCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', ...Shadows.medium },
+  stepCircleActive: { backgroundColor: Colors.primary },
+  stepCircleCompleted: { backgroundColor: Colors.secondaryContainer },
+  stepCircleInactive: { backgroundColor: Colors.surfaceContainerHighest, elevation: 0, shadowOpacity: 0 },
+  stepText: { ...Typography.heading, fontSize: 14 },
+  stepTextCompleted: { fontFamily: 'Material Symbols Outlined', fontSize: 18, color: Colors.onSecondaryContainer },
   stepTextActive: { color: '#fff' },
-  stepTextInactive: { color: '#94a3b8' },
-  stepLine: { flex: 0.1, h: 2, height: 2, mx: 8 },
-  stepLineActive: { backgroundColor: '#135bec' },
-  stepLineInactive: { backgroundColor: '#f1f5f9' },
-  form: { width: '100%' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  backBtn: { flex: 1, height: 48, justifyContent: 'center', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  backBtnText: { fontWeight: '700', color: '#64748b' },
-  otpLabel: { textAlign: 'center', fontSize: 13, color: '#64748b', marginBottom: 16 },
-  genderLabel: { fontSize: 14, fontWeight: '600', color: '#111318', marginBottom: 8 },
-  genderContainer: { flexDirection: 'row', gap: 10, marginBottom: 20, backgroundColor: '#f1f5f9', padding: 4, borderRadius: 12 },
-  genderBox: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  genderBoxActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width:0, height:2 }, shadowOpacity:0.05, elevation:2 },
-  genderBoxActiveFemale: { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width:0, height:2 }, shadowOpacity:0.05, elevation:2 },
-  genderBoxText: { fontWeight: '700', color: '#64748b', fontSize: 14 },
-  genderBoxTextActive: { color: '#135bec' },
-  genderBoxTextActiveFemale: { color: '#ec4899' },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 10 },
-  footerText: { fontSize: 14, color: '#64748b' },
-  footerLink: { fontSize: 14, color: '#135bec', fontWeight: '800' },
-  errorText: { color: '#ef4444', fontSize: 12, marginTop: -15, marginBottom: 15, marginLeft: 4, fontWeight: '600' },
+  stepTextInactive: { color: Colors.outline },
+  stepLine: { flex: 1, height: 2, marginHorizontal: 8, maxWidth: 40, borderRadius: 2 },
+  stepLineActive: { backgroundColor: Colors.outlineVariant },
+  stepLineInactive: { backgroundColor: Colors.surfaceContainerHighest },
+  
+  cardContainer: { borderRadius: 32, overflow: 'hidden', ...Shadows.medium },
+  glassCard: { padding: 24, backgroundColor: 'rgba(255, 255, 255, 0.8)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.6)', borderRadius: 32 },
+  cardTitle: { ...Typography.heading, fontSize: 24, color: Colors.onSurface, marginBottom: 8, textAlign: 'center' },
+  subtitle: { ...Typography.body, fontSize: 14, color: Colors.onSurfaceVariant, textAlign: 'center', marginBottom: 24 },
+  
+  form: { width: '100%', marginTop: 10 },
+  otpLabel: { textAlign: 'center', fontSize: 14, color: Colors.onSurfaceVariant, marginBottom: 24, ...Typography.body },
+  
+  genderLabel: { ...Typography.label, fontSize: 13, color: Colors.onSurfaceVariant, marginBottom: 8, paddingHorizontal: 4 },
+  genderContainer: { flexDirection: 'row', backgroundColor: Colors.surfaceContainerHighest, padding: 4, borderRadius: 16 },
+  genderBox: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12 },
+  genderBoxActive: { backgroundColor: Colors.surfaceContainerLowest, ...Shadows.soft },
+  genderBoxInactive: { backgroundColor: 'transparent' },
+  genderBoxText: { ...Typography.heading, fontSize: 14 },
+  genderBoxTextActive: { color: Colors.primary },
+  genderBoxTextInactive: { color: Colors.onSurfaceVariant },
+  
+  errorText: { ...Typography.label, color: Colors.error, fontSize: 12, marginTop: -16, marginBottom: 16, paddingLeft: 12 },
+  
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 16 },
+  footerText: { ...Typography.body, fontSize: 14, color: Colors.onSurfaceVariant },
+  footerLink: { ...Typography.label, fontSize: 14, color: Colors.primary },
 });
