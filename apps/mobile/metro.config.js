@@ -20,9 +20,10 @@ config.resolver.nodeModulesPaths = [
 //    ever one React instance at runtime — prevents "Invalid hook call" errors.
 config.resolver.extraNodeModules = {
   ...config.resolver.extraNodeModules,
-  react: path.resolve(projectRoot, 'node_modules/react'),
-  'react-dom': path.resolve(projectRoot, 'node_modules/react-dom'),
-  'react-native': path.resolve(projectRoot, 'node_modules/react-native'),
+  react: path.resolve(workspaceRoot, 'node_modules/react'),
+  'react-dom': path.resolve(workspaceRoot, 'node_modules/react-dom'),
+  'react-native': path.resolve(workspaceRoot, 'node_modules/react-native'),
+  'react-native-web': path.resolve(workspaceRoot, 'node_modules/react-native-web'),
 };
 
 module.exports = config;

@@ -8,8 +8,8 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Alert,
 } from 'react-native';
+import Alert from '../utils/Alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Input from '../components/Input';

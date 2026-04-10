@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, SafeAreaView,
   KeyboardAvoidingView, Platform, ScrollView,
-  StyleSheet, Alert,
+  StyleSheet,
 } from 'react-native';
+import Alert from '../utils/Alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Input from '../components/Input';

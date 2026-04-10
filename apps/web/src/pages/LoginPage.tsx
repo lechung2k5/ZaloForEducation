@@ -8,7 +8,7 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -16,7 +16,7 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    
+
     try {
       await login(email, password);
       navigate('/');
@@ -32,7 +32,7 @@ const LoginPage: React.FC = () => {
       {/* Background Decorative Elements */}
       <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-secondary/10 rounded-full blur-[80px] pointer-events-none"></div>
-      
+
       {/* Side Graphic (Decorative Bento elements implied for larger screens) */}
       <div className="hidden lg:block fixed left-12 top-1/2 -translate-y-1/2 w-64 space-y-4 opacity-40">
         <div className="h-32 bg-primary/10 rounded-xl"></div>
@@ -60,7 +60,7 @@ const LoginPage: React.FC = () => {
         {/* Glass-morphic Login Card */}
         <section className="w-full academic-glass rounded-[2rem] p-8 md:p-10 shadow-[0px_20px_40px_rgba(0,65,143,0.06)] ring-1 ring-white/20">
           <h2 className="text-2xl font-bold text-on-surface mb-8 tracking-tight">Đăng nhập</h2>
-          
+
           {error && (
             <div className="bg-error-container text-on-error-container p-4 rounded-2xl mb-6 text-sm font-medium border border-error/20 animate-fade-in">
               {error}
@@ -75,9 +75,9 @@ const LoginPage: React.FC = () => {
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <span className="material-symbols-outlined text-outline text-xl group-focus-within:text-primary transition-colors">person</span>
                 </div>
-                <input 
+                <input
                   type="email"
-                  className="w-full bg-surface-container-highest border-none rounded-2xl py-4 pl-12 pr-4 text-on-surface placeholder:text-outline transition-all duration-300 focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest outline-none" 
+                  className="w-full bg-surface-container-highest border-none rounded-2xl py-4 pl-12 pr-4 text-on-surface placeholder:text-outline transition-all duration-300 focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest outline-none"
                   placeholder="user@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -96,15 +96,15 @@ const LoginPage: React.FC = () => {
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <span className="material-symbols-outlined text-outline text-xl group-focus-within:text-primary transition-colors">lock</span>
                 </div>
-                <input 
+                <input
                   type={showPassword ? 'text' : 'password'}
-                  className="w-full bg-surface-container-highest border-none rounded-2xl py-4 pl-12 pr-12 text-on-surface placeholder:text-outline transition-all duration-300 focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest outline-none" 
+                  className="w-full bg-surface-container-highest border-none rounded-2xl py-4 pl-12 pr-12 text-on-surface placeholder:text-outline transition-all duration-300 focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest outline-none"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
-                <div 
+                <div
                   className="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer"
                   onClick={() => setShowPassword(!showPassword)}
                 >
@@ -116,8 +116,8 @@ const LoginPage: React.FC = () => {
             </div>
 
             {/* Primary Login Button */}
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={loading}
               className="w-full signature-gradient text-white font-bold py-4 rounded-2xl inner-glow shadow-lg shadow-primary/25 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -151,7 +151,7 @@ const LoginPage: React.FC = () => {
           {/* Social Login */}
           <div className="grid grid-cols-1 gap-4">
             <button className="flex items-center justify-center gap-3 w-full bg-surface-container-lowest border border-outline-variant/20 py-4 rounded-2xl hover:bg-surface-container-low transition-all duration-300 active:scale-[0.98]">
-              <img alt="Google Logo" className="w-6 h-6" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPE-Hs2sXxF9RWnHVJmc9fl7OCnvNjpdSeR2gViU90OjYvOGyo3J519Ct4X1IRo7cmyQMNiuuX4zEC3lyTYvTy-69cXAR_Oia3hr_Sz7-wETfp3Vo0sK9DEZ_uJoSJ9Fe5ORgxINXXgFGszhwAtQclIiYY8AcRPS5GGU5IGiDlCVyBXkaFnCB4JzPJxqmehQCcD38q5wvkcv9xWLkIT0i2dah9CRhyvZi6SSKr7eXUtOz1pyy0h8yCfTmyV7EBJxs-VBE3omB3Wg" />
+              <img alt="Google Logo" className="w-6 h-6" src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Google_Favicon_2025.svg/250px-Google_Favicon_2025.svg.png" />
               <span className="font-bold text-on-surface">Tiếp tục với Google</span>
             </button>
           </div>
@@ -160,7 +160,7 @@ const LoginPage: React.FC = () => {
         {/* Footer Links */}
         <footer className="mt-8 flex flex-col items-center gap-6">
           <p className="text-on-surface-variant font-medium">
-            Bạn mới sử dụng ZaloEdu? 
+            Bạn mới sử dụng ZaloEdu?
             <Link to="/register" className="text-primary font-bold hover:underline ml-1">Đăng ký ngay</Link>
           </p>
           <nav className="flex items-center gap-6 text-sm font-semibold text-outline">
