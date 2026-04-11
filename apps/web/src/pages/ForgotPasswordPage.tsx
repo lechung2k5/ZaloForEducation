@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { useAuth } from '../context/AuthContext';
 
 type Step = 'email' | 'otp' | 'reset';
 
@@ -17,7 +16,10 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [canResend, setCanResend] = useState(true);
   
+  const { requestForgotPassword, resetPassword, resendOtp } = useAuth();
   const navigate = useNavigate();
 
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -29,16 +31,35 @@ export default function ForgotPasswordPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/forgot-password/request-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (res.ok) setStep('otp');
-      else setError(data.message);
-    } catch {
-      setError('Không thể kết nối server');
+      await requestForgotPassword(email);
+      setStep('otp');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Không thể gửi mã OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!canResend) return;
+    setLoading(true);
+    setError('');
+    try {
+      await resendOtp(email, 'forgot_password');
+      setCanResend(false);
+      setResendTimer(60);
+      const timer = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Không thể gửi lại mã OTP');
     } finally {
       setLoading(false);
     }
@@ -60,21 +81,8 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError('');
     if (currentOtp.length !== 6) { setError('Mã OTP phải có 6 chữ số'); return; }
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/auth/forgot-password/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: currentOtp }),
-      });
-      const data = await res.json();
-      if (res.ok) setStep('reset');
-      else setError(data.message);
-    } catch {
-      setError('Không thể kết nối server');
-    } finally {
-      setLoading(false);
-    }
+    // Ở web flow này ta đơn giản là cho qua bước tiếp theo và sẽ verify thật sự ở handleResetPassword
+    setStep('reset');
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -90,26 +98,17 @@ export default function ForgotPasswordPage() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/forgot-password/reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: currentOtp, newPassword }),
+      await resetPassword({ email, otp: currentOtp, newPassword });
+      await Swal.fire({
+        icon: 'success',
+        title: 'Thành công!',
+        text: 'Mật khẩu đã được đặt lại thành công! Bạn có thể đăng nhập bằng mật khẩu mới.',
+        confirmButtonColor: '#00418f',
+        confirmButtonText: 'Đăng nhập ngay'
       });
-      const data = await res.json();
-      if (res.ok) {
-        await Swal.fire({
-          icon: 'success',
-          title: 'Thành công!',
-          text: 'Mật khẩu đã được đặt lại thành công! Bạn có thể đăng nhập bằng mật khẩu mới.',
-          confirmButtonColor: '#00418f',
-          confirmButtonText: 'Đăng nhập ngay'
-        });
-        navigate('/login');
-      } else {
-        setError(data.message);
-      }
-    } catch {
-      setError('Không thể kết nối server');
+      navigate('/login');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Có lỗi khi đặt lại mật khẩu');
     } finally {
       setLoading(false);
     }
@@ -167,6 +166,14 @@ export default function ForgotPasswordPage() {
               </form>
 
               <div className="flex flex-col items-center gap-4">
+                <button 
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={!canResend || loading}
+                  className="text-sm font-semibold text-primary hover:underline disabled:opacity-50 disabled:no-underline"
+                >
+                  {resendTimer > 0 ? `Gửi lại mã (${resendTimer}s)` : 'Gửi lại mã OTP'}
+                </button>
                 <button onClick={() => setStep('email')} className="text-sm font-semibold text-outline hover:text-primary transition-colors duration-200">
                   Đổi email khác
                 </button>

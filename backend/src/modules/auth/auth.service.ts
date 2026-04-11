@@ -18,7 +18,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly sessionService: SessionService,
     private readonly chatGateway: ChatGateway,
-  ) {}
+  ) { }
 
   async requestRegisterOtp(email: string) {
     const existingUser = await this.db.docClient.send(new GetCommand({
@@ -93,12 +93,7 @@ export class AuthService {
     // Đảm bảo deviceId luôn có giá trị để tránh lỗi DynamoDB UpdateExpression
     const deviceId = dto.deviceId || `unknown-${Date.now()}`;
 
-    // 1. Nếu đang có thiết bị khác đăng nhập, gửi tín hiệu logout cho nó
-    if (user.currentDeviceId && user.currentDeviceId !== deviceId) {
-      this.chatGateway.notifyForceLogout(user.email, deviceId);
-    }
-
-    // 2. Cập nhật deviceId mới vào User record
+    // 2. Cập nhật deviceId mới vào User record (chỉ để track thiết bị cuối cùng)
     await this.db.docClient.send(new UpdateCommand({
       TableName: this.db.tableName,
       Key: { PK: `USER#${dto.email}`, SK: 'METADATA' },
@@ -109,10 +104,56 @@ export class AuthService {
       },
     }));
 
-    // 3. Tạo Session quản lý trong DB
-    await this.sessionService.createSession(user.email, deviceId);
+    // 3. LOGIC: 1 THIẾT BỊ MỖI NỀN TẢNG (1 WEB + 1 APP)
+    const activeSessions = await this.sessionService.getSessions(user.email);
+    
+    // Phân loại thiết bị đang đăng nhập
+    const isIncomingApp = deviceId.startsWith('android-') || deviceId.startsWith('ios-') || dto.deviceType === 'mobile';
+    const isIncomingWeb = deviceId.startsWith('web-') || dto.deviceType === 'desktop' || dto.deviceType === 'web';
 
-    // 4. Trả về Token
+    console.log(`[AUTH] Login detect: user=${user.email}, isApp=${isIncomingApp}, isWeb=${isIncomingWeb}, type=${dto.deviceType}`);
+
+    for (const oldId of activeSessions) {
+      if (oldId === deviceId) continue;
+
+      // Lấy thông tin chi tiết của session cũ để phân loại chính xác
+      const oldSession = await this.sessionService.getSession(oldId);
+      if (!oldSession) continue;
+
+      const isOldApp = oldId.startsWith('android-') || oldId.startsWith('ios-') || oldSession.deviceType === 'mobile';
+      const isOldWeb = oldId.startsWith('web-') || oldSession.deviceType === 'desktop' || oldSession.deviceType === 'web';
+
+      console.log(`[AUTH] Comparing with old session: ${oldId}, isOldApp=${isOldApp}, isOldWeb=${isOldWeb}`);
+
+      if ((isIncomingApp && isOldApp) || (isIncomingWeb && isOldWeb)) {
+        console.log(`[AUTH] Matches conflict rule. Kicking: ${oldId}`);
+        await this.sessionService.removeSession(user.email, oldId);
+        this.chatGateway.notifyForceLogout(user.email, oldId);
+        this.chatGateway.notifySessionsUpdate(user.email);
+      }
+    }
+
+    // 4. Tạo/Cập nhật Session trong Redis & Lưu lịch sử thiết bị vào DynamoDB
+    const metadata = { deviceName: dto.deviceName, deviceType: dto.deviceType };
+    await this.sessionService.createSession(user.email, deviceId, metadata);
+
+    await this.db.docClient.send(new PutCommand({
+      TableName: this.db.tableName,
+      Item: {
+        PK: `USER#${user.email}`,
+        SK: `DEVICE#${deviceId}`,
+        email: user.email,
+        deviceId,
+        deviceName: dto.deviceName || 'Unknown Device',
+        deviceType: dto.deviceType || 'unknown',
+        lastLoginAt: new Date().toISOString(),
+      },
+    }));
+
+    // 5. Thông báo cập nhật danh sách thiết bị thời gian thực
+    this.chatGateway.notifySessionsUpdate(user.email);
+
+    // 6. Trả về Token
     const payload = { sub: user.email, email: user.email };
     return {
       accessToken: this.jwtService.sign(payload),
@@ -172,5 +213,73 @@ export class AuthService {
     }));
 
     return { message: 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.' };
+  }
+
+  async logout(email: string, deviceId: string) {
+    await this.sessionService.removeSession(email, deviceId);
+    this.chatGateway.notifyForceLogout(email, deviceId); 
+    this.chatGateway.notifySessionsUpdate(email); // Real-time update list
+    return { message: 'Đăng xuất thành công.' };
+  }
+
+  async logoutAll(email: string) {
+    await this.sessionService.removeAllSessions(email);
+    this.chatGateway.notifyForceLogout(email, 'ALL'); 
+    this.chatGateway.notifySessionsUpdate(email); // Real-time update list
+    return { message: 'Đã đăng xuất khỏi tất cả các thiết bị.' };
+  }
+
+  async getActiveSessions(email: string) {
+    const deviceIds = await this.sessionService.getSessions(email);
+    const sessions = [];
+
+    console.log(`[AUTH] Fetching sessions for ${email}. Found in set: ${JSON.stringify(deviceIds)}`);
+
+    for (const deviceId of deviceIds) {
+      const session = await this.sessionService.getSession(deviceId);
+      if (session) {
+        sessions.push(session);
+      } else {
+        // Strict cleanup: Nếu ID có trong SET nhưng dữ liệu session đã hết hạn/mất, xóa khỏi SET luôn
+        console.warn(`[AUTH] Cleaning up ghost session for ${deviceId}`);
+        await this.sessionService.removeSession(email, deviceId);
+      }
+    }
+
+    // Trả về danh sách đã sắp xếp: Mới nhất lên đầu
+    const sorted = sessions.sort((a, b) => {
+      const timeA = new Date(a.loginAt || a.lastActiveAt).getTime();
+      const timeB = new Date(b.loginAt || b.lastActiveAt).getTime();
+      return timeB - timeA;
+    });
+
+    return { sessions: sorted };
+  }
+
+  async resendOtp(email: string, type: 'register' | 'forgot_password') {
+    const code = await this.otpService.createOtp(email, type);
+    await this.emailService.sendOtp(email, code, type);
+    return { message: 'Đã gửi lại mã OTP mới.' };
+  }
+
+  async verifyOtpGeneric(email: string, otp: string) {
+    await this.otpService.verifyOtp(email, otp);
+    return { message: 'Xác thực mã OTP thành công.' };
+  }
+
+  async refreshToken(email: string) {
+    const payload = { sub: email, email };
+    return {
+      accessToken: this.jwtService.sign(payload)
+    };
+  }
+
+  async testEmail(email: string) {
+    await this.emailService.sendMail(
+      email,
+      'ZaloEdu - Test Email Configuration',
+      '<h1>Cấu hình Email thành công!</h1><p>Bạn nhận được thư này tức là hệ thống SMTP đã hoạt động tốt.</p>'
+    );
+    return { message: 'Đã gửi email test thành công.' };
   }
 }

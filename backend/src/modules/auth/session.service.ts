@@ -4,28 +4,60 @@ import { UserSession } from '@zalo-edu/shared';
 
 @Injectable()
 export class SessionService {
-  constructor(private readonly redis: RedisService) { }
+  constructor(public readonly redis: RedisService) { }
 
-  async createSession(userId: string, deviceId: string) {
-    // 1. Logic 1 thiết bị: Xóa session cũ của user trong Redis
-    // (Trong phiên bản này ta đơn giản hóa là overwrite key nếu dùng chung key pattern, 
-    // hoặc lưu map USER_SESSIONS#userId -> deviceId)
-    const userSessionKey = `USER_ACTIVE_SESSION#${userId}`;
-    
-    // 2. Tạo phiên mới
+  async getSession(deviceId: string) {
     const sessionId = `SESSION#${deviceId}`;
-    const newSession: UserSession = {
-      id: sessionId,
+    const data = await this.redis.get(sessionId);
+    return data ? JSON.parse(data) : null;
+  }
+
+  async createSession(userId: string, deviceId: string, metadata?: { deviceName?: string, deviceType?: string }) {
+    const userSessionsKey = `USER_SESSIONS#${userId}`;
+    const sessionId = `SESSION#${deviceId}`;
+    
+    // 1. Dữ liệu session chi tiết
+    const sessionData = {
+      deviceId,
       userId,
-      isActive: true,
+      deviceName: metadata?.deviceName || 'Thiết bị không xác định',
+      deviceType: metadata?.deviceType || 'unknown',
+      loginAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
+      isActive: true,
     };
+    
+    // 2. Lưu vào Redis (30 ngày)
+    await this.redis.set(sessionId, JSON.stringify(sessionData), 86400 * 30);
+    
+    // 3. Quản lý danh sách thiết bị của User (SET)
+    await this.redis.sAdd(userSessionsKey, deviceId);
+    await this.redis.expire(userSessionsKey, 86400 * 30);
 
-    // Lưu vào Redis: SESSION#deviceId -> userId (để auth) 
-    // và USER_ACTIVE_SESSION#userId -> deviceId (để thực hiện 1 thiết bị)
-    await this.redis.set(sessionId, userId, 86400 * 30); // 30 days
-    await this.redis.set(userSessionKey, deviceId, 86400 * 30);
+    return sessionData;
+  }
 
-    return newSession;
+  async getSessions(userId: string): Promise<string[]> {
+    const userSessionsKey = `USER_SESSIONS#${userId}`;
+    return await this.redis.sMembers(userSessionsKey);
+  }
+
+  async removeSession(userId: string, deviceId: string) {
+    const userSessionsKey = `USER_SESSIONS#${userId}`;
+    const sessionId = `SESSION#${deviceId}`;
+    
+    await this.redis.del(sessionId);
+    await this.redis.sRem(userSessionsKey, deviceId);
+  }
+
+  async removeAllSessions(userId: string) {
+    const userSessionsKey = `USER_SESSIONS#${userId}`;
+    const deviceIds = await this.redis.sMembers(userSessionsKey);
+    
+    for (const deviceId of deviceIds) {
+      await this.redis.del(`SESSION#${deviceId}`);
+    }
+    
+    await this.redis.del(userSessionsKey);
   }
 }

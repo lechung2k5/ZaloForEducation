@@ -21,7 +21,10 @@ const RegisterPage: React.FC = () => {
   // Extra state for OTP inputs (combining 6 digits)
   const [otpArray, setOtpArray] = useState(['', '', '', '', '', '']);
 
-  const { requestRegisterOtp, confirmRegister } = useAuth();
+  const [resendTimer, setResendTimer] = useState(0);
+  const [canResend, setCanResend] = useState(true);
+
+  const { requestRegisterOtp, confirmRegister, resendOtp } = useAuth();
   const navigate = useNavigate();
 
   const handleRequestOtp = async (e: React.FormEvent) => {
@@ -63,6 +66,31 @@ const RegisterPage: React.FC = () => {
     if (value && index < 5) {
       const nextInput = document.getElementById(`otp-${index + 1}`) as HTMLInputElement;
       if (nextInput) nextInput.focus();
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!canResend) return;
+    setLoading(true);
+    setError('');
+    try {
+      await resendOtp(email, 'register');
+      setCanResend(false);
+      setResendTimer(60);
+      const timer = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Không thể gửi lại mã OTP.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -309,6 +337,14 @@ const RegisterPage: React.FC = () => {
               </form>
 
               <div className="flex flex-col items-center gap-4">
+                <button 
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={!canResend || loading}
+                  className="text-sm font-semibold text-primary hover:underline disabled:opacity-50 disabled:no-underline"
+                >
+                  {resendTimer > 0 ? `Gửi lại mã (${resendTimer}s)` : 'Gửi lại mã OTP'}
+                </button>
                 <button onClick={() => setStep(1)} className="text-sm font-semibold text-outline hover:text-primary transition-colors duration-200">
                   Quay lại để sửa Email
                 </button>

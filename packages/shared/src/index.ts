@@ -9,12 +9,66 @@ export interface User {
   phone: string;
   urlAvatar?: string;
   album?: any[];
+  address?: string;
+  bio?: string;
   passwordHash: string;
   currentDeviceId?: string;
   lastLoginAt: string;
   createdAt: string;
+  updatedAt?: string;
   status: 'active' | 'suspended';
 }
+
+export interface FileURL {
+  fileName: string;
+  fileType: string;
+  fileUrl: string;
+}
+
+export interface Conversation {
+  id: string; // CONV#<id>
+  name?: string;
+  avatar?: string;
+  admin?: string; // string representing user email/id
+  members: string[]; // array of user emails/ids
+  type: 'direct' | 'group';
+  lastMessage?: string; // messageId
+  isDelete?: boolean;
+  delete_history?: string[];
+  approvedMembers?: boolean;
+  listApprovedMembers?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Friendship {
+  id: string; // generated ID or combined string
+  sender_id: string; // User email
+  receiver_id: string; // User email
+  status: 'pending' | 'accepted' | 'declined';
+  content?: string;
+  type?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Message {
+  id: string; // MSG#<timestamp>#<randomId>
+  conversationId: string;
+  senderId: string;
+  content: string;
+  attachments?: string[];
+  media?: FileURL[];
+  files?: FileURL[];
+  like?: string[]; // Array of user emails who liked
+  seen?: string[]; // Array of user emails who saw
+  replyTo?: string; // msgId
+  revoked?: boolean;
+  removed?: string[]; // user emails
+  type: 'text' | 'image' | 'video' | 'file' | 'system';
+  createdAt: string;
+}
+
 
 export interface OtpCode {
   id: string; // OTP#<email>
@@ -46,6 +100,8 @@ export interface LoginRequestDto {
   email: string;
   password: string;
   deviceId: string;
+  deviceName?: string;
+  deviceType?: string;
 }
 
 export interface ApiResponse<T = any> {

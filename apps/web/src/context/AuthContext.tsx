@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
 import { io } from 'socket.io-client';
-import { v4 as uuidv4 } from 'uuid';
+import { getDeviceId, getDeviceInfo } from '../utils/device';
 
 interface AuthContextType {
   user: any;
@@ -9,7 +9,15 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   requestRegisterOtp: (email: string) => Promise<void>;
   confirmRegister: (data: any) => Promise<void>;
+  resendOtp: (email: string, type: 'register' | 'forgot_password') => Promise<void>;
+  requestForgotPassword: (email: string) => Promise<void>;
+  resetPassword: (data: any) => Promise<void>;
+  getSessions: () => Promise<any[]>;
+  revokeSession: (deviceId: string) => Promise<void>;
   logout: () => void;
+  logoutAll: () => Promise<void>;
+  socket: any;
+  deviceId: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,14 +25,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [deviceId] = useState(() => {
-    let id = localStorage.getItem('deviceId');
-    if (!id) {
-      id = uuidv4();
-      localStorage.setItem('deviceId', id);
-    }
-    return id;
-  });
+  const [socket, setSocket] = useState<any>(null);
+  const [deviceId] = useState(() => getDeviceId());
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -37,20 +39,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const setupSocket = (email: string) => {
-    const socket = io('http://localhost:3000');
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const newSocket = io(apiUrl);
     
-    socket.on(`force_logout_${email}`, (data) => {
-      if (data.newDeviceId !== deviceId) {
-        alert('Tài khoản của bạn đã được đăng nhập ở một thiết bị khác. Bạn sẽ bị đăng xuất.');
-        logout();
+    newSocket.on('connect', () => {
+      console.log('Connected to socket server');
+      newSocket.emit('join_identity', { email });
+    });
+
+    newSocket.on('force_logout', (data) => {
+      if (data.targetDeviceId === deviceId || data.all) {
+        alert('Phiên đăng nhập của bạn đã hết hạn hoặc bị đăng xuất từ thiết bị khác.');
+        logoutLocal();
       }
     });
 
-    return () => socket.disconnect();
+    setSocket(newSocket);
+    return () => newSocket.disconnect();
   };
 
   const login = async (email: string, password: string) => {
-    const res = await api.post('/auth/login', { email, password, deviceId });
+    const { deviceName, deviceType } = getDeviceInfo();
+    const res = await api.post('/auth/login', { 
+      email, 
+      password, 
+      deviceId,
+      deviceName,
+      deviceType
+    });
     const { accessToken, user: userData } = res.data;
     
     localStorage.setItem('token', accessToken);
@@ -60,22 +76,79 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const requestRegisterOtp = async (email: string) => {
-    await api.post('/auth/register/request-otp', { email });
+    await api.post('/auth/register', { email });
   };
 
   const confirmRegister = async (data: any) => {
     await api.post('/auth/register/confirm', data);
   };
 
-  const logout = () => {
+  const resendOtp = async (email: string, type: 'register' | 'forgot_password') => {
+    await api.post('/auth/resend-otp', { email, type });
+  };
+
+  const requestForgotPassword = async (email: string) => {
+    await api.post('/auth/forgot-password', { email });
+  };
+
+  const resetPassword = async (data: any) => {
+    await api.post('/auth/reset-password', data);
+  };
+
+  const getSessions = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return [];
+      const res = await api.get('/auth/sessions');
+      const data = res.data;
+      return Array.isArray(data) ? data : (data.sessions || []);
+    } catch (err) {
+      console.error('Error fetching sessions', err);
+      return [];
+    }
+  };
+
+  const revokeSession = async (targetDeviceId: string) => {
+    try {
+      await api.delete(`/auth/sessions/${targetDeviceId}`);
+    } catch (err) {
+      console.error('Revoke session error', err);
+      throw err;
+    }
+  };
+
+  const logoutLocal = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
     window.location.href = '/login';
   };
 
+  const logout = async () => {
+    try {
+      if (user) {
+        await api.post('/auth/logout', { email: user.email, deviceId });
+      }
+    } catch (err) {
+      console.error('Logout error', err);
+    } finally {
+      logoutLocal();
+    }
+  };
+
+  const logoutAll = async () => {
+    if (user) {
+      await api.post('/auth/logout-all', { email: user.email });
+      logoutLocal();
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, requestRegisterOtp, confirmRegister, logout }}>
+    <AuthContext.Provider value={{ 
+      user, loading, login, requestRegisterOtp, confirmRegister, 
+      resendOtp, requestForgotPassword, resetPassword, getSessions, 
+      revokeSession, logout, logoutAll, socket, deviceId 
+    }}>
       {children}
     </AuthContext.Provider>
   );

@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import SessionsPage from './pages/SessionsPage';
 import './App.css';
 
 // Component bảo vệ Route
@@ -32,6 +33,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <HomePage />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/sessions" 
+              element={
+                <PrivateRoute>
+                  <SessionsPage />
                 </PrivateRoute>
               } 
             />

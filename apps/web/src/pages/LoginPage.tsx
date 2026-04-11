@@ -70,7 +70,7 @@ const LoginPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email/Username Field */}
             <div className="space-y-2">
-              <label className="block text-sm font-semibold text-on-surface-variant ml-1">Email hoặc Tên đăng nhập</label>
+              <label className="block text-sm font-semibold text-on-surface-variant ml-1">Email</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <span className="material-symbols-outlined text-outline text-xl group-focus-within:text-primary transition-colors">person</span>

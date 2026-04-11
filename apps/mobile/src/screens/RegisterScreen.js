@@ -28,6 +28,8 @@ export default function RegisterScreen({ onNavigate }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [canResend, setCanResend] = useState(true);
 
   const handleRequestOtp = async () => {
     if (!email.endsWith('@gmail.com')) {
@@ -52,6 +54,41 @@ export default function RegisterScreen({ onNavigate }) {
       }
     } catch (error) {
       Alert.alert('Lỗi', 'Không thể kết nối server');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!canResend) return;
+    setLoading(true);
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+    try {
+      const response = await fetch(`${apiUrl}/auth/resend-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, type: 'register' }),
+      });
+
+      if (response.ok) {
+        setCanResend(false);
+        setResendTimer(60);
+        const timer = setInterval(() => {
+          setResendTimer((prev) => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              setCanResend(true);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        const data = await response.json();
+        Alert.alert('Lỗi', data.message || 'Không thể gửi lại mã OTP');
+      }
+    } catch (error) {
+      Alert.alert('Lỗi', 'Lỗi kết nối server');
     } finally {
       setLoading(false);
     }
@@ -195,6 +232,19 @@ export default function RegisterScreen({ onNavigate }) {
                     onPress={handleVerifyOtp} 
                     icon="arrow_forward"
                   />
+                  <TouchableOpacity 
+                    onPress={handleResendOtp} 
+                    disabled={!canResend || loading}
+                    style={{ marginVertical: 12, alignItems: 'center' }}
+                  >
+                    <Text style={{ 
+                      color: canResend ? Colors.primary : Colors.outline, 
+                      fontWeight: '700',
+                      textDecorationLine: canResend ? 'underline' : 'none'
+                    }}>
+                      {resendTimer > 0 ? `Gửi lại mã (${resendTimer}s)` : 'Gửi lại mã OTP'}
+                    </Text>
+                  </TouchableOpacity>
                   <Button 
                     title="Quay lại" 
                     onPress={() => setStep(1)} 
