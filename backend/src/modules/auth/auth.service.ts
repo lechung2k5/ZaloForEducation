@@ -1,13 +1,13 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { LoginRequestDto, RegisterRequestDto, User } from '@zalo-edu/shared';
 import * as bcrypt from 'bcrypt';
 import { DynamoDBService } from '../../infrastructure/dynamodb.service';
-import { OtpService } from '../otp/otp.service';
 import { EmailService } from '../../infrastructure/email/email.service';
-import { SessionService } from './session.service';
 import { ChatGateway } from '../chat/chat.gateway';
-import { PutCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { RegisterRequestDto, LoginRequestDto, User } from '@zalo-edu/shared';
+import { OtpService } from '../otp/otp.service';
+import { SessionService } from './session.service';
 
 @Injectable()
 export class AuthService {
@@ -160,6 +160,16 @@ export class AuthService {
       user: {
         email: user.email,
         fullName: user.fullName,
+        fullname: user.fullName,
+        avatarUrl: user.avatarUrl || user.urlAvatar || '',
+        urlAvatar: user.urlAvatar || user.avatarUrl || '',
+        backgroundUrl: user.backgroundUrl || user.urlBackground || '',
+        urlBackground: user.urlBackground || user.backgroundUrl || '',
+        gender: user.gender,
+        dataOfBirth: user.dataOfBirth,
+        phone: user.phone,
+        address: user.address,
+        bio: user.bio,
       },
     };
   }

@@ -1,12 +1,13 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import HomePage from './pages/HomePage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import SessionsPage from './pages/SessionsPage';
+import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import './App.css';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
+import ProfilePage from './pages/ProfilePage';
+import RegisterPage from './pages/RegisterPage';
+import SessionsPage from './pages/SessionsPage';
 
 // Component bảo vệ Route
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -41,6 +42,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <SessionsPage />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/profile" 
+              element={
+                <PrivateRoute>
+                  <ProfilePage />
                 </PrivateRoute>
               } 
             />

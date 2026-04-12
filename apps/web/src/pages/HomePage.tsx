@@ -1,18 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import { Link } from 'react-router-dom';
 
 const HomePage: React.FC = () => {
   const { user, logout, socket } = useAuth();
   
   // STATE MANAGEMENT giống cấu trúc Zalo
   const [activeTab, setActiveTab] = useState<'chat' | 'contacts' | 'notifications' | 'cloud'>('chat');
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [selectedChat, setSelectedChat] = useState<any | null>(null);
   const [conversations, setConversations] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const displayName = user?.fullName || user?.fullname || 'Bạn';
+  const displayAvatar = user?.avatarUrl || user?.urlAvatar || 'https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png';
 
   // FETCH CONVERSATIONS ON LOAD
   useEffect(() => {
@@ -116,12 +119,52 @@ const HomePage: React.FC = () => {
       
       {/* COLUMN 1: SideNavBar (80px wide) */}
       <aside className="fixed left-0 top-0 h-full z-50 w-20 flex flex-col items-center py-6 bg-gradient-to-br from-[#0058bc] to-[#00418f] shadow-[0px_20px_40px_rgba(0,65,143,0.06)] shrink-0">
-        <div className="mb-8">
-          <img 
-            alt="User Avatar" 
-            className="w-12 h-12 rounded-full border-2 border-white/20 p-0.5 object-cover bg-white/10 cursor-pointer hover:border-white transition-colors" 
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCFw8hQBOq4JKJazc3GAIcVjmlrrfkICsk9jcBPauM53xp43QRLa6DqnEMow0-o1mRGziDfptfm02FgIlDbYltgzrSJtsP-_9ZmmuU5a1HL7JGFMujo8aASzX0ctHu6vqLGHtPPfgD52k6jx6G96Ll7O72OmXDkjh4_ow9-Pm7zokfO_INwwFExRPgQJIjpqmh5hidvLzAXnfEYTg61gAUYlTRiSMH5ZUorMbj1-J4SuqKTeDZetL9hIls8Yq8wumlUwCODZQaS6A"
-          />
+        <div className="mb-8 relative">
+          <button
+            type="button"
+            onClick={() => setProfileMenuOpen((current) => !current)}
+            className="w-12 h-12 rounded-full border-2 border-white/20 p-0.5 overflow-hidden bg-white/10 cursor-pointer hover:border-white transition-colors"
+            aria-label="Mở menu hồ sơ"
+          >
+            <img
+              alt={displayName}
+              className="w-full h-full rounded-full object-cover"
+              src={displayAvatar}
+            />
+          </button>
+
+          {profileMenuOpen && (
+            <div className="absolute left-[72px] top-0 w-72 rounded-[24px] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.15)] ring-1 ring-black/5 p-3 text-on-surface z-50">
+              <div className="px-2 py-2 border-b border-outline-variant/15">
+                <p className="text-[17px] font-extrabold text-on-surface leading-tight">{displayName}</p>
+                <p className="text-sm text-on-surface-variant mt-1 truncate">{user?.email}</p>
+              </div>
+              <div className="py-2 space-y-1">
+                <button className="w-full flex items-center justify-between gap-3 px-3 py-3 rounded-2xl text-left hover:bg-surface-container transition-colors">
+                  <span>Nâng cấp tài khoản</span>
+                  <span className="material-symbols-outlined text-[20px] text-primary">open_in_new</span>
+                </button>
+                <Link to="/profile" onClick={() => setProfileMenuOpen(false)} className="w-full flex items-center justify-between gap-3 px-3 py-3 rounded-2xl text-left hover:bg-surface-container transition-colors">
+                  <span>Hồ sơ của bạn</span>
+                  <span className="material-symbols-outlined text-[20px] text-on-surface-variant">person</span>
+                </Link>
+                <Link to="/sessions" onClick={() => setProfileMenuOpen(false)} className="w-full flex items-center justify-between gap-3 px-3 py-3 rounded-2xl text-left hover:bg-surface-container transition-colors">
+                  <span>Cài đặt</span>
+                  <span className="material-symbols-outlined text-[20px] text-on-surface-variant">settings</span>
+                </Link>
+                <button
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    logout();
+                  }}
+                  className="w-full flex items-center justify-between gap-3 px-3 py-3 rounded-2xl text-left hover:bg-error/10 transition-colors text-error"
+                >
+                  <span>Đăng xuất</span>
+                  <span className="material-symbols-outlined text-[20px]">logout</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         <nav className="flex flex-col gap-4 flex-1">
           {renderNavButton('chat', 'chat')}
@@ -243,10 +286,10 @@ const HomePage: React.FC = () => {
            <p className="text-on-surface-variant font-medium max-w-md text-center leading-relaxed">
              Khám phá tiện ích hỗ trợ làm việc và học tập, kết nối với giảng viên và sinh viên một cách dễ dàng.
            </p>
-           {user?.fullname && (
+           {(user?.fullName || user?.fullname) && (
              <div className="mt-8 px-6 py-3 bg-white rounded-full shadow-sm border border-outline-variant/20 inline-flex items-center gap-3">
                <span className="text-sm font-semibold text-on-surface">Đang đăng nhập dưới tên:</span>
-               <span className="text-primary font-extrabold">{user.fullname}</span>
+               <span className="text-primary font-extrabold">{displayName}</span>
              </div>
            )}
         </main>
@@ -418,9 +461,9 @@ const HomePage: React.FC = () => {
                   </div>
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 hover:bg-surface-container p-2 -mx-2 rounded-xl transition-all cursor-pointer group">
-                      <div className="w-10 h-10 rounded-full bg-primary-container text-primary font-bold flex flex-col items-center justify-center">{user?.fullname?.charAt(0) || 'B'}</div>
+                      <div className="w-10 h-10 rounded-full bg-primary-container text-primary font-bold flex flex-col items-center justify-center">{displayName.charAt(0) || 'B'}</div>
                       <div className="flex-1">
-                        <span className="font-bold text-on-surface text-[14px] group-hover:text-primary block leading-tight">{user?.fullname || 'Bạn'} <span className="text-on-surface-variant font-medium">(Trưởng nhóm)</span></span>
+                        <span className="font-bold text-on-surface text-[14px] group-hover:text-primary block leading-tight">{displayName} <span className="text-on-surface-variant font-medium">(Trưởng nhóm)</span></span>
                       </div>
                     </div>
                   </div>

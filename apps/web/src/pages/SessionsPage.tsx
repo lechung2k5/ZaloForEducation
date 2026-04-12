@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import { useAuth } from '../context/AuthContext';
 
 const SessionsPage: React.FC = () => {
   const { getSessions, logout, logoutAll, revokeSession, socket, deviceId, user } = useAuth();
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const displayName = user?.fullName || user?.fullname || '';
 
   const fetchSessions = async () => {
     try {
@@ -103,11 +104,11 @@ const SessionsPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
-            <p className="text-sm font-bold text-on-surface">{user?.fullName}</p>
+            <p className="text-sm font-bold text-on-surface">{displayName}</p>
             <p className="text-[11px] text-on-surface-variant font-medium">{user?.email}</p>
           </div>
           <div className="w-10 h-10 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold">
-            {user?.fullName?.charAt(0)}
+            {displayName.charAt(0)}
           </div>
         </div>
       </nav>

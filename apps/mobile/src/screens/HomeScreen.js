@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TextInput, TouchableOpacity, Image, Platform, StatusBar,
-  Dimensions
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { Colors, Typography, Shadows } from '../constants/Theme';
-import Alert from '../utils/Alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useState } from 'react';
+import {
+    Dimensions,
+    Image, Platform,
+    SafeAreaView, ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { Shadows, Typography } from '../constants/Theme';
+import Alert from '../utils/Alert';
 
 const { width } = Dimensions.get('window');
 
@@ -30,12 +35,23 @@ const MOCK_FRIENDS = [
 export default function HomeScreen({ onNavigate, onLogout }) {
   const [activeTab, setActiveTab] = useState('messages'); // 'messages', 'friends', 'ai', 'profile'
   const [user, setUser] = useState({ fullName: 'Người dùng', email: '' });
+  const displayName = user.fullName || user.fullname || 'Người dùng';
+  const avatarUrl = user.avatarUrl || user.urlAvatar || '';
 
   useEffect(() => {
     const loadUser = async () => {
       const storage = AsyncStorage.default || AsyncStorage;
       const data = await storage.getItem('user');
-      if (data) setUser(JSON.parse(data));
+      if (data) {
+        const parsed = JSON.parse(data);
+        setUser({
+          ...parsed,
+          fullName: parsed.fullName || parsed.fullname || 'Người dùng',
+          fullname: parsed.fullName || parsed.fullname || 'Người dùng',
+          avatarUrl: parsed.avatarUrl || parsed.urlAvatar || '',
+          urlAvatar: parsed.avatarUrl || parsed.urlAvatar || '',
+        });
+      }
     };
     loadUser();
   }, []);
@@ -130,15 +146,24 @@ export default function HomeScreen({ onNavigate, onLogout }) {
   const ProfileView = () => (
     <ScrollView style={styles.scrollContainer}>
       <View style={styles.profileHeader}>
-        <View style={styles.largeAvatarBox}>
-          <Text style={styles.avatarInitial}>{user.fullName ? user.fullName[0] : 'U'}</Text>
-        </View>
-        <Text style={styles.profileName}>{user.fullName}</Text>
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={styles.largeAvatarImage} />
+        ) : (
+          <View style={styles.largeAvatarBox}>
+            <Text style={styles.avatarInitial}>{displayName ? displayName[0] : 'U'}</Text>
+          </View>
+        )}
+        <Text style={styles.profileName}>{displayName}</Text>
         <Text style={styles.profileEmail}>{user.email}</Text>
+
+        <TouchableOpacity style={styles.editProfileButton} onPress={() => onNavigate('profile')}>
+          <Text style={styles.editProfileButtonIcon}>edit</Text>
+          <Text style={styles.editProfileButtonText}>Chỉnh sửa hồ sơ</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.menuContainer}>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => onNavigate('profile')}>
           <View style={[styles.menuIconBox, { backgroundColor: '#E3F2FD' }]}>
             <Text style={[styles.menuIcon, { color: '#2196F3' }]}>person</Text>
           </View>
@@ -346,9 +371,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
   },
+  largeAvatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginBottom: 16,
+    backgroundColor: '#e0e3e5',
+  },
   avatarInitial: { fontSize: 40, color: '#fff', fontWeight: 'bold' },
   profileName: { ...Typography.heading, fontSize: 22, color: '#191c1e', marginBottom: 4 },
   profileEmail: { ...Typography.body, fontSize: 14, color: '#727784' },
+  editProfileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 999,
+    backgroundColor: '#eef5ff',
+  },
+  editProfileButtonIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 18,
+    color: '#00418f',
+  },
+  editProfileButtonText: {
+    ...Typography.label,
+    fontSize: 13,
+    color: '#00418f',
+  },
   menuContainer: { padding: 16, paddingTop: 24 },
   menuItem: {
     flexDirection: 'row',

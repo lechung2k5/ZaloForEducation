@@ -8,6 +8,9 @@ export interface User {
   dataOfBirth: string;
   phone: string;
   urlAvatar?: string;
+  avatarUrl?: string;
+  urlBackground?: string;
+  backgroundUrl?: string;
   album?: any[];
   address?: string;
   bio?: string;

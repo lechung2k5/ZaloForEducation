@@ -1,47 +1,117 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { io, type Socket } from 'socket.io-client';
 import api from '../services/api';
-import { io } from 'socket.io-client';
 import { getDeviceId, getDeviceInfo } from '../utils/device';
 
+type AppUser = Record<string, unknown> & {
+  email: string;
+  fullName?: string;
+  fullname?: string;
+  avatarUrl?: string;
+  urlAvatar?: string;
+  backgroundUrl?: string;
+  urlBackground?: string;
+};
+
+type SessionRecord = Record<string, unknown>;
+type RegisterConfirmData = Record<string, unknown>;
+type ResetPasswordData = Record<string, unknown>;
+
 interface AuthContextType {
-  user: any;
+  user: AppUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   requestRegisterOtp: (email: string) => Promise<void>;
-  confirmRegister: (data: any) => Promise<void>;
+  confirmRegister: (data: RegisterConfirmData) => Promise<void>;
   resendOtp: (email: string, type: 'register' | 'forgot_password') => Promise<void>;
   requestForgotPassword: (email: string) => Promise<void>;
-  resetPassword: (data: any) => Promise<void>;
-  getSessions: () => Promise<any[]>;
+  resetPassword: (data: ResetPasswordData) => Promise<void>;
+  getSessions: () => Promise<SessionRecord[]>;
   revokeSession: (deviceId: string) => Promise<void>;
+  refreshUserProfile: () => Promise<AppUser | null>;
+  updateUser: (patch: Partial<AppUser>) => void;
   logout: () => void;
   logoutAll: () => Promise<void>;
-  socket: any;
+  socket: Socket | null;
   deviceId: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [socket, setSocket] = useState<any>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [deviceId] = useState(() => getDeviceId());
 
-  useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
-      setupSocket(parsedUser.email);
+  const normalizeUser = (input: unknown): AppUser | null => {
+    if (!input || typeof input !== 'object') {
+      return null;
     }
-    setLoading(false);
-  }, []);
+
+    const candidate = input as Partial<AppUser>;
+    const email = typeof candidate.email === 'string' ? candidate.email : '';
+    if (!email) {
+      return null;
+    }
+
+    const fullName = typeof candidate.fullName === 'string' && candidate.fullName
+      ? candidate.fullName
+      : typeof candidate.fullname === 'string'
+        ? candidate.fullname
+        : '';
+
+    const avatarUrl = typeof candidate.avatarUrl === 'string' && candidate.avatarUrl
+      ? candidate.avatarUrl
+      : typeof candidate.urlAvatar === 'string'
+        ? candidate.urlAvatar
+        : '';
+
+    const backgroundUrl = typeof candidate.backgroundUrl === 'string' && candidate.backgroundUrl
+      ? candidate.backgroundUrl
+      : typeof candidate.urlBackground === 'string'
+        ? candidate.urlBackground
+        : '';
+
+    return {
+      ...(candidate as Record<string, unknown>),
+      email,
+      fullName,
+      fullname: fullName,
+      avatarUrl,
+      urlAvatar: avatarUrl,
+      backgroundUrl,
+      urlBackground: backgroundUrl,
+    };
+  };
+
+  const persistUser = (nextUser: unknown) => {
+    const normalizedUser = normalizeUser(nextUser);
+    if (!normalizedUser) {
+      localStorage.removeItem('user');
+      setUser(null);
+      return null;
+    }
+
+    localStorage.setItem('user', JSON.stringify(normalizedUser));
+    setUser(normalizedUser);
+    return normalizedUser;
+  };
+
+  const disconnectSocket = () => {
+    setSocket((currentSocket) => {
+      currentSocket?.disconnect?.();
+      return null;
+    });
+  };
 
   const setupSocket = (email: string) => {
+    disconnectSocket();
+
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
     const newSocket = io(apiUrl);
-    
+
     newSocket.on('connect', () => {
       console.log('Connected to socket server');
       newSocket.emit('join_identity', { email });
@@ -58,6 +128,78 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => newSocket.disconnect();
   };
 
+  const refreshUserProfile = async () => {
+    const token = localStorage.getItem('token');
+    const currentUser = user || normalizeUser(JSON.parse(localStorage.getItem('user') || 'null'));
+
+    if (!token || !currentUser?.email) {
+      return currentUser;
+    }
+
+    try {
+      const res = await api.get('/users/profile');
+      const profile = normalizeUser(res.data?.profile || res.data);
+      if (!profile) {
+        return currentUser;
+      }
+
+      return persistUser({
+        ...currentUser,
+        ...profile,
+      });
+    } catch (error) {
+      console.error('Refresh profile error', error);
+      return currentUser;
+    }
+  };
+
+  const updateUser = (patch: Partial<AppUser>) => {
+    persistUser({ ...(user || {}), ...patch });
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const initializeAuth = async () => {
+      const savedUser = localStorage.getItem('user');
+      if (!savedUser) {
+        if (!cancelled) {
+          setLoading(false);
+        }
+        return;
+      }
+
+      const parsedUser = normalizeUser(JSON.parse(savedUser));
+      if (!parsedUser) {
+        if (!cancelled) {
+          setLoading(false);
+        }
+        return;
+      }
+
+      persistUser(parsedUser);
+      setupSocket(parsedUser.email);
+
+      try {
+        await refreshUserProfile();
+      } catch (error) {
+        console.error('Initial profile sync error', error);
+      }
+
+      if (!cancelled) {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      cancelled = true;
+      disconnectSocket();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const login = async (email: string, password: string) => {
     const { deviceName, deviceType } = getDeviceInfo();
     const res = await api.post('/auth/login', { 
@@ -70,16 +212,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { accessToken, user: userData } = res.data;
     
     localStorage.setItem('token', accessToken);
-    localStorage.setItem('user', JSON.stringify(userData));
-    setUser(userData);
+    persistUser(userData);
     setupSocket(userData.email);
+
+    try {
+      await refreshUserProfile();
+    } catch (error) {
+      console.error('Login profile sync error', error);
+    }
   };
 
   const requestRegisterOtp = async (email: string) => {
     await api.post('/auth/register', { email });
   };
 
-  const confirmRegister = async (data: any) => {
+  const confirmRegister = async (data: RegisterConfirmData) => {
     await api.post('/auth/register/confirm', data);
   };
 
@@ -91,11 +238,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await api.post('/auth/forgot-password', { email });
   };
 
-  const resetPassword = async (data: any) => {
+  const resetPassword = async (data: ResetPasswordData) => {
     await api.post('/auth/reset-password', data);
   };
 
-  const getSessions = async () => {
+  const getSessions = async (): Promise<SessionRecord[]> => {
     try {
       const token = localStorage.getItem('token');
       if (!token) return [];
@@ -121,6 +268,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
+    disconnectSocket();
     window.location.href = '/login';
   };
 
@@ -147,7 +295,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider value={{ 
       user, loading, login, requestRegisterOtp, confirmRegister, 
       resendOtp, requestForgotPassword, resetPassword, getSessions, 
-      revokeSession, logout, logoutAll, socket, deviceId 
+      revokeSession, refreshUserProfile, updateUser, logout, logoutAll, socket, deviceId 
     }}>
       {children}
     </AuthContext.Provider>

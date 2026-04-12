@@ -1,20 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { Platform, View, Text } from 'react-native';
-import * as Font from 'expo-font';
-import { 
-  PlusJakartaSans_300Light, 
-  PlusJakartaSans_400Regular, 
-  PlusJakartaSans_500Medium, 
-  PlusJakartaSans_600SemiBold, 
-  PlusJakartaSans_700Bold, 
-  PlusJakartaSans_800ExtraBold 
+import {
+    PlusJakartaSans_300Light,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold
 } from '@expo-google-fonts/plus-jakarta-sans';
+import * as Font from 'expo-font';
+import React, { useEffect, useState } from 'react';
+import { Platform, Text, View } from 'react-native';
 
-import LoginScreen from './src/screens/LoginScreen';
-import RegisterScreen from './src/screens/RegisterScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
-import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
+import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import SessionsScreen from './src/screens/SessionsScreen';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -153,6 +154,8 @@ export default function App() {
       return <ResetPasswordScreen onNavigate={navigate} />;
     case 'sessions':
       return <SessionsScreen onNavigate={navigate} />;
+    case 'profile':
+      return <ProfileScreen onNavigate={navigate} onLogout={handleLogout} />;
     case 'home':
       return <HomeScreen onNavigate={navigate} onLogout={handleLogout} />;
     case 'login':
