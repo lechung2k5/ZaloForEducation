@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { Link } from 'react-router-dom';
+import ProfileModal from '../components/ProfileModal';
 
 const HomePage: React.FC = () => {
-  const { user, logout, socket } = useAuth();
+  const { user, logout, socket, refreshUser } = useAuth();
   
   // STATE MANAGEMENT giống cấu trúc Zalo
   const [activeTab, setActiveTab] = useState<'chat' | 'contacts' | 'notifications' | 'cloud'>('chat');
@@ -14,9 +15,29 @@ const HomePage: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Profile & Settings state
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // FETCH CONVERSATIONS ON LOAD
   useEffect(() => {
     if (!user) return;
+    
+    // Refresh user metadata to get latest avatarUrl/fullName
+    refreshUser();
+
     const fetchConversations = async () => {
       try {
         // Fetch inbox / group matches for this user
@@ -116,12 +137,56 @@ const HomePage: React.FC = () => {
       
       {/* COLUMN 1: SideNavBar (80px wide) */}
       <aside className="fixed left-0 top-0 h-full z-50 w-20 flex flex-col items-center py-6 bg-gradient-to-br from-[#0058bc] to-[#00418f] shadow-[0px_20px_40px_rgba(0,65,143,0.06)] shrink-0">
-        <div className="mb-8">
+        <div className="mb-8 relative" ref={dropdownRef}>
           <img 
             alt="User Avatar" 
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className="w-12 h-12 rounded-full border-2 border-white/20 p-0.5 object-cover bg-white/10 cursor-pointer hover:border-white transition-colors" 
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCFw8hQBOq4JKJazc3GAIcVjmlrrfkICsk9jcBPauM53xp43QRLa6DqnEMow0-o1mRGziDfptfm02FgIlDbYltgzrSJtsP-_9ZmmuU5a1HL7JGFMujo8aASzX0ctHu6vqLGHtPPfgD52k6jx6G96Ll7O72OmXDkjh4_ow9-Pm7zokfO_INwwFExRPgQJIjpqmh5hidvLzAXnfEYTg61gAUYlTRiSMH5ZUorMbj1-J4SuqKTeDZetL9hIls8Yq8wumlUwCODZQaS6A"
+            src={user?.avatarUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuCFw8hQBOq4JKJazc3GAIcVjmlrrfkICsk9jcBPauM53xp43QRLa6DqnEMow0-o1mRGziDfptfm02FgIlDbYltgzrSJtsP-_9ZmmuU5a1HL7JGFMujo8aASzX0ctHu6vqLGHtPPfgD52k6jx6G96Ll7O72OmXDkjh4_ow9-Pm7zokfO_INwwFExRPgQJIjpqmh5hidvLzAXnfEYTg61gAUYlTRiSMH5ZUorMbj1-J4SuqKTeDZetL9hIls8Yq8wumlUwCODZQaS6A"} 
           />
+          
+          {/* Dropdown Menu - Xây dựng theo Zalo layout */}
+          {isDropdownOpen && (
+            <div className="absolute left-full ml-2 top-0 w-64 bg-white rounded-2xl shadow-2xl z-[100] border border-outline-variant/10 overflow-hidden animate-fade-in py-2">
+              <div className="px-5 py-4 border-b border-outline-variant/5">
+                <p className="font-extrabold text-[16px] text-on-surface truncate">{user?.fullName || user?.fullname || 'Người dùng'}</p>
+              </div>
+              
+              <div className="py-2">
+                <button 
+                  onClick={() => { setIsProfileModalOpen(true); setIsDropdownOpen(false); }}
+                  className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-surface-container transition-colors text-on-surface font-semibold text-sm text-left"
+                >
+                  <span className="material-symbols-outlined text-[20px]">account_circle</span>
+                  Hồ sơ của bạn
+                </button>
+                <button 
+                  onClick={() => { setIsProfileModalOpen(true); setIsDropdownOpen(false); }}
+                  className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-surface-container transition-colors text-on-surface font-semibold text-sm text-left"
+                >
+                  <span className="material-symbols-outlined text-[20px]">settings</span>
+                  Cài đặt
+                </button>
+                <Link 
+                  to="/sessions"
+                  className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-surface-container transition-colors text-on-surface font-semibold text-sm"
+                >
+                  <span className="material-symbols-outlined text-[20px]">devices</span>
+                  Thiết bị đăng nhập
+                </Link>
+              </div>
+              
+              <div className="border-t border-outline-variant/5 mt-2 pt-2 pb-1">
+                <button 
+                  onClick={logout}
+                  className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-surface-container transition-colors text-error font-bold text-sm text-left"
+                >
+                  <span className="material-symbols-outlined text-[20px]">logout</span>
+                  Đăng xuất
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         <nav className="flex flex-col gap-4 flex-1">
           {renderNavButton('chat', 'chat')}
@@ -133,7 +198,11 @@ const HomePage: React.FC = () => {
           <Link to="/sessions" className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" title='Thiết bị đăng nhập'>
             <span className="material-symbols-outlined">devices</span>
           </Link>
-          <button className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" title='Cài đặt'>
+          <button 
+            onClick={() => setIsProfileModalOpen(true)}
+            className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" 
+            title='Cài đặt'
+          >
             <span className="material-symbols-outlined">settings</span>
           </button>
           <button onClick={logout} className="text-white/80 hover:text-error hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" title='Đăng xuất'>
@@ -141,6 +210,12 @@ const HomePage: React.FC = () => {
           </button>
         </div>
       </aside>
+
+      {/* Profile Modal */}
+      <ProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)} 
+      />
 
       {/* COLUMN 2: List Panel (320px) */}
       <section className="ml-20 w-[320px] bg-white bg-surface-container-lowest h-full flex flex-col z-10 border-r border-outline-variant/20 shrink-0">

@@ -14,6 +14,7 @@ interface AuthContextType {
   resetPassword: (data: any) => Promise<void>;
   getSessions: () => Promise<any[]>;
   revokeSession: (deviceId: string) => Promise<void>;
+  refreshUser: () => Promise<any>;
   logout: () => void;
   logoutAll: () => Promise<void>;
   socket: any;
@@ -136,6 +137,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const refreshUser = async () => {
+    try {
+      const res = await api.get('/users/profile');
+      const updatedProfile = res.data.profile;
+      // Trộn thông tin mới vào record cũ
+      const newUser = { ...user, ...updatedProfile };
+      localStorage.setItem('user', JSON.stringify(newUser));
+      setUser(newUser);
+      return newUser;
+    } catch (err) {
+      console.error('Refresh user error', err);
+      return user;
+    }
+  };
+
   const logoutAll = async () => {
     if (user) {
       await api.post('/auth/logout-all', { email: user.email });
@@ -147,7 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider value={{ 
       user, loading, login, requestRegisterOtp, confirmRegister, 
       resendOtp, requestForgotPassword, resetPassword, getSessions, 
-      revokeSession, logout, logoutAll, socket, deviceId 
+      revokeSession, logout, logoutAll, socket, deviceId, refreshUser 
     }}>
       {children}
     </AuthContext.Provider>

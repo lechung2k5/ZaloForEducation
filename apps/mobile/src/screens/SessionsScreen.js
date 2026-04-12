@@ -6,7 +6,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Alert from '../utils/Alert';
 import { Colors, Typography, Shadows } from '../constants/Theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Storage from '../utils/storage';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -29,9 +29,8 @@ export default function SessionsScreen({ onNavigate }) {
 
     const loadData = async (retryCount = 0) => {
       try {
-        const storage = AsyncStorage.default || AsyncStorage;
-        const userJson = await storage.getItem('user');
-        const devId = await storage.getItem('deviceId');
+        const userJson = await Storage.getItem('user');
+        const devId = await Storage.getItem('deviceId');
         
         console.log(`[Sessions] Load attempt ${retryCount + 1}: devId =`, devId);
 
@@ -73,8 +72,7 @@ export default function SessionsScreen({ onNavigate }) {
 
   const fetchSessions = async (userEmail) => {
     try {
-      const storage = AsyncStorage.default || AsyncStorage;
-      const token = await storage.getItem('token');
+      const token = await Storage.getItem('token');
 
       const response = await fetch(`${API_URL}/auth/sessions`, {
         method: 'GET',
@@ -106,8 +104,7 @@ export default function SessionsScreen({ onNavigate }) {
           text: 'Đăng xuất', 
           onPress: async () => {
             try {
-              const storage = AsyncStorage.default || AsyncStorage;
-              const token = await storage.getItem('token');
+              const token = await Storage.getItem('token');
 
               const response = await fetch(`${API_URL}/auth/sessions/${targetDeviceId}`, {
                 method: 'DELETE',
@@ -139,8 +136,7 @@ export default function SessionsScreen({ onNavigate }) {
           text: 'Đăng xuất hết', 
           onPress: async () => {
             try {
-              const storage = AsyncStorage.default || AsyncStorage;
-              const token = await storage.getItem('token');
+              const token = await Storage.getItem('token');
 
               await fetch(`${API_URL}/auth/logout-all`, {
                 method: 'POST',
@@ -150,8 +146,8 @@ export default function SessionsScreen({ onNavigate }) {
                 },
               });
               
-              await storage.removeItem('token');
-              await storage.removeItem('user');
+              await Storage.removeItem('token');
+              await Storage.removeItem('user');
               onNavigate('login');
             } catch (err) {
               Alert.alert('Lỗi', 'Không thể thực hiện');

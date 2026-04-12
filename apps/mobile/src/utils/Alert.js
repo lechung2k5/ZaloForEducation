@@ -1,38 +1,42 @@
 import { Alert as RNAlert, Platform } from 'react-native';
-import Swal from 'sweetalert2';
 
+/**
+ * Alert utility chuẩn hóa cho cả Native và Web.
+ *
+ * - Native (iOS / Android): dùng RNAlert.alert() tiêu chuẩn.
+ * - Web: dùng window.confirm() / window.alert() thuần — không phụ thuộc sweetalert2.
+ */
 const Alert = {
   alert: (title, message, buttons) => {
     if (Platform.OS === 'web') {
-      const isError = title.toLowerCase().includes('lỗi') || title.toLowerCase().includes('thất bại');
-      const isSuccess = title.toLowerCase().includes('thành công');
-      const type = isError ? 'error' : isSuccess ? 'success' : 'info';
-      
-      const hasButtons = buttons && buttons.length >= 2;
-      const cancelButton = hasButtons ? buttons[0] : null;
-      const confirmButton = hasButtons ? buttons[1] : (buttons && buttons.length === 1 ? buttons[0] : null);
+      const hasMultipleButtons = buttons && buttons.length >= 2;
 
-      Swal.fire({
-        title: title,
-        text: message,
-        icon: type,
-        showCancelButton: !!cancelButton,
-        cancelButtonText: cancelButton ? cancelButton.text : 'Hủy',
-        confirmButtonText: confirmButton ? confirmButton.text : 'Đóng',
-        confirmButtonColor: '#00418f',
-        cancelButtonColor: '#d33',
-        backdrop: 'rgba(0, 0, 0, 0.4)',
-      }).then((result) => {
-        if (result.isConfirmed && confirmButton && confirmButton.onPress) {
+      if (hasMultipleButtons) {
+        // Lấy nút confirm (cuối cùng) và cancel (đầu tiên)
+        const cancelButton  = buttons[0];
+        const confirmButton = buttons[buttons.length - 1];
+
+        const confirmed = window.confirm(
+          message ? `${title}\n\n${message}` : title,
+        );
+
+        if (confirmed && confirmButton?.onPress) {
           confirmButton.onPress();
-        } else if (result.isDismissed && cancelButton && cancelButton.onPress) {
+        } else if (!confirmed && cancelButton?.onPress) {
           cancelButton.onPress();
         }
-      });
+      } else {
+        // Chỉ một nút — dùng alert thường
+        window.alert(message ? `${title}\n\n${message}` : title);
+        const singleButton = buttons && buttons[0];
+        if (singleButton?.onPress) {
+          singleButton.onPress();
+        }
+      }
     } else {
       RNAlert.alert(title, message, buttons);
     }
-  }
+  },
 };
 
 export default Alert;

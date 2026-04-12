@@ -37,12 +37,14 @@ export default function ResetPasswordScreen({ onNavigate }) {
       Alert.alert('Lỗi', 'Không tìm thấy Token. Vui lòng nhấn lại vào link trong Gmail.');
       return;
     }
-    if (newPassword !== confirmPassword) {
-      Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp!');
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      Alert.alert('Lỗi', 'Mật khẩu phải tối thiểu 8 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt');
       return;
     }
-    if (newPassword.length < 8) {
-      Alert.alert('Lỗi', 'Mật khẩu phải có ít nhất 8 ký tự!');
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp!');
       return;
     }
 

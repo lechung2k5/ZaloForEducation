@@ -7,7 +7,7 @@ export interface User {
   gender: boolean;
   dataOfBirth: string;
   phone: string;
-  urlAvatar?: string;
+  avatarUrl?: string;
   album?: any[];
   address?: string;
   bio?: string;
@@ -15,8 +15,9 @@ export interface User {
   currentDeviceId?: string;
   lastLoginAt: string;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string;
   status: 'active' | 'suspended';
+  isActive: boolean;
 }
 
 export interface FileURL {

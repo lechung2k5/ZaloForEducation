@@ -1,12 +1,11 @@
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Storage from './storage';
 import { UAParser } from 'ua-parser-js';
 
 // DeviceId persistence helper
 export const getDeviceId = async () => {
     try {
-        const storage = AsyncStorage.default || AsyncStorage;
-        let deviceId = await storage.getItem('deviceId');
+        let deviceId = await Storage.getItem('deviceId');
         
         // Force platform override for testing if configured in ENV
         const platformPrefix = process.env.EXPO_PUBLIC_DEVICE_PLATFORM || Platform.OS;
@@ -15,7 +14,7 @@ export const getDeviceId = async () => {
             // Add a session suffix if on web to allow testing multiple "devices" in different tabs
             const sessionSuffix = Platform.OS === 'web' ? `-${Math.random().toString(36).slice(2, 5)}` : '';
             deviceId = `${platformPrefix}-${Math.random().toString(36).slice(2, 7)}${sessionSuffix}`;
-            await storage.setItem('deviceId', deviceId);
+            await Storage.setItem('deviceId', deviceId);
         }
         return deviceId;
     } catch (e) {

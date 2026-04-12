@@ -20,6 +20,31 @@ export class AuthService {
     private readonly chatGateway: ChatGateway,
   ) { }
 
+  private validatePassword(password: string) {
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      throw new BadRequestException(
+        'Mật khẩu phải tối thiểu 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt.'
+      );
+    }
+  }
+
+  private validateRegistrationData(dto: RegisterRequestDto) {
+    if (!dto.phone || !/^(0|84)(3|5|7|8|9)([0-9]{8})$/.test(dto.phone)) {
+      throw new BadRequestException('Số điện thoại không hợp lệ. Vui lòng nhập SĐT Việt Nam.');
+    }
+
+    if (!dto.fullName || dto.fullName.trim().split(/\s+/).length < 2) {
+      throw new BadRequestException('Họ tên phải bao gồm ít nhất 2 từ.');
+    }
+    
+    if (/[0-9!@#$%^&*(),.?":{}|<>]/.test(dto.fullName)) {
+      throw new BadRequestException('Họ tên không được chứa số hoặc ký tự đặc biệt.');
+    }
+
+    this.validatePassword(dto.password);
+  }
+
   async requestRegisterOtp(email: string) {
     const existingUser = await this.db.docClient.send(new GetCommand({
       TableName: this.db.tableName,
@@ -45,6 +70,7 @@ export class AuthService {
   }
 
   async confirmRegister(dto: RegisterRequestDto) {
+    this.validateRegistrationData(dto);
     await this.otpService.verifyOtp(dto.email, dto.otp);
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
@@ -55,10 +81,14 @@ export class AuthService {
       gender: dto.gender ?? true,
       dataOfBirth: dto.dataOfBirth || '',
       phone: dto.phone || '',
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(dto.fullName || 'User')}&background=00418f&color=fff`,
       passwordHash,
+      bio: '',
       createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       status: 'active',
+      isActive: true,
+      lastLoginAt: new Date().toISOString(),
     };
 
     await this.db.docClient.send(new PutCommand({
@@ -107,26 +137,28 @@ export class AuthService {
     // 3. LOGIC: 1 THIẾT BỊ MỖI NỀN TẢNG (1 WEB + 1 APP)
     const activeSessions = await this.sessionService.getSessions(user.email);
     
-    // Phân loại thiết bị đang đăng nhập
-    const isIncomingApp = deviceId.startsWith('android-') || deviceId.startsWith('ios-') || dto.deviceType === 'mobile';
-    const isIncomingWeb = deviceId.startsWith('web-') || dto.deviceType === 'desktop' || dto.deviceType === 'web';
+    // Phân loại thiết bị: Ưu tiên prefix của deviceId để đảm bảo tính chính xác
+    const isIncomingWeb = deviceId.startsWith('web-');
+    const isIncomingApp = deviceId.startsWith('android-') || deviceId.startsWith('ios-');
 
-    console.log(`[AUTH] Login detect: user=${user.email}, isApp=${isIncomingApp}, isWeb=${isIncomingWeb}, type=${dto.deviceType}`);
+    // Nếu không khớp prefix nhưng deviceType là mobile, giả định là App (để tương thích ngược)
+    const isAppFinal = isIncomingApp || (!isIncomingWeb && dto.deviceType === 'mobile');
+    const isWebFinal = isIncomingWeb || (!isAppFinal && (dto.deviceType === 'desktop' || dto.deviceType === 'web'));
+
+    console.log(`[AUTH] Login detect: user=${user.email}, isApp=${isAppFinal}, isWeb=${isWebFinal}, deviceId=${deviceId}`);
 
     for (const oldId of activeSessions) {
       if (oldId === deviceId) continue;
 
-      // Lấy thông tin chi tiết của session cũ để phân loại chính xác
       const oldSession = await this.sessionService.getSession(oldId);
       if (!oldSession) continue;
 
-      const isOldApp = oldId.startsWith('android-') || oldId.startsWith('ios-') || oldSession.deviceType === 'mobile';
-      const isOldWeb = oldId.startsWith('web-') || oldSession.deviceType === 'desktop' || oldSession.deviceType === 'web';
+      const isOldWeb = oldId.startsWith('web-');
+      const isOldApp = oldId.startsWith('android-') || oldId.startsWith('ios-') || (!isOldWeb && oldSession.deviceType === 'mobile');
 
-      console.log(`[AUTH] Comparing with old session: ${oldId}, isOldApp=${isOldApp}, isOldWeb=${isOldWeb}`);
-
-      if ((isIncomingApp && isOldApp) || (isIncomingWeb && isOldWeb)) {
-        console.log(`[AUTH] Matches conflict rule. Kicking: ${oldId}`);
+      // Chỉ kick nếu cùng loại (Web kick Web, App kick App)
+      if ((isAppFinal && isOldApp) || (isWebFinal && isOldWeb)) {
+        console.log(`[AUTH] Conflict detected on ${isAppFinal ? 'APP' : 'WEB'} slot. Kicking: ${oldId}`);
         await this.sessionService.removeSession(user.email, oldId);
         this.chatGateway.notifyForceLogout(user.email, oldId);
         this.chatGateway.notifySessionsUpdate(user.email);
@@ -196,6 +228,7 @@ export class AuthService {
   }
 
   async resetPassword(email: string, otp: string, newPassword: string) {
+    this.validatePassword(newPassword);
     // Xác thực và xóa OTP
     await this.otpService.verifyOtp(email, otp);
 

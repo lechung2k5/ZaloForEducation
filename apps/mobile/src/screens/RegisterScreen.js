@@ -28,8 +28,22 @@ export default function RegisterScreen({ onNavigate }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [touchedFields, setTouchedFields] = useState({});
   const [resendTimer, setResendTimer] = useState(0);
   const [canResend, setCanResend] = useState(true);
+
+  const getPasswordStrength = (pass) => {
+    let score = 0;
+    if (pass.length >= 8) score++;
+    if (/[A-Z]/.test(pass)) score++;
+    if (/[0-9]/.test(pass)) score++;
+    if (/[@$!%*?&]/.test(pass)) score++;
+    return score;
+  };
+  
+  const handleBlur = (field) => {
+    setTouchedFields(prev => ({ ...prev, [field]: true }));
+  };
 
   const handleRequestOtp = async () => {
     if (!email.endsWith('@gmail.com')) {
@@ -103,6 +117,38 @@ export default function RegisterScreen({ onNavigate }) {
   };
 
   const handleRegister = async () => {
+    // 1. Validate Full Name
+    const nameParts = fullName.trim().split(/\s+/);
+    if (!fullName || nameParts.length < 2) {
+      Alert.alert('Lỗi', 'Họ tên phải bao gồm ít nhất 2 từ');
+      return;
+    }
+    if (/[0-9!@#$%^&*(),.?":{}|<>]/.test(fullName)) {
+      Alert.alert('Lỗi', 'Họ tên không được chứa số hoặc ký tự đặc biệt');
+      return;
+    }
+
+    // 2. Validate Phone
+    const phoneRegex = /^(0|84)(3|5|7|8|9)[0-9]{8}$/;
+    if (!phoneRegex.test(phone)) {
+      Alert.alert('Lỗi', 'Số điện thoại Việt Nam không hợp lệ');
+      return;
+    }
+
+    // 3. Validate Date of Birth (DD/MM/YYYY)
+    const dobRegex = /^(0?[1-9]|[12][0-9]|3[01])[\/\-](0?[1-9]|1[012])[\/\-]\d{4}$/;
+    if (!dobRegex.test(dataOfBirth)) {
+      Alert.alert('Lỗi', 'Ngày sinh phải đúng định dạng DD/MM/YYYY');
+      return;
+    }
+
+    // 4. Validate Password Strength
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      Alert.alert('Lỗi', 'Mật khẩu phải tối thiểu 8 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt');
+      return;
+    }
+
     if (password !== confirmPassword) {
       Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp!');
       return;
@@ -255,9 +301,34 @@ export default function RegisterScreen({ onNavigate }) {
 
               {step === 3 && (
                 <View style={styles.form}>
-                  <Input label="Họ và tên" placeholder="Nguyễn Văn A" value={fullName} onChangeText={setFullName} icon="badge" />
-                  <Input label="Số điện thoại" placeholder="0901 234 567" value={phone} onChangeText={setPhone} keyboardType="phone-pad" icon="phone" />
-                  <Input label="Ngày sinh" placeholder="DD/MM/YYYY" value={dataOfBirth} onChangeText={setDataOfBirth} icon="calendar_today" />
+                  <Input 
+                    label="Họ và tên" 
+                    placeholder="Nguyễn Văn A" 
+                    value={fullName} 
+                    onChangeText={setFullName} 
+                    icon="badge" 
+                    hasError={touchedFields.fullName && (fullName.trim().split(/\s+/).length < 2 || /[0-9!@#$%^&*(),.?":{}|<>]/.test(fullName))}
+                    onBlur={() => handleBlur('fullName')}
+                  />
+                  <Input 
+                    label="Số điện thoại" 
+                    placeholder="0901 234 567" 
+                    value={phone} 
+                    onChangeText={setPhone} 
+                    keyboardType="phone-pad" 
+                    icon="phone" 
+                    hasError={touchedFields.phone && !/^(0|84)(3|5|7|8|9)[0-9]{8}$/.test(phone)}
+                    onBlur={() => handleBlur('phone')}
+                  />
+                  <Input 
+                    label="Ngày sinh" 
+                    placeholder="DD/MM/YYYY" 
+                    value={dataOfBirth} 
+                    onChangeText={setDataOfBirth} 
+                    icon="calendar_today" 
+                    hasError={touchedFields.dataOfBirth && !/^(0?[1-9]|[12][0-9]|3[01])[\/\-](0?[1-9]|1[012])[\/\-]\d{4}$/.test(dataOfBirth)}
+                    onBlur={() => handleBlur('dataOfBirth')}
+                  />
 
                   <View style={{ marginBottom: 24 }}>
                     <Text style={styles.genderLabel}>Giới tính</Text>
@@ -277,8 +348,54 @@ export default function RegisterScreen({ onNavigate }) {
                     </View>
                   </View>
 
-                  <Input label="Mật khẩu" placeholder="••••••••" value={password} onChangeText={setPassword} secureTextEntry icon="lock" />
-                  <Input label="Xác nhận mật khẩu" placeholder="••••••••" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry icon="lock_reset" />
+                  <Input 
+                    label="Mật khẩu" 
+                    placeholder="••••••••" 
+                    value={password} 
+                    onChangeText={setPassword} 
+                    secureTextEntry 
+                    icon="lock" 
+                    hasError={touchedFields.password && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(password)}
+                    onBlur={() => handleBlur('password')}
+                  />
+                  
+                  {password.length > 0 && (
+                    <View style={styles.strengthContainer}>
+                      <View style={styles.strengthHeader}>
+                        <Text style={styles.strengthLabel}>Độ mạnh: <Text style={[
+                          styles.strengthValue,
+                          getPasswordStrength(password) <= 2 ? { color: Colors.error } : 
+                          getPasswordStrength(password) === 3 ? { color: '#EAB308' } : { color: '#10B981' }
+                        ]}>
+                          {['Rất yếu', 'Yếu', 'Trung bình', 'Mạnh', 'Rất mạnh'][getPasswordStrength(password)]}
+                        </Text></Text>
+                        <Text style={styles.strengthPercent}>{getPasswordStrength(password) * 25}%</Text>
+                      </View>
+                      <View style={styles.strengthBarOuter}>
+                        <LinearGradient
+                          colors={
+                            getPasswordStrength(password) <= 1 ? ['#EF4444', '#F87171'] :
+                            getPasswordStrength(password) === 2 ? ['#F59E0B', '#FBBF24'] :
+                            ['#10B981', '#34D399']
+                          }
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={[styles.strengthBarInner, { width: `${getPasswordStrength(password) * 25}%` }]}
+                        />
+                      </View>
+                    </View>
+                  )}
+
+                  <Input 
+                    label="Xác nhận mật khẩu" 
+                    placeholder="••••••••" 
+                    value={confirmPassword} 
+                    onChangeText={setConfirmPassword} 
+                    secureTextEntry 
+                    icon="lock_reset" 
+                    hasError={touchedFields.confirmPassword && (password !== confirmPassword)}
+                    onBlur={() => handleBlur('confirmPassword')}
+                  />
                   
                   <Button 
                     title={loading ? "Đang xử lý..." : "Hoàn tất đăng ký"} 
@@ -348,6 +465,14 @@ const styles = StyleSheet.create({
   
   errorText: { ...Typography.label, color: Colors.error, fontSize: 12, marginTop: -16, marginBottom: 16, paddingLeft: 12 },
   
+  strengthContainer: { marginBottom: 20, paddingHorizontal: 4 },
+  strengthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  strengthLabel: { fontSize: 12, color: Colors.onSurfaceVariant, ...Typography.body },
+  strengthValue: { fontWeight: '800' },
+  strengthPercent: { fontSize: 12, fontWeight: '700', color: Colors.outline },
+  strengthBarOuter: { height: 6, backgroundColor: Colors.surfaceContainerHighest, borderRadius: 3, overflow: 'hidden' },
+  strengthBarInner: { height: '100%', borderRadius: 3 },
+
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 16 },
   footerText: { ...Typography.body, fontSize: 14, color: Colors.onSurfaceVariant },
   footerLink: { ...Typography.label, fontSize: 14, color: Colors.primary },

@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Colors, Typography, Shadows } from '../constants/Theme';
 import Alert from '../utils/Alert';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import Storage from '../utils/storage';
 
 const { width } = Dimensions.get('window');
 
@@ -33,8 +33,7 @@ export default function HomeScreen({ onNavigate, onLogout }) {
 
   useEffect(() => {
     const loadUser = async () => {
-      const storage = AsyncStorage.default || AsyncStorage;
-      const data = await storage.getItem('user');
+      const data = await Storage.getItem('user');
       if (data) setUser(JSON.parse(data));
     };
     loadUser();
@@ -131,14 +130,18 @@ export default function HomeScreen({ onNavigate, onLogout }) {
     <ScrollView style={styles.scrollContainer}>
       <View style={styles.profileHeader}>
         <View style={styles.largeAvatarBox}>
-          <Text style={styles.avatarInitial}>{user.fullName ? user.fullName[0] : 'U'}</Text>
+          {user.avatarUrl ? (
+            <Image source={{ uri: user.avatarUrl }} style={styles.largeAvatarImage} />
+          ) : (
+            <Text style={styles.avatarInitial}>{user.fullName ? user.fullName[0] : 'U'}</Text>
+          )}
         </View>
         <Text style={styles.profileName}>{user.fullName}</Text>
         <Text style={styles.profileEmail}>{user.email}</Text>
       </View>
 
       <View style={styles.menuContainer}>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => onNavigate('profile')}>
           <View style={[styles.menuIconBox, { backgroundColor: '#E3F2FD' }]}>
             <Text style={[styles.menuIcon, { color: '#2196F3' }]}>person</Text>
           </View>
@@ -347,6 +350,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatarInitial: { fontSize: 40, color: '#fff', fontWeight: 'bold' },
+  largeAvatarImage: { width: 100, height: 100, borderRadius: 50 },
   profileName: { ...Typography.heading, fontSize: 22, color: '#191c1e', marginBottom: 4 },
   profileEmail: { ...Typography.body, fontSize: 14, color: '#727784' },
   menuContainer: { padding: 16, paddingTop: 24 },

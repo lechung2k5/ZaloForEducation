@@ -12,7 +12,8 @@ export default function Input({
   secureTextEntry, 
   keyboardType, 
   rightElement,
-  icon
+  icon,
+  hasError
 }) {
   const [isSecure, setIsSecure] = useState(secureTextEntry);
   const [isFocused, setIsFocused] = useState(false);
@@ -20,12 +21,13 @@ export default function Input({
   return (
     <View style={styles.container}>
       <View style={styles.labelRow}>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, hasError && { color: Colors.error }]}>{label}</Text>
         {rightElement}
       </View>
       <View style={[
         styles.inputWrapper,
-        isFocused && styles.inputWrapperFocused
+        isFocused && styles.inputWrapperFocused,
+        hasError && styles.inputWrapperError
       ]}>
         {icon && (
           <View style={styles.iconContainer}>
@@ -93,6 +95,10 @@ const styles = StyleSheet.create({
   inputWrapperFocused: {
     backgroundColor: Colors.surfaceContainerLowest,
     borderColor: 'rgba(0, 65, 143, 0.4)',
+  },
+  inputWrapperError: {
+    borderColor: Colors.error,
+    backgroundColor: 'rgba(186, 26, 26, 0.05)',
   },
   iconContainer: {
     paddingLeft: 16,

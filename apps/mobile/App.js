@@ -16,6 +16,7 @@ import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import SessionsScreen from './src/screens/SessionsScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Alert from './src/utils/Alert';
@@ -153,6 +154,8 @@ export default function App() {
       return <ResetPasswordScreen onNavigate={navigate} />;
     case 'sessions':
       return <SessionsScreen onNavigate={navigate} />;
+    case 'profile':
+      return <ProfileScreen onNavigate={navigate} onLogout={handleLogout} />;
     case 'home':
       return <HomeScreen onNavigate={navigate} onLogout={handleLogout} />;
     case 'login':

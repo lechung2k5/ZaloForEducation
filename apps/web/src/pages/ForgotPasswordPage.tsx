@@ -22,6 +22,23 @@ export default function ForgotPasswordPage() {
   const { requestForgotPassword, resetPassword, resendOtp } = useAuth();
   const navigate = useNavigate();
 
+  const getPasswordStrength = (pass: string) => {
+    let score = 0;
+    if (pass.length >= 8) score++;
+    if (/[A-Z]/.test(pass)) score++;
+    if (/[0-9]/.test(pass)) score++;
+    if (/[@$!%*?&]/.test(pass)) score++;
+    return score;
+  };
+
+  const passwordStrength = getPasswordStrength(newPassword);
+  const strengthConfig = [
+    { label: 'Rất yếu', color: 'bg-error', width: '25%' },
+    { label: 'Yếu', color: 'from-error to-warning/50', width: '40%' },
+    { label: 'Trung bình', color: 'from-warning to-primary/50', width: '65%' },
+    { label: 'Mạnh', color: 'from-primary/50 to-secondary', width: '100%' }
+  ];
+
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -88,12 +105,15 @@ export default function ForgotPasswordPage() {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (newPassword.length < 8) { 
-      setError('Mật khẩu phải có ít nhất 8 ký tự');
-      return; 
+    
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      setError('Mật khẩu phải tối thiểu 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt.');
+      return;
     }
+
     if (newPassword !== confirmPassword) { 
-      setError('Mật khẩu xác nhận không giống với mật khẩu mới');
+      setError('Mật khẩu xác nhận không khớp.');
       return; 
     }
     setLoading(true);
@@ -285,6 +305,24 @@ export default function ForgotPasswordPage() {
                     </span>
                   </div>
                 </div>
+                {newPassword && (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex justify-between items-center text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
+                      <span>Độ mạnh: <span className={
+                        passwordStrength === 0 ? 'text-error' : 
+                        passwordStrength < 3 ? 'text-warning' : 
+                        'text-primary'
+                      }>{strengthConfig[Math.max(0, passwordStrength - 1)].label}</span></span>
+                      <span>{passwordStrength * 25}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full bg-gradient-to-r transition-all duration-500 rounded-full ${strengthConfig[Math.max(0, passwordStrength - 1)].color}`}
+                        style={{ width: strengthConfig[Math.max(0, passwordStrength - 1)].width }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="group relative">

@@ -14,6 +14,7 @@ const RegisterPage: React.FC = () => {
   const [dataOfBirth, setDataOfBirth] = useState('');
   const [phone, setPhone] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,6 +27,27 @@ const RegisterPage: React.FC = () => {
 
   const { requestRegisterOtp, confirmRegister, resendOtp } = useAuth();
   const navigate = useNavigate();
+
+  const handleBlur = (field: string) => {
+    setTouchedFields(prev => ({ ...prev, [field]: true }));
+  };
+
+  const getPasswordStrength = (pass: string) => {
+    let score = 0;
+    if (pass.length >= 8) score++;
+    if (/[A-Z]/.test(pass)) score++;
+    if (/[0-9]/.test(pass)) score++;
+    if (/[@$!%*?&]/.test(pass)) score++;
+    return score;
+  };
+
+  const passwordStrength = getPasswordStrength(password);
+  const strengthConfig = [
+    { label: 'Rất yếu', color: 'bg-error', width: '25%' },
+    { label: 'Yếu', color: 'from-error to-warning/50', width: '40%' },
+    { label: 'Trung bình', color: 'from-warning to-primary/50', width: '65%' },
+    { label: 'Mạnh', color: 'from-primary/50 to-secondary', width: '100%' }
+  ];
 
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,10 +122,35 @@ const RegisterPage: React.FC = () => {
       setError('Bạn cần đồng ý với điều khoản sử dụng.');
       return;
     }
+
+    // Validation
+    const nameParts = fullName.trim().split(/\s+/);
+    if (nameParts.length < 2) {
+      setError('Họ và tên phải bao gồm ít nhất 2 từ.');
+      return;
+    }
+    if (/[0-9!@#$%^&*(),.?":{}|<>]/.test(fullName)) {
+      setError('Họ tên không được chứa số hoặc ký tự đặc biệt.');
+      return;
+    }
+
+    const phoneRegex = /^(0|84)(3|5|7|8|9)[0-9]{8}$/;
+    if (!phoneRegex.test(phone)) {
+      setError('Số điện thoại không hợp lệ (Phải là SĐT Việt Nam).');
+      return;
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      setError('Mật khẩu phải tối thiểu 8 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Mật khẩu xác nhận không khớp.');
       return;
     }
+
     setLoading(true);
     setError('');
     try {
@@ -415,10 +462,11 @@ const RegisterPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-on-surface-variant ml-1">Họ và tên</label>
                   <input 
                     type="text"
-                    className="w-full px-5 py-4 bg-surface-container-highest rounded-xl border-none focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest transition-all duration-300 outline-none text-on-surface placeholder:text-outline" 
+                    className={`w-full px-5 py-4 bg-surface-container-highest rounded-xl border-2 transition-all duration-300 outline-none text-on-surface placeholder:text-outline ${touchedFields.fullName && (fullName.trim().split(/\s+/).length < 2 || /[0-9!@#$%^&*(),.?":{}|<>]/.test(fullName)) ? 'border-error bg-error-container/10' : 'border-transparent focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest'}`} 
                     placeholder="Nguyễn Văn A" 
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
+                    onBlur={() => handleBlur('fullName')}
                     required
                   />
                 </div>
@@ -428,10 +476,11 @@ const RegisterPage: React.FC = () => {
                     <label className="block text-sm font-semibold text-on-surface-variant ml-1">Số điện thoại</label>
                     <input 
                       type="tel"
-                      className="w-full px-5 py-4 bg-surface-container-highest rounded-xl border-none focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest transition-all duration-300 outline-none text-on-surface" 
+                      className={`w-full px-5 py-4 bg-surface-container-highest rounded-xl border-2 transition-all duration-300 outline-none text-on-surface ${touchedFields.phone && !/^(0|84)(3|5|7|8|9)[0-9]{8}$/.test(phone) ? 'border-error bg-error-container/10' : 'border-transparent focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest'}`} 
                       placeholder="0901 234 567" 
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
+                      onBlur={() => handleBlur('phone')}
                       required
                     />
                   </div>
@@ -474,12 +523,31 @@ const RegisterPage: React.FC = () => {
                     <label className="block text-sm font-semibold text-on-surface-variant ml-1">Mật khẩu mới</label>
                     <input 
                       type="password"
-                      className="w-full px-5 py-4 bg-surface-container-highest rounded-xl border-none focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest transition-all duration-300 outline-none text-on-surface" 
+                      className={`w-full px-5 py-4 bg-surface-container-highest rounded-xl border-2 transition-all duration-300 outline-none text-on-surface ${touchedFields.password && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(password) ? 'border-error bg-error-container/10' : 'border-transparent focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest'}`} 
                       placeholder="••••••••" 
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      onBlur={() => handleBlur('password')}
                       required
                     />
+                    {password && (
+                      <div className="mt-3 space-y-2">
+                        <div className="flex justify-between items-center text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
+                          <span>Độ mạnh: <span className={
+                            passwordStrength === 0 ? 'text-error' : 
+                            passwordStrength < 3 ? 'text-warning' : 
+                            'text-primary'
+                          }>{strengthConfig[Math.max(0, passwordStrength - 1)].label}</span></span>
+                          <span>{passwordStrength * 25}%</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full bg-gradient-to-r transition-all duration-500 rounded-full ${strengthConfig[Math.max(0, passwordStrength - 1)].color}`}
+                            style={{ width: strengthConfig[Math.max(0, passwordStrength - 1)].width }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="block text-sm font-semibold text-on-surface-variant ml-1">Xác nhận mật khẩu</label>

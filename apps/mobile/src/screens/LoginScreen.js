@@ -16,9 +16,9 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import { Colors, Typography, Shadows } from '../constants/Theme';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDeviceId, getDeviceInfo } from '../utils/device';
 import SocketService from '../utils/socket';
+import Storage from '../utils/storage';
 
 export default function LoginScreen({ onNavigate }) {
   const [email, setEmail] = useState('');
@@ -28,8 +28,13 @@ export default function LoginScreen({ onNavigate }) {
 
   useEffect(() => {
     async function initDeviceId() {
-      const id = await getDeviceId();
-      setDeviceId(id);
+      try {
+        const id = await getDeviceId();
+        console.log('[DEBUG] Device ID initialized:', id);
+        setDeviceId(id);
+      } catch (err) {
+        console.error('[DEBUG] Failed to init Device ID:', err);
+      }
     }
     initDeviceId();
   }, []);
@@ -42,35 +47,42 @@ export default function LoginScreen({ onNavigate }) {
 
     setLoading(true);
     const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+    console.log('[DEBUG] Attempting login to:', `${apiUrl}/auth/login`);
+    
     try {
       const { deviceName, deviceType } = getDeviceInfo();
+      const loginPayload = { email, password, deviceId, deviceName, deviceType };
+      console.log('[DEBUG] Login payload:', JSON.stringify(loginPayload));
+
       const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, deviceId, deviceName, deviceType }),
+        body: JSON.stringify(loginPayload),
       });
 
       const data = await response.json();
+      console.log('[DEBUG] Response status:', response.status);
       
       if (response.ok) {
-        // Handle potentially wrapped AsyncStorage default export on Web
-        const storage = AsyncStorage.default || AsyncStorage;
+        console.log('[DEBUG] Login successful');
         
-        // Save to storage
-        await storage.setItem('token', data.accessToken);
-        await storage.setItem('user', JSON.stringify(data.user));
-        await storage.setItem('deviceId', deviceId);
+        // Save to storage using the robust utility
+        await Storage.setItem('token', data.accessToken);
+        await Storage.setItem('user', JSON.stringify(data.user));
+        await Storage.setItem('deviceId', deviceId);
         
         // Connect socket (Singleton safe)
         SocketService.connect(data.user.email);
 
         if (onNavigate) onNavigate('home');
       } else {
+        console.error('[DEBUG] Login error response:', data);
         Alert.alert('Đăng nhập thất bại', data.message || 'Sai tài khoản hoặc mật khẩu');
       }
     } catch (error) {
+      console.error('[DEBUG] Connection error:', error);
       Alert.alert('Lỗi', 'Lỗi kết nối server: ' + error.message);
     } finally {
       setLoading(false);

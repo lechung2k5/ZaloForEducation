@@ -22,6 +22,20 @@ export default function ForgotPasswordScreen({ onNavigate }) {
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [canResend, setCanResend] = useState(true);
+  const [touchedFields, setTouchedFields] = useState({});
+
+  const getPasswordStrength = (pass) => {
+    let score = 0;
+    if (pass.length >= 8) score++;
+    if (/[A-Z]/.test(pass)) score++;
+    if (/[0-9]/.test(pass)) score++;
+    if (/[@$!%*?&]/.test(pass)) score++;
+    return score;
+  };
+  
+  const handleBlur = (field) => {
+    setTouchedFields(prev => ({ ...prev, [field]: true }));
+  };
 
   const handleSendOtp = async () => {
     if (!email) { Alert.alert('Lỗi', 'Vui lòng nhập email!'); return; }
@@ -101,8 +115,10 @@ export default function ForgotPasswordScreen({ onNavigate }) {
   };
 
   const handleResetPassword = async () => {
-    if (!newPassword || newPassword.length < 8) {
-      Alert.alert('Lỗi', 'Mật khẩu phải có ít nhất 8 ký tự'); return;
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      Alert.alert('Lỗi', 'Mật khẩu phải tối thiểu 8 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt');
+      return;
     }
     if (newPassword !== confirmPassword) {
       Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp!'); return;
@@ -223,7 +239,37 @@ export default function ForgotPasswordScreen({ onNavigate }) {
                         onChangeText={setNewPassword}
                         secureTextEntry
                         icon="key"
+                        hasError={touchedFields.newPassword && !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(newPassword)}
+                        onBlur={() => handleBlur('newPassword')}
                       />
+
+                      {newPassword.length > 0 && (
+                        <View style={styles.strengthContainer}>
+                          <View style={styles.strengthHeader}>
+                            <Text style={styles.strengthLabel}>Độ mạnh: <Text style={[
+                              styles.strengthValue,
+                              getPasswordStrength(newPassword) <= 2 ? { color: Colors.error } : 
+                              getPasswordStrength(newPassword) === 3 ? { color: '#EAB308' } : { color: '#10B981' }
+                            ]}>
+                              {['Rất yếu', 'Yếu', 'Trung bình', 'Mạnh', 'Rất mạnh'][getPasswordStrength(newPassword)]}
+                            </Text></Text>
+                            <Text style={styles.strengthPercent}>{getPasswordStrength(newPassword) * 25}%</Text>
+                          </View>
+                          <View style={styles.strengthBarOuter}>
+                            <LinearGradient
+                              colors={
+                                getPasswordStrength(newPassword) <= 1 ? ['#EF4444', '#F87171'] :
+                                getPasswordStrength(newPassword) === 2 ? ['#F59E0B', '#FBBF24'] :
+                                ['#10B981', '#34D399']
+                              }
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 0 }}
+                              style={[styles.strengthBarInner, { width: `${getPasswordStrength(newPassword) * 25}%` }]}
+                            />
+                          </View>
+                        </View>
+                      )}
+
                       <Input
                         label="Xác nhận mật khẩu"
                         placeholder="Nhập lại chính xác"
@@ -231,6 +277,8 @@ export default function ForgotPasswordScreen({ onNavigate }) {
                         onChangeText={setConfirmPassword}
                         secureTextEntry
                         icon="lock_reset"
+                        hasError={touchedFields.confirmPassword && (newPassword !== confirmPassword)}
+                        onBlur={() => handleBlur('confirmPassword')}
                       />
                       <Button title={loading ? 'Đang thiết lập...' : 'Xác nhận đổi mật khẩu'} onPress={handleResetPassword} disabled={loading} icon="done_all" />
                     </View>
@@ -270,4 +318,12 @@ const styles = StyleSheet.create({
   form: { width: '100%', marginTop: 8 },
   footer: { alignItems: 'center', marginTop: 16 },
   footerLink: { ...Typography.label, fontSize: 14, color: Colors.primary },
+  
+  strengthContainer: { marginBottom: 20, paddingHorizontal: 4 },
+  strengthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  strengthLabel: { fontSize: 12, color: Colors.onSurfaceVariant, ...Typography.body },
+  strengthValue: { fontWeight: '800' },
+  strengthPercent: { fontSize: 12, fontWeight: '700', color: Colors.outline },
+  strengthBarOuter: { height: 6, backgroundColor: Colors.surfaceContainerHighest, borderRadius: 3, overflow: 'hidden' },
+  strengthBarInner: { height: '100%', borderRadius: 3 },
 });
