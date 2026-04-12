@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ChatBot from '../components/ChatBot';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
@@ -7,15 +8,15 @@ const HomePage: React.FC = () => {
   const { user, logout, socket } = useAuth();
   
   // STATE MANAGEMENT giống cấu trúc Zalo
-  const [activeTab, setActiveTab] = useState<'chat' | 'contacts' | 'notifications' | 'cloud'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'contacts' | 'notifications' | 'cloud' | 'chatbot'>('chat');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [selectedChat, setSelectedChat] = useState<any | null>(null);
   const [conversations, setConversations] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const displayName = user?.fullName || user?.fullname || 'Bạn';
-  const displayAvatar = user?.avatarUrl || user?.urlAvatar || 'https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png';
+  const displayName = useMemo(() => user?.fullName || user?.fullname || 'Bạn', [user]);
+  const displayAvatar = useMemo(() => user?.avatarUrl || user?.urlAvatar || 'https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png', [user]);
 
   // FETCH CONVERSATIONS ON LOAD
   useEffect(() => {
@@ -171,11 +172,9 @@ const HomePage: React.FC = () => {
           {renderNavButton('contacts', 'group')}
           {renderNavButton('notifications', 'notifications', true)}
           {renderNavButton('cloud', 'cloud')}
+          {renderNavButton('chatbot', 'smart_toy')}
         </nav>
         <div className="mt-auto space-y-4">
-          <Link to="/sessions" className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" title='Thiết bị đăng nhập'>
-            <span className="material-symbols-outlined">devices</span>
-          </Link>
           <button className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" title='Cài đặt'>
             <span className="material-symbols-outlined">settings</span>
           </button>
@@ -268,7 +267,10 @@ const HomePage: React.FC = () => {
       </section>
 
       {/* Main Content Area (Column 3 & 4 OR Welcome Screen) */}
-      {!selectedChat ? (
+      {activeTab === 'chatbot' ? (
+        // CHATBOT VIEW
+        <ChatBot />
+      ) : !selectedChat ? (
         // WELCOME SCREEN (Empty State)
         <main className="flex-1 bg-[#f7f9fb] flex flex-col items-center justify-center relative shadow-[inset_1px_0_0_rgba(0,0,0,0.05)]">
            <img 

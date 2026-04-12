@@ -401,6 +401,14 @@ const ProfilePage: React.FC = () => {
                   <span className="w-28 text-base text-slate-500">Điện thoại</span>
                   <span className="text-base text-slate-800">{profile.phone || 'Chưa cập nhật'}</span>
                 </div>
+                <div className="flex flex-col">
+                  <span className="w-28 text-base text-slate-500 mb-1">Địa chỉ</span>
+                  <span className="text-base text-slate-800">{profile.address || 'Chưa cập nhật'}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="w-28 text-base text-slate-500 mb-1">Giới thiệu</span>
+                  <span className="text-base text-slate-800">{profile.bio || 'Chưa cập nhật'}</span>
+                </div>
               </div>
 
               <p className="text-sm leading-6 text-slate-500 mb-4">Chỉ bạn bè có lưu số của bạn trong danh bạ máy xem được số này</p>
@@ -411,7 +419,6 @@ const ProfilePage: React.FC = () => {
               </button>
 
               <div className="mt-4 flex justify-end gap-2">
-                <Link to="/sessions" className="px-4 py-2 rounded-lg bg-slate-200 text-sm font-semibold text-slate-700">Thiết bị</Link>
                 <Link to="/" className="px-4 py-2 rounded-lg bg-slate-200 text-sm font-semibold text-slate-700">Đóng</Link>
               </div>
             </div>
