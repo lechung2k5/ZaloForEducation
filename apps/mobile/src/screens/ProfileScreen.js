@@ -1,22 +1,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Colors, Shadows, Typography } from '../constants/Theme';
 import Alert from '../utils/Alert';
+import { getApiBaseUrl } from '../utils/api';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = getApiBaseUrl();
 const COVER_URL = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80';
 
 const EMPTY_PROFILE = {
@@ -29,6 +31,8 @@ const EMPTY_PROFILE = {
   gender: true,
   avatarUrl: '',
   urlAvatar: '',
+  backgroundUrl: '',
+  urlBackground: '',
 };
 
 export default function ProfileScreen({ onNavigate, onLogout }) {
@@ -36,6 +40,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
   const [draft, setDraft] = useState(EMPTY_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [mediaUploading, setMediaUploading] = useState(false);
   const [editing, setEditing] = useState(false);
 
   const storage = useMemo(() => AsyncStorage.default || AsyncStorage, []);
@@ -50,9 +55,12 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
       : { 'Content-Type': 'application/json' };
   };
 
+  const getAuthToken = async () => storage.getItem('token');
+
   const normalizeProfile = (source = {}) => {
     const fullName = source.fullName || source.fullname || '';
     const avatarUrl = source.avatarUrl || source.urlAvatar || '';
+    const backgroundUrl = source.backgroundUrl || source.urlBackground || '';
 
     return {
       ...EMPTY_PROFILE,
@@ -61,6 +69,8 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
       fullname: fullName,
       avatarUrl,
       urlAvatar: avatarUrl,
+      backgroundUrl,
+      urlBackground: backgroundUrl,
       gender: typeof source.gender === 'boolean' ? source.gender : true,
     };
   };
@@ -75,6 +85,8 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
       fullname: nextProfile.fullName || nextProfile.fullname || currentUser.fullName || currentUser.fullname || '',
       avatarUrl: nextProfile.avatarUrl || nextProfile.urlAvatar || currentUser.avatarUrl || currentUser.urlAvatar || '',
       urlAvatar: nextProfile.avatarUrl || nextProfile.urlAvatar || currentUser.avatarUrl || currentUser.urlAvatar || '',
+      backgroundUrl: nextProfile.backgroundUrl || nextProfile.urlBackground || currentUser.backgroundUrl || currentUser.urlBackground || '',
+      urlBackground: nextProfile.backgroundUrl || nextProfile.urlBackground || currentUser.backgroundUrl || currentUser.urlBackground || '',
     };
 
     await storage.setItem('user', JSON.stringify(mergedUser));
@@ -157,6 +169,99 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
     setEditing(false);
   };
 
+  const appendImageToFormData = async (formData, asset, target) => {
+    const fallbackName = `${target}-${Date.now()}.jpg`;
+    const fileName = asset.fileName || fallbackName;
+    const mimeType = asset.mimeType || 'image/jpeg';
+
+    if (Platform.OS === 'web') {
+      if (asset.file) {
+        formData.append('file', asset.file, asset.file.name || fileName);
+        return;
+      }
+
+      if (asset.uri) {
+        const blobResponse = await fetch(asset.uri);
+        const blob = await blobResponse.blob();
+        formData.append('file', blob, fileName);
+        return;
+      }
+
+      throw new Error('Không đọc được file ảnh trên trình duyệt.');
+    }
+
+    formData.append('file', {
+      uri: asset.uri,
+      name: fileName,
+      type: mimeType,
+    });
+  };
+
+  const pickAndUploadImage = async (target) => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Lỗi', 'Vui lòng cấp quyền truy cập thư viện ảnh.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      const token = await getAuthToken();
+      if (!token) {
+        Alert.alert('Lỗi', 'Bạn chưa đăng nhập.');
+        return;
+      }
+
+      setMediaUploading(true);
+
+      const formData = new FormData();
+      await appendImageToFormData(formData, asset, target);
+
+      const endpoint = target === 'avatar' ? 'avatar/upload' : 'background/upload';
+      const response = await fetch(`${API_URL}/users/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.message || 'Không thể tải ảnh lên.');
+      }
+
+      if (target === 'avatar') {
+        const nextAvatar = payload.profile?.avatarUrl || payload.avatarUrl || payload.profile?.urlAvatar || '';
+        if (nextAvatar) {
+          setDraft((current) => ({ ...current, avatarUrl: nextAvatar, urlAvatar: nextAvatar }));
+        }
+      } else {
+        const nextBackground = payload.profile?.backgroundUrl || payload.backgroundUrl || payload.profile?.urlBackground || '';
+        if (nextBackground) {
+          setDraft((current) => ({ ...current, backgroundUrl: nextBackground, urlBackground: nextBackground }));
+        }
+      }
+
+      Alert.alert('Thành công', target === 'avatar' ? 'Đã cập nhật ảnh đại diện.' : 'Đã cập nhật ảnh nền.');
+    } catch (error) {
+      console.error('Upload image error', error);
+      Alert.alert('Lỗi', error.message || 'Không thể tải ảnh lên.');
+    } finally {
+      setMediaUploading(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -187,11 +292,16 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
         ...normalizedNext,
       };
 
-      if ((draft.avatarUrl || '') !== (normalizedNext.avatarUrl || '')) {
+      const currentAvatar = profile.avatarUrl || profile.urlAvatar || '';
+      const nextAvatar = (draft.avatarUrl || '').trim();
+      const currentBackground = profile.backgroundUrl || profile.urlBackground || '';
+      const nextBackground = (draft.backgroundUrl || '').trim();
+
+      if (nextAvatar && nextAvatar !== currentAvatar) {
         const avatarResponse = await fetch(`${API_URL}/users/avatar`, {
           method: 'PUT',
           headers,
-          body: JSON.stringify({ imageUrl: draft.avatarUrl }),
+          body: JSON.stringify({ imageUrl: nextAvatar }),
         });
 
         const avatarData = await avatarResponse.json();
@@ -201,8 +311,27 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
 
         finalProfile = normalizeProfile({
           ...finalProfile,
-          avatarUrl: avatarData.profile?.avatarUrl || avatarData.avatarUrl || draft.avatarUrl,
-          urlAvatar: avatarData.profile?.urlAvatar || avatarData.urlAvatar || draft.avatarUrl,
+          avatarUrl: avatarData.profile?.avatarUrl || avatarData.avatarUrl || nextAvatar,
+          urlAvatar: avatarData.profile?.urlAvatar || avatarData.urlAvatar || nextAvatar,
+        });
+      }
+
+      if (nextBackground && nextBackground !== currentBackground) {
+        const backgroundResponse = await fetch(`${API_URL}/users/background`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ imageUrl: nextBackground }),
+        });
+
+        const backgroundData = await backgroundResponse.json();
+        if (!backgroundResponse.ok) {
+          throw new Error(backgroundData.message || 'Không thể cập nhật ảnh nền.');
+        }
+
+        finalProfile = normalizeProfile({
+          ...finalProfile,
+          backgroundUrl: backgroundData.profile?.backgroundUrl || backgroundData.backgroundUrl || nextBackground,
+          urlBackground: backgroundData.profile?.urlBackground || backgroundData.urlBackground || nextBackground,
         });
       }
 
@@ -221,6 +350,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
 
   const displayName = profile.fullName || profile.fullname || 'Người dùng';
   const avatarUrl = profile.avatarUrl || profile.urlAvatar || '';
+  const backgroundUrl = profile.backgroundUrl || profile.urlBackground || '';
 
   const parts = toDateParts(draft.dataOfBirth);
   const dayValue = draft.dayInput !== undefined ? draft.dayInput : parts.day;
@@ -313,22 +443,36 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
                   keyboardType="phone-pad"
                 />
 
-                <Text style={styles.fieldLabel}>Ảnh đại diện (URL)</Text>
-                <TextInput
-                  style={styles.editInput}
-                  value={draft.avatarUrl}
-                  onChangeText={(value) => handleChange('avatarUrl', value)}
-                  placeholder="Dán URL ảnh đại diện"
-                  placeholderTextColor={Colors.outline}
-                  autoCapitalize="none"
-                />
+                <Text style={styles.fieldLabel}>Ảnh đại diện</Text>
+                <View style={styles.mediaActionsRow}>
+                  <TouchableOpacity
+                    style={[styles.mediaActionButton, mediaUploading && styles.mediaActionButtonDisabled]}
+                    onPress={() => pickAndUploadImage('avatar')}
+                    disabled={mediaUploading}
+                  >
+                    <Text style={styles.mediaActionIcon}>photo_library</Text>
+                    <Text style={styles.mediaActionText}>{mediaUploading ? 'Đang tải...' : 'Chọn ảnh đại diện'}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.fieldLabel}>Ảnh nền</Text>
+                <View style={styles.mediaActionsRow}>
+                  <TouchableOpacity
+                    style={[styles.mediaActionButton, mediaUploading && styles.mediaActionButtonDisabled]}
+                    onPress={() => pickAndUploadImage('background')}
+                    disabled={mediaUploading}
+                  >
+                    <Text style={styles.mediaActionIcon}>image</Text>
+                    <Text style={styles.mediaActionText}>{mediaUploading ? 'Đang tải...' : 'Chọn ảnh nền'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={styles.bottomActions}>
                 <TouchableOpacity style={styles.cancelButton} onPress={cancelEditing}>
                   <Text style={styles.cancelText}>Hủy</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.updateButton, saving && styles.updateButtonDisabled]} onPress={handleSave} disabled={saving}>
+                <TouchableOpacity style={[styles.updateButton, (saving || mediaUploading) && styles.updateButtonDisabled]} onPress={handleSave} disabled={saving || mediaUploading}>
                   <Text style={styles.updateText}>{saving ? 'Đang lưu' : 'Cập nhật'}</Text>
                 </TouchableOpacity>
               </View>
@@ -342,7 +486,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
                 </TouchableOpacity>
               </View>
 
-              <Image source={{ uri: COVER_URL }} style={styles.coverImage} />
+              <Image source={{ uri: backgroundUrl || COVER_URL }} style={styles.coverImage} />
 
               <View style={styles.profileBlock}>
                 <View style={styles.avatarWrapperLarge}>
@@ -637,6 +781,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#1e2f4d',
     backgroundColor: '#fff',
+  },
+  mediaActionsRow: {
+    marginBottom: 10,
+  },
+  mediaActionButton: {
+    borderWidth: 1,
+    borderColor: '#cfd7e3',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f7f9fc',
+  },
+  mediaActionButtonDisabled: {
+    opacity: 0.6,
+  },
+  mediaActionIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 20,
+    color: '#1e2f4d',
+  },
+  mediaActionText: {
+    ...Typography.body,
+    fontSize: 14,
+    color: '#1e2f4d',
   },
   sectionHeading: {
     ...Typography.heading,

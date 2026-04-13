@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client';
+import { getApiBaseUrl } from './api';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = getApiBaseUrl();
 
 class SocketService {
   socket = null;

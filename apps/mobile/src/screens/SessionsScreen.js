@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
-  TouchableOpacity, ActivityIndicator, Platform, StatusBar
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Alert from '../utils/Alert';
-import { Colors, Typography, Shadows } from '../constants/Theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator, Platform,
+    SafeAreaView, ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { Colors, Shadows, Typography } from '../constants/Theme';
+import Alert from '../utils/Alert';
+import { getApiBaseUrl } from '../utils/api';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = getApiBaseUrl();
 
 import SocketService from '../utils/socket';
 

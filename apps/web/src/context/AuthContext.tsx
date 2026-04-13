@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import api from '../services/api';
+import api, { getApiBaseUrl } from '../services/api';
 import { getDeviceId, getDeviceInfo } from '../utils/device';
 
 type AppUser = Record<string, unknown> & {
@@ -109,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setupSocket = (email: string) => {
     disconnectSocket();
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const apiUrl = getApiBaseUrl();
     const newSocket = io(apiUrl);
 
     newSocket.on('connect', () => {

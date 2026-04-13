@@ -1,17 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View, Text, TouchableOpacity, SafeAreaView,
-  KeyboardAvoidingView, Platform, ScrollView,
-  StyleSheet,
-} from 'react-native';
-import Alert from '../utils/Alert';
-import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import Input from '../components/Input';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useState } from 'react';
+import {
+    KeyboardAvoidingView, Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text, TouchableOpacity,
+    View,
+} from 'react-native';
 import Button from '../components/Button';
-import { Colors, Typography, Shadows } from '../constants/Theme';
+import Input from '../components/Input';
+import { Colors, Shadows, Typography } from '../constants/Theme';
+import Alert from '../utils/Alert';
+import { getApiBaseUrl } from '../utils/api';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = getApiBaseUrl();
 
 export default function ResetPasswordScreen({ onNavigate }) {
   const [newPassword, setNewPassword] = useState('');

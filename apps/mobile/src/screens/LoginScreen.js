@@ -1,22 +1,23 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-} from 'react-native';
-import Alert from '../utils/Alert';
-import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import Input from '../components/Input';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useState } from 'react';
+import {
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import Button from '../components/Button';
-import { Colors, Typography, Shadows } from '../constants/Theme';
+import Input from '../components/Input';
+import { Colors, Shadows, Typography } from '../constants/Theme';
+import Alert from '../utils/Alert';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApiBaseUrl } from '../utils/api';
 import { getDeviceId, getDeviceInfo } from '../utils/device';
 import SocketService from '../utils/socket';
 
@@ -41,7 +42,8 @@ export default function LoginScreen({ onNavigate }) {
     }
 
     setLoading(true);
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+    const apiUrl = getApiBaseUrl();
+    console.log('[Login] API URL:', apiUrl);
     try {
       const { deviceName, deviceType } = getDeviceInfo();
       const response = await fetch(`${apiUrl}/auth/login`, {

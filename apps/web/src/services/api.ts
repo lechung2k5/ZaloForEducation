@@ -1,7 +1,39 @@
 import axios from 'axios';
 
+const DEFAULT_PORT = '3000';
+
+const normalizeBaseUrl = (value: unknown) => {
+  if (!value || typeof value !== 'string') {
+    return '';
+  }
+
+  return value.trim().replace(/\/$/, '');
+};
+
+const getBrowserHost = () => {
+  if (typeof window === 'undefined' || !window.location?.hostname) {
+    return '';
+  }
+
+  return window.location.hostname;
+};
+
+export const getApiBaseUrl = () => {
+  const envUrl = normalizeBaseUrl(import.meta.env.VITE_API_URL);
+  if (envUrl) {
+    return envUrl;
+  }
+
+  const browserHost = getBrowserHost();
+  if (browserHost) {
+    return `http://${browserHost}:${DEFAULT_PORT}`;
+  }
+
+  return `http://localhost:${DEFAULT_PORT}`;
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
