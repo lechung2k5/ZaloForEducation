@@ -8,6 +8,7 @@ export interface User {
   dataOfBirth: string;
   phone: string;
   avatarUrl?: string;
+  backgroundUrl?: string;
   album?: any[];
   address?: string;
   bio?: string;
@@ -103,6 +104,7 @@ export interface LoginRequestDto {
   deviceId: string;
   deviceName?: string;
   deviceType?: string;
+  platform?: 'web' | 'mobile';
 }
 
 export interface ApiResponse<T = any> {

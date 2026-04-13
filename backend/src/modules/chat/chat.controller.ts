@@ -2,10 +2,10 @@ import { Controller, Get, Post, Body, Req, UseGuards, Param, Query } from '@nest
 import { ChatService } from './chat.service';
 import { MessageService } from './message.service';
 import { FriendshipService } from './friendship.service';
-// import { AuthGuard } from '../auth/auth.guard'; // Assuming AuthGuard exists
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-@Controller('api/chat')
-// @UseGuards(AuthGuard) // Implement AuthGuard to get req.user
+@Controller('chat')
+@UseGuards(JwtAuthGuard)
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,
@@ -16,20 +16,19 @@ export class ChatController {
   // --- CONVERSATIONS ---
   @Get('conversations')
   async getInbox(@Req() req: any) {
-    // Mock user for now if AuthGuard is not providing it. Later: const email = req.user.email;
-    const email = req.user?.email || 'admin@example.com';
+    const email = req.user.email;
     return await this.chatService.getConversationsByUser(email);
   }
 
   @Post('conversations/direct')
   async createDirect(@Body() body: { targetEmail: string }, @Req() req: any) {
-    const email = req.user?.email || 'admin@example.com';
+    const email = req.user.email;
     return await this.chatService.createDirectConversation(email, body.targetEmail);
   }
 
   @Post('conversations/group')
   async createGroup(@Body() body: { name: string, members: string[] }, @Req() req: any) {
-    const email = req.user?.email || 'admin@example.com';
+    const email = req.user.email;
     return await this.chatService.createGroupConversation(email, body.members, body.name);
   }
 
@@ -45,26 +44,26 @@ export class ChatController {
     @Body() body: { content: string, type?: any, media?: any[], files?: any[] }, 
     @Req() req: any
   ) {
-    const email = req.user?.email || 'admin@example.com';
+    const email = req.user.email;
     return await this.messageService.sendMessage(convId, email, body.content, body.type, body.media, body.files);
   }
 
   // --- FRIENDSHIPS ---
   @Get('friends')
   async getFriends(@Req() req: any) {
-    const email = req.user?.email || 'admin@example.com';
+    const email = req.user.email;
     return await this.friendshipService.getFriendships(email);
   }
 
   @Post('friends/request')
   async sendFriendRequest(@Body() body: { targetEmail: string }, @Req() req: any) {
-    const email = req.user?.email || 'admin@example.com';
+    const email = req.user.email;
     return await this.friendshipService.sendRequest(email, body.targetEmail);
   }
 
   @Post('friends/accept')
   async acceptFriendRequest(@Body() body: { senderEmail: string }, @Req() req: any) {
-    const email = req.user?.email || 'admin@example.com';
+    const email = req.user.email;
     return await this.friendshipService.acceptRequest(email, body.senderEmail);
   }
 }

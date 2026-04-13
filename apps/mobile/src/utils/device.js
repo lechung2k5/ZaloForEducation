@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import * as Device from 'expo-device';
 import Storage from './storage';
 import { UAParser } from 'ua-parser-js';
 
@@ -24,8 +25,7 @@ export const getDeviceId = async () => {
 };
 
 export const getDeviceInfo = () => {
-    // For Native Apps, we could use expo-device, but since the user asked for ua-parser-js
-    // we use it for broad compatibility (especially web mode).
+    // Web: Use UAParser as before
     if (Platform.OS === 'web') {
         const parser = new UAParser();
         const result = parser.getResult();
@@ -37,9 +37,11 @@ export const getDeviceInfo = () => {
             deviceType: result.device.type || 'mobile'
         };
     } else {
-        // Native fallback (Simplified)
+        // Native: Use expo-device for "iPhone 13", "Samsung S21", v.v.
+        const modelName = Device.modelName || (Platform.OS === 'ios' ? 'iPhone' : 'Android Device');
+        
         return {
-            deviceName: `${Platform.OS === 'ios' ? 'iPhone' : 'Android Device'}`,
+            deviceName: modelName,
             deviceType: 'mobile'
         };
     }

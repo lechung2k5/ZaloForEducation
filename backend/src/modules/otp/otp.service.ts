@@ -6,7 +6,7 @@ import { OtpCode } from '@zalo-edu/shared';
 export class OtpService {
   constructor(private readonly redis: RedisService) {}
 
-  async createOtp(email: string, type: 'register' | 'forgot_password'): Promise<string> {
+  async createOtp(email: string, type: 'register' | 'forgot_password' | 'change_password'): Promise<string> {
     const code = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digits
     
     // Lưu vào Redis với TTL 5 phút

@@ -6,31 +6,56 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
-
 import { ConfigService } from '@nestjs/config';
+import { SessionService } from '../session.service';
+import { DeviceService } from '../device.service';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
     private jwtService: JwtService,
     private configService: ConfigService,
+    private sessionService: SessionService,
+    private deviceService: DeviceService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const token = this.extractTokenFromHeader(request);
+    
     if (!token) {
       throw new UnauthorizedException('Không tìm thấy Token xác thực.');
     }
+
     try {
       const payload = await this.jwtService.verifyAsync(token, {
         secret: this.configService.get<string>('JWT_SECRET') || 'zaloedu_secret',
       });
-      // Gán payload vào request để controller sử dụng
+
+      // --- NEW LOGIC: VERIFY SESSION IN REDIS AND DB ---
+      if (payload.email && payload.deviceId) {
+        // 1. Kiểm tra Redis (Active session) - Nhanh
+        const session = await this.sessionService.getSession(payload.email, payload.deviceId);
+        
+        if (!session) {
+          console.warn(`[AUTH] Redis session missing for ${payload.email} on ${payload.deviceId}`);
+          throw new UnauthorizedException('SESSION_INVALIDATED');
+        }
+
+        // 2. Kiểm tra DB (Device Status) - Isolation sếp yêu cầu
+        const dbDevice = await this.deviceService.getDeviceStatus(payload.email, payload.deviceId);
+        if (!dbDevice || dbDevice.status !== 'ACTIVE') {
+          console.warn(`[AUTH] DB session invalidated (status: ${dbDevice?.status}) for ${payload.email}`);
+          throw new UnauthorizedException('SESSION_INVALIDATED');
+        }
+      }
+
       request['user'] = payload;
-    } catch {
+    } catch (err) {
+      if (err instanceof UnauthorizedException) throw err;
       throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn.');
     }
+
     return true;
   }
 

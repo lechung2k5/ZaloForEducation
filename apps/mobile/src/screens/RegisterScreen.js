@@ -3,12 +3,12 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Alert from '../utils/Alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -135,10 +135,10 @@ export default function RegisterScreen({ onNavigate }) {
       return;
     }
 
-    // 3. Validate Date of Birth (DD/MM/YYYY)
-    const dobRegex = /^(0?[1-9]|[12][0-9]|3[01])[\/\-](0?[1-9]|1[012])[\/\-]\d{4}$/;
+    // 3. Validate Date of Birth (DD-MM-YYYY)
+    const dobRegex = /^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[012])-(19|20)\d\d$/;
     if (!dobRegex.test(dataOfBirth)) {
-      Alert.alert('Lỗi', 'Ngày sinh phải đúng định dạng DD/MM/YYYY');
+      Alert.alert('Lỗi', 'Ngày sinh phải đúng định dạng DD-MM-YYYY');
       return;
     }
 
@@ -322,11 +322,11 @@ export default function RegisterScreen({ onNavigate }) {
                   />
                   <Input 
                     label="Ngày sinh" 
-                    placeholder="DD/MM/YYYY" 
+                    placeholder="DD-MM-YYYY" 
                     value={dataOfBirth} 
                     onChangeText={setDataOfBirth} 
                     icon="calendar_today" 
-                    hasError={touchedFields.dataOfBirth && !/^(0?[1-9]|[12][0-9]|3[01])[\/\-](0?[1-9]|1[012])[\/\-]\d{4}$/.test(dataOfBirth)}
+                    hasError={touchedFields.dataOfBirth && !/^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[012])-(19|20)\d\d$/.test(dataOfBirth)}
                     onBlur={() => handleBlur('dataOfBirth')}
                   />
 

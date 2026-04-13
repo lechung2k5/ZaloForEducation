@@ -6,15 +6,25 @@ import { UserSession } from '@zalo-edu/shared';
 export class SessionService {
   constructor(public readonly redis: RedisService) { }
 
-  async getSession(deviceId: string) {
-    const sessionId = `SESSION#${deviceId}`;
-    const data = await this.redis.get(sessionId);
+  private getSessionKey(userId: string, deviceId: string): string {
+    return `session:${userId}:${deviceId}`;
+  }
+
+  async getSession(userId: string, deviceId: string) {
+    const key = this.getSessionKey(userId, deviceId);
+    const data = await this.redis.get(key);
     return data ? JSON.parse(data) : null;
   }
 
-  async createSession(userId: string, deviceId: string, metadata?: { deviceName?: string, deviceType?: string }) {
+  // Legacy/Internal support for full key lookups (used by JwtAuthGuard)
+  async getSessionByFullKey(key: string) {
+    const data = await this.redis.get(key);
+    return data ? JSON.parse(data) : null;
+  }
+
+  async createSession(userId: string, deviceId: string, metadata?: { deviceName?: string, deviceType?: string, platform?: string }) {
     const userSessionsKey = `USER_SESSIONS#${userId}`;
-    const sessionId = `SESSION#${deviceId}`;
+    const sessionId = this.getSessionKey(userId, deviceId);
     
     // 1. Dữ liệu session chi tiết
     const sessionData = {
@@ -22,17 +32,18 @@ export class SessionService {
       userId,
       deviceName: metadata?.deviceName || 'Thiết bị không xác định',
       deviceType: metadata?.deviceType || 'unknown',
+      platform: metadata?.platform || 'mobile',
       loginAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
       isActive: true,
     };
     
-    // 2. Lưu vào Redis (30 ngày)
-    await this.redis.set(sessionId, JSON.stringify(sessionData), 86400 * 30);
+    // 2. Lưu vào Redis (7 ngày = 604800s)
+    await this.redis.set(sessionId, JSON.stringify(sessionData), 604800);
     
     // 3. Quản lý danh sách thiết bị của User (SET)
     await this.redis.sAdd(userSessionsKey, deviceId);
-    await this.redis.expire(userSessionsKey, 86400 * 30);
+    await this.redis.expire(userSessionsKey, 604800);
 
     return sessionData;
   }
@@ -44,7 +55,7 @@ export class SessionService {
 
   async removeSession(userId: string, deviceId: string) {
     const userSessionsKey = `USER_SESSIONS#${userId}`;
-    const sessionId = `SESSION#${deviceId}`;
+    const sessionId = this.getSessionKey(userId, deviceId);
     
     await this.redis.del(sessionId);
     await this.redis.sRem(userSessionsKey, deviceId);
@@ -55,7 +66,7 @@ export class SessionService {
     const deviceIds = await this.redis.sMembers(userSessionsKey);
     
     for (const deviceId of deviceIds) {
-      await this.redis.del(`SESSION#${deviceId}`);
+      await this.redis.del(this.getSessionKey(userId, deviceId));
     }
     
     await this.redis.del(userSessionsKey);

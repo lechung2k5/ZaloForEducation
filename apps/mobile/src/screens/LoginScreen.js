@@ -3,12 +3,12 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Alert from '../utils/Alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -16,11 +16,15 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import { Colors, Typography, Shadows } from '../constants/Theme';
 
-import { getDeviceId, getDeviceInfo } from '../utils/device';
+import { getDeviceId } from '../utils/deviceId';
+import { getDeviceInfo } from '../utils/device';
+import { apiRequest } from '../utils/api';
 import SocketService from '../utils/socket';
 import Storage from '../utils/storage';
+import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen({ onNavigate }) {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,44 +50,37 @@ export default function LoginScreen({ onNavigate }) {
     }
 
     setLoading(true);
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
-    console.log('[DEBUG] Attempting login to:', `${apiUrl}/auth/login`);
-    
+
     try {
       const { deviceName, deviceType } = getDeviceInfo();
-      const loginPayload = { email, password, deviceId, deviceName, deviceType };
-      console.log('[DEBUG] Login payload:', JSON.stringify(loginPayload));
 
-      const response = await fetch(`${apiUrl}/auth/login`, {
+      const data = await apiRequest('/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(loginPayload),
+        body: JSON.stringify({
+          email,
+          password,
+          deviceId,
+          deviceName,
+          deviceType,
+          platform: 'mobile',
+        }),
       });
 
-      const data = await response.json();
-      console.log('[DEBUG] Response status:', response.status);
-      
-      if (response.ok) {
+      if (data.accessToken) {
         console.log('[DEBUG] Login successful');
-        
-        // Save to storage using the robust utility
-        await Storage.setItem('token', data.accessToken);
-        await Storage.setItem('user', JSON.stringify(data.user));
-        await Storage.setItem('deviceId', deviceId);
-        
-        // Connect socket (Singleton safe)
-        SocketService.connect(data.user.email);
+
+        // Use context login (handles state, storage and socket)
+        await login(data.user, data.accessToken, deviceId);
 
         if (onNavigate) onNavigate('home');
       } else {
-        console.error('[DEBUG] Login error response:', data);
         Alert.alert('Đăng nhập thất bại', data.message || 'Sai tài khoản hoặc mật khẩu');
       }
     } catch (error) {
-      console.error('[DEBUG] Connection error:', error);
-      Alert.alert('Lỗi', 'Lỗi kết nối server: ' + error.message);
+      if (error.message !== 'SESSION_INVALIDATED') {
+        console.error('[DEBUG] Connection error:', error);
+        Alert.alert('Lỗi', 'Lỗi kết nối server: ' + error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -130,7 +127,7 @@ export default function LoginScreen({ onNavigate }) {
 
               <View style={styles.form}>
                 <Input
-                  label="Email hoặc Tên đăng nhập"
+                  label="Email "
                   placeholder="user@example.com"
                   value={email}
                   onChangeText={setEmail}
@@ -146,11 +143,11 @@ export default function LoginScreen({ onNavigate }) {
                   icon="lock"
                   rightElement={<ForgotLink />}
                 />
-                
-                <Button 
-                  title={loading ? "Đang xử lý..." : "Đăng nhập"} 
-                  onPress={handleLogin} 
-                  variant="primary" 
+
+                <Button
+                  title={loading ? "Đang xử lý..." : "Đăng nhập"}
+                  onPress={handleLogin}
+                  variant="primary"
                   disabled={loading}
                   icon={!loading ? "arrow_forward" : null}
                 />
@@ -162,7 +159,7 @@ export default function LoginScreen({ onNavigate }) {
                 <View style={styles.dividerLine} />
               </View>
 
-              <Button 
+              <Button
                 title="Tiếp tục với Google"
                 variant="secondary"
                 onPress={() => Alert.alert("Sắp ra mắt")}

@@ -6,12 +6,6 @@ import { Platform } from 'react-native';
  * Handles the potential ".default" wrap in react-native-web/monorepo setups.
  */
 const getStorage = () => {
-    // On Web (browser), the default export might be nested under ".default" 
-    // depending on the bundler configuration and package version.
-    if (Platform.OS === 'web') {
-        return AsyncStorage.default || AsyncStorage;
-    }
-    // On Native (iOS/Android), it should be the direct export.
     return AsyncStorage;
 };
 

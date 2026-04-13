@@ -34,9 +34,20 @@ export class EmailService {
     }
   }
 
-  async sendOtp(to: string, code: string, type: 'register' | 'forgot_password') {
-    const subject = type === 'register' ? 'Mã xác thực đăng ký ZaloEdu' : 'Mã đặt lại mật khẩu ZaloEdu';
-    const title = type === 'register' ? 'Xác thực đăng ký' : 'Đặt lại mật khẩu';
+  async sendOtp(to: string, code: string, type: 'register' | 'forgot_password' | 'change_password') {
+    let subject = '';
+    let title = '';
+
+    if (type === 'register') {
+      subject = 'Mã xác thực đăng ký ZaloEdu';
+      title = 'Xác thực đăng ký';
+    } else if (type === 'forgot_password') {
+      subject = 'Mã đặt lại mật khẩu ZaloEdu';
+      title = 'Đặt lại mật khẩu';
+    } else {
+      subject = 'Mã xác thực đổi mật khẩu ZaloEdu';
+      title = 'Đổi mật khẩu';
+    }
     
     const html = `
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">

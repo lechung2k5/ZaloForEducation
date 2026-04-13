@@ -67,15 +67,24 @@ export class AuthController {
   }
 
   @Post('refresh')
-  async refresh(@Body() body: { email: string }) {
-    return this.authService.refreshToken(body.email);
+  @UseGuards(JwtAuthGuard)
+  async refresh(@Req() req) {
+    const { email, deviceId } = req.user;
+    return this.authService.refreshToken(email, deviceId);
   }
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  async logout(@Req() req, @Body() body: { deviceId: string }) {
+  async logout(@Req() req, @Body() body: { deviceId?: string }) {
     const email = req.user.email;
-    return this.authService.logout(email, body.deviceId);
+    // FIX: Luôn ưu tiên deviceId từ JWT payload (req.user.deviceId)
+    // để đảm bảo đúng session bị xóa, tránh mismatch khi QR login
+    // hoặc khi client gửi sai deviceId trong body
+    const deviceId = req.user.deviceId || body.deviceId;
+    if (!deviceId) {
+      return { message: 'Không tìm thấy deviceId.' };
+    }
+    return this.authService.logout(email, deviceId);
   }
 
   @Post('logout-all')
@@ -109,5 +118,35 @@ export class AuthController {
   @Post('test-email')
   async testEmail(@Body() body: { email: string }) {
     return this.authService.testEmail(body.email);
+  }
+
+  // ===== QR LOGIN ENDPOINTS =====
+
+  @Get('qr-code')
+  async getQrCode() {
+    return this.authService.generateQrCodeId();
+  }
+
+  @Post('qr-confirm')
+  @UseGuards(JwtAuthGuard)
+  async confirmQrCode(@Req() req, @Body() body: { qrCodeId: string }) {
+    const email = req.user.email;
+    return this.authService.confirmQrCode(email, body.qrCodeId);
+  }
+
+  // ===== CHANGE PASSWORD (SUPREME SECURITY) =====
+
+  @Post('change-password/request')
+  @UseGuards(JwtAuthGuard)
+  async requestChangePassword(@Req() req, @Body() body: { currentPassword: string; newPassword: string }) {
+    const email = req.user.email;
+    return this.authService.requestChangePassword(email, body.currentPassword, body.newPassword);
+  }
+
+  @Post('change-password/confirm')
+  @UseGuards(JwtAuthGuard)
+  async confirmChangePassword(@Req() req, @Body() body: { otp: string }) {
+    const email = req.user.email;
+    return this.authService.confirmChangePassword(email, body.otp);
   }
 }

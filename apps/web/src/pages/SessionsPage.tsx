@@ -5,13 +5,20 @@ import Swal from 'sweetalert2';
 
 const SessionsPage: React.FC = () => {
   const { getSessions, logout, logoutAll, revokeSession, socket, deviceId, user } = useAuth();
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [activeSessions, setActiveSessions] = useState<any[]>([]);
+  const [loginHistory, setLoginHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchSessions = async () => {
     try {
       const data = await getSessions();
-      setSessions(data);
+      if (data.activeDevices) {
+        setActiveSessions(data.activeDevices);
+        setLoginHistory(data.loginHistory || []);
+      } else {
+        setActiveSessions(data);
+        setLoginHistory([]);
+      }
     } catch (err) {
       console.error('Fetch sessions error', err);
     } finally {
@@ -106,8 +113,19 @@ const SessionsPage: React.FC = () => {
             <p className="text-sm font-bold text-on-surface">{user?.fullName}</p>
             <p className="text-[11px] text-on-surface-variant font-medium">{user?.email}</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold">
-            {user?.fullName?.charAt(0)}
+          <div className="w-10 h-10 rounded-full bg-primary-container text-primary flex items-center justify-center font-bold overflow-hidden border border-primary/20 shadow-sm">
+            {user?.avatarUrl ? (
+              <img 
+                src={user.avatarUrl} 
+                alt="Avatar" 
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              user?.fullName?.charAt(0) || 'U'
+            )}
           </div>
         </div>
       </nav>
@@ -128,7 +146,7 @@ const SessionsPage: React.FC = () => {
             </div>
           ) : (
             <>
-              {sessions.map((session, index) => {
+              {activeSessions.map((session, index) => {
                 const isCurrent = session.deviceId === deviceId;
                 return (
                   <div 
@@ -169,6 +187,38 @@ const SessionsPage: React.FC = () => {
                   </div>
                 );
               })}
+
+              {loginHistory.length > 0 && (
+                <div className="mt-12">
+                  <div className="flex items-center gap-3 mb-6">
+                    <span className="material-symbols-outlined text-primary">history</span>
+                    <h3 className="text-xl font-bold text-on-surface">Lịch sử thiết bị (30 ngày gần đây)</h3>
+                  </div>
+                  <div className="space-y-4">
+                    {loginHistory.map((item, index) => (
+                      <div key={`history-${index}`} className="flex items-center justify-between p-4 bg-surface-container-low/50 rounded-xl border border-outline-variant opacity-70">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center text-on-surface-variant">
+                            <span className="material-symbols-outlined">
+                              {(item.deviceType === 'mobile' || (item.deviceId && (item.deviceId.includes('android') || item.deviceId.includes('ios')))) 
+                                ? 'smartphone' : 'laptop'}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-bold text-sm text-on-surface">{item.deviceName || item.deviceId}</p>
+                            <p className="text-[11px] text-on-surface-variant">
+                              Đã đăng xuất: {new Date(item.logoutAt || item.updatedAt).toLocaleString('vi-VN')}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-1 bg-surface-container-highest text-on-surface-variant text-[9px] font-bold rounded uppercase tracking-tighter">
+                          Đã thoát
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-6 p-8 bg-error/5 rounded-3xl border border-error/10 border-dashed">
                 <div className="text-center sm:text-left">

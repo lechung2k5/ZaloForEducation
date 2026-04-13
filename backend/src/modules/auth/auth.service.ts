@@ -1,22 +1,31 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcrypt';
 import { DynamoDBService } from '../../infrastructure/dynamodb.service';
 import { OtpService } from '../otp/otp.service';
 import { EmailService } from '../../infrastructure/email/email.service';
 import { SessionService } from './session.service';
 import { ChatGateway } from '../chat/chat.gateway';
-import { PutCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, GetCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { RegisterRequestDto, LoginRequestDto, User } from '@zalo-edu/shared';
+import { RedisService } from '../../infrastructure/redis.service';
+import { validateDobStrict } from '../../infrastructure/utils/date.util';
+import { DeviceService } from './device.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
   constructor(
+    private readonly jwtService: JwtService,
     private readonly db: DynamoDBService,
+    private readonly sessionService: SessionService,
+    private readonly deviceService: DeviceService,
     private readonly otpService: OtpService,
     private readonly emailService: EmailService,
-    private readonly jwtService: JwtService,
-    private readonly sessionService: SessionService,
+    private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
+    @Inject(forwardRef(() => ChatGateway))
     private readonly chatGateway: ChatGateway,
   ) { }
 
@@ -37,7 +46,7 @@ export class AuthService {
     if (!dto.fullName || dto.fullName.trim().split(/\s+/).length < 2) {
       throw new BadRequestException('Họ tên phải bao gồm ít nhất 2 từ.');
     }
-    
+
     if (/[0-9!@#$%^&*(),.?":{}|<>]/.test(dto.fullName)) {
       throw new BadRequestException('Họ tên không được chứa số hoặc ký tự đặc biệt.');
     }
@@ -79,7 +88,7 @@ export class AuthService {
       email: dto.email,
       fullName: dto.fullName || '',
       gender: dto.gender ?? true,
-      dataOfBirth: dto.dataOfBirth || '',
+      dataOfBirth: validateDobStrict(dto.dataOfBirth),
       phone: dto.phone || '',
       avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(dto.fullName || 'User')}&background=00418f&color=fff`,
       passwordHash,
@@ -119,11 +128,9 @@ export class AuthService {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác.');
     }
 
-    // --- LOGIC: 1 THIẾT BỊ & REAL-TIME LOGOUT ---
-    // Đảm bảo deviceId luôn có giá trị để tránh lỗi DynamoDB UpdateExpression
     const deviceId = dto.deviceId || `unknown-${Date.now()}`;
-
-    // 2. Cập nhật deviceId mới vào User record (chỉ để track thiết bị cuối cùng)
+    const platform = dto.platform || (dto.deviceType === 'web' ? 'web' : 'mobile');
+    
     await this.db.docClient.send(new UpdateCommand({
       TableName: this.db.tableName,
       Key: { PK: `USER#${dto.email}`, SK: 'METADATA' },
@@ -134,39 +141,28 @@ export class AuthService {
       },
     }));
 
-    // 3. LOGIC: 1 THIẾT BỊ MỖI NỀN TẢNG (1 WEB + 1 APP)
     const activeSessions = await this.sessionService.getSessions(user.email);
-    
-    // Phân loại thiết bị: Ưu tiên prefix của deviceId để đảm bảo tính chính xác
-    const isIncomingWeb = deviceId.startsWith('web-');
-    const isIncomingApp = deviceId.startsWith('android-') || deviceId.startsWith('ios-');
-
-    // Nếu không khớp prefix nhưng deviceType là mobile, giả định là App (để tương thích ngược)
-    const isAppFinal = isIncomingApp || (!isIncomingWeb && dto.deviceType === 'mobile');
-    const isWebFinal = isIncomingWeb || (!isAppFinal && (dto.deviceType === 'desktop' || dto.deviceType === 'web'));
-
-    console.log(`[AUTH] Login detect: user=${user.email}, isApp=${isAppFinal}, isWeb=${isWebFinal}, deviceId=${deviceId}`);
 
     for (const oldId of activeSessions) {
       if (oldId === deviceId) continue;
 
-      const oldSession = await this.sessionService.getSession(oldId);
-      if (!oldSession) continue;
+      const oldSession = await this.sessionService.getSession(user.email, oldId);
+      const oldPlatform = oldSession?.platform || 'mobile';
 
-      const isOldWeb = oldId.startsWith('web-');
-      const isOldApp = oldId.startsWith('android-') || oldId.startsWith('ios-') || (!isOldWeb && oldSession.deviceType === 'mobile');
-
-      // Chỉ kick nếu cùng loại (Web kick Web, App kick App)
-      if ((isAppFinal && isOldApp) || (isWebFinal && isOldWeb)) {
-        console.log(`[AUTH] Conflict detected on ${isAppFinal ? 'APP' : 'WEB'} slot. Kicking: ${oldId}`);
-        await this.sessionService.removeSession(user.email, oldId);
-        this.chatGateway.notifyForceLogout(user.email, oldId);
-        this.chatGateway.notifySessionsUpdate(user.email);
+      if (oldPlatform !== platform) {
+        continue;
       }
+      
+      await this.deviceService.markAsLoggedOut(user.email, oldId, {
+        deviceName: oldSession?.deviceName,
+        deviceType: oldSession?.deviceType,
+      });
+
+      await this.sessionService.removeSession(user.email, oldId);
+      this.chatGateway.notifyForceLogout(user.email, oldId, 'Một thiết bị khác vừa đăng nhập và thay thế phiên làm việc này.');
     }
 
-    // 4. Tạo/Cập nhật Session trong Redis & Lưu lịch sử thiết bị vào DynamoDB
-    const metadata = { deviceName: dto.deviceName, deviceType: dto.deviceType };
+    const metadata = { deviceName: dto.deviceName, deviceType: dto.deviceType, platform };
     await this.sessionService.createSession(user.email, deviceId, metadata);
 
     await this.db.docClient.send(new PutCommand({
@@ -179,27 +175,30 @@ export class AuthService {
         deviceName: dto.deviceName || 'Unknown Device',
         deviceType: dto.deviceType || 'unknown',
         lastLoginAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        status: 'ACTIVE',
       },
     }));
 
-    // 5. Thông báo cập nhật danh sách thiết bị thời gian thực
     this.chatGateway.notifySessionsUpdate(user.email);
 
-    // 6. Trả về Token
-    const payload = { sub: user.email, email: user.email };
+    const payload = { sub: user.email, email: user.email, deviceId: deviceId };
     return {
       accessToken: this.jwtService.sign(payload),
       user: {
         email: user.email,
         fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+        backgroundUrl: user.backgroundUrl || '',
+        phone: user.phone,
+        gender: user.gender,
+        dataOfBirth: user.dataOfBirth,
+        bio: user.bio,
       },
     };
   }
 
-  // ===== QUÊN MẬT KHẨU =====
-
   async forgotPasswordRequestOtp(email: string) {
-    // Kiểm tra email tồn tại
     const result = await this.db.docClient.send(new GetCommand({
       TableName: this.db.tableName,
       Key: { PK: `USER#${email}`, SK: 'METADATA' },
@@ -209,7 +208,6 @@ export class AuthService {
       throw new BadRequestException('Email này chưa được đăng ký trong hệ thống.');
     }
 
-    // Gửi OTP forgot_password qua email
     const code = await this.otpService.createOtp(email, 'forgot_password');
     await this.emailService.sendOtp(email, code, 'forgot_password');
 
@@ -217,7 +215,6 @@ export class AuthService {
   }
 
   async forgotPasswordVerifyOtp(email: string, otp: string) {
-    // Xác thực OTP nhưng KHÔNG xóa (để bước reset vẫn dùng được)
     const savedCode = await this.otpService.getOtp(email);
 
     if (!savedCode || savedCode !== otp) {
@@ -229,13 +226,10 @@ export class AuthService {
 
   async resetPassword(email: string, otp: string, newPassword: string) {
     this.validatePassword(newPassword);
-    // Xác thực và xóa OTP
     await this.otpService.verifyOtp(email, otp);
 
-    // Hash mật khẩu mới
     const passwordHash = await bcrypt.hash(newPassword, 12);
 
-    // Cập nhật DynamoDB
     await this.db.docClient.send(new UpdateCommand({
       TableName: this.db.tableName,
       Key: { PK: `USER#${email}`, SK: 'METADATA' },
@@ -249,44 +243,125 @@ export class AuthService {
   }
 
   async logout(email: string, deviceId: string) {
+    const session = await this.sessionService.getSession(email, deviceId);
+
     await this.sessionService.removeSession(email, deviceId);
-    this.chatGateway.notifyForceLogout(email, deviceId); 
-    this.chatGateway.notifySessionsUpdate(email); // Real-time update list
+
+    await this.deviceService.markAsLoggedOut(email, deviceId, {
+      deviceName: session?.deviceName,
+      deviceType: session?.deviceType,
+    });
+
+    this.chatGateway.notifyForceLogout(email, deviceId, 'Phiên đăng nhập đã kết thúc thành công.');
+    this.chatGateway.notifySessionsUpdate(email);
     return { message: 'Đăng xuất thành công.' };
   }
 
   async logoutAll(email: string) {
-    await this.sessionService.removeAllSessions(email);
-    this.chatGateway.notifyForceLogout(email, 'ALL'); 
-    this.chatGateway.notifySessionsUpdate(email); // Real-time update list
+    const activeDeviceIds = await this.sessionService.getSessions(email);
+    for (const deviceId of activeDeviceIds) {
+      const session = await this.sessionService.getSession(email, deviceId);
+      await this.sessionService.removeSession(email, deviceId);
+      await this.deviceService.markAsLoggedOut(email, deviceId, {
+        deviceName: session?.deviceName,
+        deviceType: session?.deviceType,
+      });
+    }
+
+    this.chatGateway.notifyForceLogout(email, 'all', 'Tất cả các phiên đăng nhập đã bị đăng xuất định kỳ hoặc bởi người dùng.');
+    this.chatGateway.notifySessionsUpdate(email);
     return { message: 'Đã đăng xuất khỏi tất cả các thiết bị.' };
+  }
+
+  async requestChangePassword(email: string, currentPassword: string, newPassword: string) {
+    // 1. Lấy thông tin User
+    const result = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+
+    const user = result.Item as User;
+    if (!user) throw new BadRequestException('Người dùng không tồn tại.');
+
+    // 2. Kiểm tra mật khẩu hiện tại
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Mật khẩu hiện tại không chính xác.');
+    }
+
+    // 3. Kiểm tra mật khẩu mới
+    if (currentPassword === newPassword) {
+      throw new BadRequestException('Mật khẩu mới không được trùng với mật khẩu cũ.');
+    }
+    this.validatePassword(newPassword);
+
+    // 4. Hash mật khẩu mới và lưu vào Redis (TTL 5p giống OTP)
+    const nextHash = await bcrypt.hash(newPassword, 12);
+    await this.redisService.set(`CHANGE_PASS_PENDING#${email}`, nextHash, 300);
+
+    // 5. Tạo OTP
+    const code = await this.otpService.createOtp(email, 'change_password');
+    await this.emailService.sendOtp(email, code, 'change_password');
+
+    return { message: 'Mã xác thực đã được gửi về email của bạn.' };
+  }
+
+  async confirmChangePassword(email: string, otp: string) {
+    // 1. Xác thực OTP
+    await this.otpService.verifyOtp(email, otp);
+
+    // 2. Lấy mật khẩu mới từ Redis
+    const nextHash = await this.redisService.get(`CHANGE_PASS_PENDING#${email}`);
+    if (!nextHash) {
+      throw new BadRequestException('Yêu cầu đổi mật khẩu đã hết hạn. Vui lòng thực hiện lại.');
+    }
+
+    // 3. Cập nhật DynamoDB
+    await this.db.docClient.send(new UpdateCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+      UpdateExpression: 'SET passwordHash = :hash, updatedAt = :now',
+      ExpressionAttributeValues: {
+        ':hash': nextHash,
+        ':now': new Date().toISOString(),
+      },
+    }));
+
+    // 4. Cleanup Redis
+    await this.redisService.del(`CHANGE_PASS_PENDING#${email}`);
+
+    // 5. Đăng xuất toàn bộ thiết bị (Supreme Security)
+    await this.logoutAll(email);
+
+    return { message: 'Đổi mật khẩu thành công! Tất cả thiết bị đã được đăng xuất để bảo mật.' };
   }
 
   async getActiveSessions(email: string) {
     const deviceIds = await this.sessionService.getSessions(email);
     const sessions = [];
 
-    console.log(`[AUTH] Fetching sessions for ${email}. Found in set: ${JSON.stringify(deviceIds)}`);
-
     for (const deviceId of deviceIds) {
-      const session = await this.sessionService.getSession(deviceId);
+      const session = await this.sessionService.getSession(email, deviceId);
       if (session) {
         sessions.push(session);
       } else {
-        // Strict cleanup: Nếu ID có trong SET nhưng dữ liệu session đã hết hạn/mất, xóa khỏi SET luôn
-        console.warn(`[AUTH] Cleaning up ghost session for ${deviceId}`);
         await this.sessionService.removeSession(email, deviceId);
       }
     }
 
-    // Trả về danh sách đã sắp xếp: Mới nhất lên đầu
+    // 2. Lấy lịch sử đăng xuất từ DeviceService
+    const loginHistory = await this.deviceService.getLoginHistory(email);
+
     const sorted = sessions.sort((a, b) => {
       const timeA = new Date(a.loginAt || a.lastActiveAt).getTime();
       const timeB = new Date(b.loginAt || b.lastActiveAt).getTime();
       return timeB - timeA;
     });
 
-    return { sessions: sorted };
+    return {
+      activeDevices: sorted,
+      loginHistory
+    };
   }
 
   async resendOtp(email: string, type: 'register' | 'forgot_password') {
@@ -300,8 +375,14 @@ export class AuthService {
     return { message: 'Xác thực mã OTP thành công.' };
   }
 
-  async refreshToken(email: string) {
-    const payload = { sub: email, email };
+  async refreshToken(email: string, deviceId: string) {
+    const session = await this.sessionService.getSession(email, deviceId);
+
+    if (!session) {
+      throw new UnauthorizedException('SESSION_INVALIDATED');
+    }
+
+    const payload = { sub: email, email, deviceId };
     return {
       accessToken: this.jwtService.sign(payload)
     };
@@ -314,5 +395,106 @@ export class AuthService {
       '<h1>Cấu hình Email thành công!</h1><p>Bạn nhận được thư này tức là hệ thống SMTP đã hoạt động tốt.</p>'
     );
     return { message: 'Đã gửi email test thành công.' };
+  }
+
+  // ===== QR LOGIN LOGIC =====
+
+  async generateQrCodeId() {
+    const qrCodeId = uuidv4();
+    const redisKey = `qr_login:${qrCodeId}`;
+    await this.redisService.set(redisKey, 'PENDING', 300); // 5 mins
+    return { qrCodeId };
+  }
+
+  async confirmQrCode(email: string, qrCodeId: string) {
+    const redisKey = `qr_login:${qrCodeId}`;
+    const status = await this.redisService.get(redisKey);
+
+    if (!status) {
+      throw new BadRequestException('Mã QR đã hết hạn hoặc không tồn tại.');
+    }
+
+    if (status !== 'PENDING') {
+      throw new BadRequestException('Mã QR này đã được sử dụng.');
+    }
+
+    // 1. Lấy thông tin User
+    const result = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+
+    const user = result.Item as User;
+    if (!user) {
+      throw new BadRequestException('Người dùng không tồn tại.');
+    }
+
+    // 2. Tạo phiên làm việc Web mới
+    const deviceId = `web-${uuidv4().split('-')[0]}`;
+    const platform = 'web';
+    const metadata = {
+      deviceName: 'Web Browser (QR Login)',
+      deviceType: 'web',
+      platform
+    };
+
+    // 3. Tạo session mới TRƯỚC để web có token hợp lệ
+    await this.sessionService.createSession(user.email, deviceId, metadata);
+
+    // Sau đó mới kick session cũ cùng platform
+    // Thứ tự này quan trọng: web phải nhận login_success trước force_logout
+    const activeSessions = await this.sessionService.getSessions(email);
+    for (const oldId of activeSessions) {
+      if (oldId === deviceId) continue; // Bỏ qua session vừa tạo
+
+      const oldSession = await this.sessionService.getSession(email, oldId);
+      if (oldSession?.platform === 'web') {
+        console.log(`[QR] Kicking old web session: ${oldId}`);
+        await this.sessionService.removeSession(email, oldId);
+        // Delay 2s để web kịp nhận login_success và lưu token
+        // trước khi nhận force_logout từ session cũ
+        setTimeout(() => {
+          this.chatGateway.notifyForceLogout(email, oldId);
+        }, 2000);
+      }
+    }
+
+    // 4. Lưu vào DynamoDB
+    await this.db.docClient.send(new PutCommand({
+      TableName: this.db.tableName,
+      Item: {
+        PK: `USER#${user.email}`,
+        SK: `DEVICE#${deviceId}`,
+        email: user.email,
+        deviceId,
+        deviceName: metadata.deviceName,
+        deviceType: metadata.deviceType,
+        lastLoginAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        status: 'ACTIVE',
+      },
+    }));
+
+    // 5. Tạo Tokens
+    const payload = { sub: user.email, email: user.email, deviceId: deviceId };
+    const tokens = {
+      accessToken: this.jwtService.sign(payload),
+      user: {
+        email: user.email,
+        fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+        backgroundUrl: user.backgroundUrl || '',
+        phone: user.phone,
+      },
+    };
+
+    // 6. Thông báo cho Web qua Socket
+    this.chatGateway.server.to(qrCodeId).emit('login_success', tokens);
+    this.chatGateway.notifySessionsUpdate(email);
+
+    // 7. Vô hiệu hóa mã QR ngay lập tức
+    await this.redisService.del(redisKey);
+
+    return { message: 'Đăng nhập thành công trên trình duyệt.' };
   }
 }

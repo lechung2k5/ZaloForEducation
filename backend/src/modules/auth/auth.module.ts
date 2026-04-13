@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SessionService } from './session.service';
 import { AuthController } from './auth.controller';
@@ -7,10 +7,12 @@ import { ChatModule } from '../chat/chat.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
+import { DeviceService } from './device.service';
+
 @Module({
   imports: [
     OtpModule,
-    ChatModule,
+    forwardRef(() => ChatModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -21,7 +23,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, SessionService],
-  exports: [AuthService, SessionService, JwtModule],
+  providers: [AuthService, SessionService, DeviceService],
+  exports: [AuthService, SessionService, DeviceService, JwtModule],
 })
 export class AuthModule {}

@@ -1,6 +1,7 @@
 import { WebSocketGateway, WebSocketServer, SubscribeMessage, MessageBody, ConnectedSocket } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
+import { SessionService } from '../auth/session.service';
 
 @WebSocketGateway({
   cors: { origin: '*' },
@@ -9,7 +10,16 @@ export class ChatGateway {
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly sessionService: SessionService,
+  ) {}
+
+  @SubscribeMessage('join_qr_room')
+  handleJoinQrRoom(@MessageBody() data: { qrCodeId: string }, @ConnectedSocket() client: Socket): void {
+    client.join(data.qrCodeId);
+    console.log(`Web Client ${client.id} joined QR room: ${data.qrCodeId}`);
+  }
 
   @SubscribeMessage('join_room')
   handleJoinRoom(@MessageBody() data: { convId: string }, @ConnectedSocket() client: Socket): void {
@@ -18,10 +28,32 @@ export class ChatGateway {
   }
 
   @SubscribeMessage('join_identity')
-  handleJoinIdentity(@MessageBody() data: { email: string }, @ConnectedSocket() client: Socket): void {
+  async handleJoinIdentity(
+    @MessageBody() data: { email: string; deviceId: string }, 
+    @ConnectedSocket() client: Socket
+  ): Promise<void> {
     if (data.email) {
+      // --- NEW LOGIC: VERIFY SESSION ---
+      if (data.deviceId) {
+        const session = await this.sessionService.getSession(data.email, data.deviceId);
+        
+        if (!session) {
+          console.warn(`[SOCKET] Unauthorized identity join attempt: ${data.email} on ${data.deviceId}`);
+          client.emit('force_logout', { reason: 'SESSION_INVALIDATED' });
+          client.disconnect(true);
+          return;
+        }
+      }
+
       const userRoom = `user#${data.email}`;
       client.join(userRoom);
+      
+      // Sếp yêu cầu: Tham gia vào room riêng của thiết bị để "đá" đích danh
+      if (data.deviceId) {
+        client.join(data.deviceId);
+        console.log(`Client ${client.id} joined device room: ${data.deviceId}`);
+      }
+
       console.log(`Client ${client.id} identified as ${data.email}, joined room ${userRoom}`);
     }
   }
@@ -32,19 +64,45 @@ export class ChatGateway {
     this.server.to(data.convId).emit('receiveMessage', data.message);
   }
 
-  // Gửi thông báo đăng xuất tới các thiết bị cũ của User qua phòng riêng
-  notifyForceLogout(email: string, targetDeviceId: string) {
+  // Gửi thông báo đăng xuất tới thiết bị đích (Đã gia cố để đảm bảo nhận được ở mọi màn hình)
+  notifyForceLogout(email: string, targetDeviceId: string, reason?: string) {
     const userRoom = `user#${email}`;
-    this.server.to(userRoom).emit(`force_logout_${email}`, { targetDeviceId });
-    // Also emit a generic force_logout if clients prefer that
-    this.server.to(userRoom).emit('force_logout', { targetDeviceId });
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     
-    console.log(`Sent force_logout to room ${userRoom} for device ${targetDeviceId}`);
+    // Nếu targetDeviceId là 'all', set all = true để đá toàn bộ
+    const isLogoutAll = targetDeviceId === 'all';
+    
+    const payload = { 
+      targetDeviceId: isLogoutAll ? undefined : targetDeviceId,
+      all: isLogoutAll,
+      message: reason || (isLogoutAll ? 'Tất cả các phiên làm việc đã bị đăng xuất.' : 'Phiên đăng nhập đã hết hạn hoặc bị thay thế bởi thiết bị khác.'),
+      time: timeStr
+    };
+
+    // 1. Phát loa vào room chung của User (Gia cố: Luôn nhận được dù ở bất kỳ màn hình nào)
+    this.server.to(userRoom).emit('force_logout', payload);
+
+    // 2. Gửi đích danh vào room của thiết bị (Optimization — nhắm bắn trực tiếp)
+    if (!isLogoutAll) {
+      this.server.to(targetDeviceId).emit('force_logout', payload);
+    }
+    
+    // 3. Backup (Legacy support)
+    this.server.to(userRoom).emit(`force_logout_${email}`, payload);
+    
+    console.log(`[SOCKET] Force logout emitted to ${userRoom} (Target: ${targetDeviceId}) at ${timeStr}`);
   }
 
   notifySessionsUpdate(email: string) {
     const userRoom = `user#${email}`;
     this.server.to(userRoom).emit('sessions_update', { timestamp: Date.now() });
     console.log(`Sent sessions_update to room ${userRoom}`);
+  }
+
+  notifyProfileUpdate(email: string, profile: any) {
+    const userRoom = `user#${email}`;
+    this.server.to(userRoom).emit('profile_update', { profile });
+    console.log(`Sent profile_update to room ${userRoom}`);
   }
 }

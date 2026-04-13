@@ -1,30 +1,27 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
-// Find the workspace root (two levels up from apps/mobile)
-const workspaceRoot = path.resolve(__dirname, '../..');
+// Đường dẫn tới root của monorepo
+const monorepoRoot = path.resolve(__dirname, '../..');
+
+// Đường dẫn tới workspace này
 const projectRoot = __dirname;
 
 const config = getDefaultConfig(projectRoot);
 
-// 1. Watch all files within the monorepo, MERGED with Expo's defaults
-config.watchFolders = [...(config.watchFolders || []), workspaceRoot];
+// Thêm root monorepo vào watchFolders
+// để Metro thấy được node_modules ở cấp trên
+config.watchFolders = [monorepoRoot];
 
-// 2. Let Metro know where to resolve packages and in what order
+// Resolver tìm modules theo thứ tự:
+// 1. node_modules của app (apps/mobile/node_modules)
+// 2. node_modules của monorepo root
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
-  path.resolve(workspaceRoot, 'node_modules'),
+  path.resolve(monorepoRoot, 'node_modules'),
 ];
 
-// 3. Force Metro to always use the LOCAL copies of React so there is only
-//    ever one React instance at runtime — prevents "Invalid hook call" errors.
-config.resolver.extraNodeModules = {
-  ...config.resolver.extraNodeModules,
-  react: path.resolve(workspaceRoot, 'node_modules/react'),
-  'react-dom': path.resolve(workspaceRoot, 'node_modules/react-dom'),
-  'react-native': path.resolve(workspaceRoot, 'node_modules/react-native'),
-  'react-native-web': path.resolve(workspaceRoot, 'node_modules/react-native-web'),
-};
+// Đảm bảo Metro resolve đúng react-native từ root
+config.resolver.disableHierarchicalLookup = false;
 
 module.exports = config;
-

@@ -16,7 +16,6 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -24,8 +23,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Shadows, Typography } from '../constants/Theme';
 import Alert from '../utils/Alert';
+import { useAuth } from '../context/AuthContext';
+import { toDateParts, formatDisplayDate } from '../utils/date';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 const COVER_URL =
@@ -43,55 +45,29 @@ const EMPTY_PROFILE = {
   backgroundUrl: '',
 };
 
-// ─── Date helpers (DD-MM-YYYY) ───────────────────────────────────────────────
-
-/** Tách DD-MM-YYYY thành { day, month, year }. */
-function toDateParts(value) {
-  if (!value || typeof value !== 'string') return { day: '', month: '', year: '' };
-  const parts = value.split('-');
-  if (parts.length === 3) {
-    const [first, second, third] = parts;
-    // Hỗ trợ cả DD-MM-YYYY và YYYY-MM-DD từ backend cũ
-    if (first.length === 4) {
-      // YYYY-MM-DD → chuyển sang DD-MM-YYYY
-      return { year: first, month: second, day: third };
-    }
-    return { day: first, month: second, year: third };
-  }
-  return { day: '', month: '', year: '' };
-}
-
-const pad2 = (v) => `${v}`.padStart(2, '0');
-
-/** Tạo chuỗi DD-MM-YYYY từ các phần day, month, year. */
-function buildStorageDate(day, month, year) {
-  if (!day || !month || !year) return '';
-  return `${pad2(day)}-${pad2(month)}-${year}`;
-}
-
-/** Hiển thị ngày sinh dạng đọc được cho user. */
-function formatBirthDate(value) {
-  const { day, month, year } = toDateParts(value);
-  if (!day || !month || !year) return 'Chưa cập nhật';
-  return `${Number(day)} tháng ${pad2(month)}, ${year}`;
-}
+// helpers removed - now using src/utils/date.js
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function ProfileScreen({ onNavigate, onLogout }) {
-  const [profile, setProfile]   = useState(EMPTY_PROFILE);
-  const [draft,   setDraft]     = useState(EMPTY_PROFILE);
-  const [loading, setLoading]   = useState(true);
+export default function ProfileScreen({ onNavigate, onLogout, goBack }) {
+  const { user: authUser, updateUser, profileVersion } = useAuth();
+  
+  const [profile, setProfile]   = useState(() => ({
+    ...EMPTY_PROFILE,
+    ...(authUser || {}),
+  }));
+  const [draft,   setDraft]     = useState(() => ({
+    ...EMPTY_PROFILE,
+    ...(authUser || {}),
+  }));
+  
+  const [loading, setLoading]   = useState(!authUser);
   const [saving,  setSaving]    = useState(false);
   const [editing, setEditing]   = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const storage = useMemo(() => AsyncStorage.default || AsyncStorage, []);
-
-  // ── Auth header ─────────────────────────────────────────────────────────────
-
   const authHeaders = async () => {
-    const token = await storage.getItem('token');
+    const token = await AsyncStorage.getItem('token');
     return token
       ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
       : { 'Content-Type': 'application/json' };
@@ -111,7 +87,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
   // ── Persist user vào AsyncStorage ───────────────────────────────────────────
 
   const persistUser = async (nextProfile) => {
-    const savedUser    = await storage.getItem('user');
+    const savedUser    = await AsyncStorage.getItem('user');
     const currentUser  = savedUser ? JSON.parse(savedUser) : {};
     const mergedUser   = {
       ...currentUser,
@@ -120,7 +96,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
       avatarUrl:     nextProfile.avatarUrl     || currentUser.avatarUrl     || '',
       backgroundUrl: nextProfile.backgroundUrl || currentUser.backgroundUrl || '',
     };
-    await storage.setItem('user', JSON.stringify(mergedUser));
+    await AsyncStorage.setItem('user', JSON.stringify(mergedUser));
   };
 
   // ── Load profile ─────────────────────────────────────────────────────────────
@@ -128,15 +104,8 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        // 1. Hiển thị cache ngay lập tức
-        const savedUser = await storage.getItem('user');
-        if (savedUser) {
-          const local = normalizeProfile(JSON.parse(savedUser));
-          setProfile(local);
-          setDraft(local);
-        }
-
-        // 2. Lấy từ API
+        // Since we initialize from authUser prop, we can skip storage read here
+        // and just fetch the latest from API
         const response = await fetch(`${API_URL}/users/profile`, {
           headers: await authHeaders(),
         });
@@ -157,12 +126,32 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
     fetchProfile();
   }, []);
 
+  // Sync local profile when context user (e.g. from socket) updates
+  useEffect(() => {
+    if (authUser) {
+      setProfile(prev => ({ ...prev, ...authUser }));
+    }
+  }, [authUser]);
+
+  const tokenLookup = async () => {
+    return await AsyncStorage.getItem('token');
+  };
+
   // ── Edit handlers ─────────────────────────────────────────────────────────────
 
   const handleChange = (field, value) =>
     setDraft((cur) => ({ ...cur, [field]: value }));
 
-  const startEditing  = () => { setDraft(profile); setEditing(true);  };
+  const startEditing  = () => { 
+    const dateParts = toDateParts(profile.dataOfBirth);
+    setDraft({
+      ...profile,
+      dayInput: dateParts.day || '',
+      monthInput: dateParts.month || '',
+      yearInput: dateParts.year || ''
+    }); 
+    setEditing(true);  
+  };
   const cancelEditing = () => { setDraft(profile); setEditing(false); };
 
   // ── Upload avatar qua S3 (expo-image-picker) ──────────────────────────────────
@@ -212,7 +201,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
         formData.append('file', fileToUpload);
       }
 
-      const token = await storage.getItem('token');
+      const token = await AsyncStorage.getItem('token');
       const uploadResponse = await fetch(`${API_URL}/users/avatar/upload`, {
         method:  'POST',
         headers: {
@@ -234,6 +223,10 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
       const updated = normalizeProfile({ ...profile, avatarUrl: newAvatarUrl });
       setProfile(updated);
       setDraft(updated);
+      
+      // Update global context
+      if (updateUser) await updateUser(updated);
+      
       await persistUser(updated);
 
       Alert.alert('Thành công', 'Ảnh đại diện đã được cập nhật.');
@@ -246,13 +239,20 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
   };
 
   // ── Save profile ──────────────────────────────────────────────────────────────
-
   const handleSave = async () => {
     setSaving(true);
     try {
-      const headers        = await authHeaders();
-      const nextBirthDate  = buildStorageDate(draft.dayInput, draft.monthInput, draft.yearInput)
-                              || draft.dataOfBirth;
+      const headers = await authHeaders();
+      
+      // ⚡ CHUẨN HÓA MẠNH MẼ: Đảm bảo có đủ 3 phần và đệm số 0 theo chuẩn DD/MM/YYYY
+      const dd = String(draft.dayInput || '').padStart(2, '0');
+      const mm = String(draft.monthInput || '').padStart(2, '0');
+      const yyyy = String(draft.yearInput || '');
+
+      // Gom lại thành chuỗi DD-MM-YYYY để gửi lên backend
+      const nextBirthDate = (dd.length === 2 && mm.length === 2 && yyyy.length === 4 && dd !== '00' && mm !== '00') 
+        ? `${dd}-${mm}-${yyyy}` 
+        : profile.dataOfBirth;
 
       const profileResponse = await fetch(`${API_URL}/users/profile`, {
         method:  'PUT',
@@ -274,13 +274,17 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
 
       const normalizedNext = normalizeProfile({
         ...(profileData.profile || profileData),
-        dataOfBirth: nextBirthDate,
+        dataOfBirth: nextBirthDate, // Đảm bảo UI cập nhật đúng ngày vừa lưu
       });
       const finalProfile = { ...draft, ...normalizedNext };
 
       setProfile(finalProfile);
       setDraft(finalProfile);
       setEditing(false);
+      
+      // Sync globally via Context (triggers sockets)
+      if (updateUser) await updateUser(finalProfile);
+
       await persistUser(finalProfile);
       Alert.alert('Thành công', 'Hồ sơ đã được cập nhật.');
     } catch (error) {
@@ -294,7 +298,9 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
   // ── Derived values ────────────────────────────────────────────────────────────
 
   const displayName = profile.fullName || 'Người dùng';
-  const avatarUrl   = profile.avatarUrl || '';
+  const avatarUrl   = profile.avatarUrl
+    ? `${profile.avatarUrl}?v=${profileVersion}`
+    : '';
   const parts       = toDateParts(draft.dataOfBirth);
   const dayValue    = draft.dayInput   !== undefined ? draft.dayInput   : parts.day;
   const monthValue  = draft.monthInput !== undefined ? draft.monthInput : parts.month;
@@ -328,7 +334,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
                 <Text style={styles.sheetTitle}>Cập nhật thông tin cá nhân</Text>
                 <TouchableOpacity
                   style={styles.headerIconButton}
-                  onPress={() => onNavigate && onNavigate('home')}
+                  onPress={cancelEditing}
                 >
                   <Text style={styles.headerIcon}>close</Text>
                 </TouchableOpacity>
@@ -455,10 +461,16 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
             /* ─── VIEW MODE ─── */
             <View style={styles.sheetWrap}>
               <View style={styles.sheetHeader}>
+                <TouchableOpacity
+                  style={styles.headerIconButton}
+                  onPress={() => goBack ? goBack() : onNavigate('home', 'profile')}
+                >
+                  <Text style={styles.headerIcon}>arrow_back</Text>
+                </TouchableOpacity>
                 <Text style={styles.sheetTitle}>Thông tin tài khoản</Text>
                 <TouchableOpacity
                   style={styles.headerIconButton}
-                  onPress={() => onNavigate && onNavigate('home')}
+                  onPress={() => goBack ? goBack() : onNavigate('home', 'profile')}
                 >
                   <Text style={styles.headerIcon}>close</Text>
                 </TouchableOpacity>
@@ -474,7 +486,11 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
               <View style={styles.profileBlock}>
                 <View style={styles.avatarWrapperLarge}>
                   {avatarUrl ? (
-                    <Image source={{ uri: avatarUrl }} style={styles.avatarLarge} />
+                    <Image 
+                      key={`avatar-${profileVersion}`}
+                      source={{ uri: avatarUrl, cache: 'reload' }} 
+                      style={styles.avatarLarge} 
+                    />
                   ) : (
                     <View style={styles.avatarFallbackLarge}>
                       <Text style={styles.avatarInitial}>
@@ -515,7 +531,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
                 </View>
                 <View style={styles.infoRow}>
                   <Text style={styles.infoLabel}>Ngày sinh</Text>
-                  <Text style={styles.infoValue}>{formatBirthDate(profile.dataOfBirth)}</Text>
+                  <Text style={styles.infoValue}>{formatDisplayDate(profile.dataOfBirth)}</Text>
                 </View>
                 <View style={styles.infoRow}>
                   <Text style={styles.infoLabel}>Điện thoại</Text>
@@ -546,6 +562,20 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
 
               {/* Quick actions */}
               <View style={styles.quickActions}>
+                <TouchableOpacity
+                  style={styles.quickActionButton}
+                  onPress={() => onNavigate && onNavigate('profile-more')}
+                >
+                  <Text style={styles.quickActionIcon}>more_horiz</Text>
+                  <Text style={styles.quickActionText}>Thêm</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickActionButton}
+                  onPress={() => onNavigate && onNavigate('settings')}
+                >
+                  <Text style={styles.quickActionIcon}>settings</Text>
+                  <Text style={styles.quickActionText}>Cài đặt</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.quickActionButton}
                   onPress={() => onNavigate && onNavigate('sessions')}

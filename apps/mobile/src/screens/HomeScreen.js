@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  View, Text, StyleSheet, ScrollView,
   TextInput, TouchableOpacity, Image, Platform, StatusBar,
   Dimensions
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { Colors, Typography, Shadows } from '../constants/Theme';
 import Alert from '../utils/Alert';
-import Storage from '../utils/storage';
+import { useAuth } from '../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -27,17 +27,24 @@ const MOCK_FRIENDS = [
   { id: '3', name: 'Cường Đô La', status: 'Bận', avatar: 'https://i.pravatar.cc/150?u=a3' },
 ];
 
-export default function HomeScreen({ onNavigate, onLogout }) {
-  const [activeTab, setActiveTab] = useState('messages'); // 'messages', 'friends', 'ai', 'profile'
-  const [user, setUser] = useState({ fullName: 'Người dùng', email: '' });
+export default function HomeScreen({ onNavigate, onLogout, initialTab, onTabChange }) {
+  const insets = useSafeAreaInsets();
+  const { user, profileVersion, checkSessionStatus } = useAuth();
+  const [activeTab, setActiveTab] = useState(initialTab || 'messages');
 
   useEffect(() => {
-    const loadUser = async () => {
-      const data = await Storage.getItem('user');
-      if (data) setUser(JSON.parse(data));
-    };
-    loadUser();
+    // Sếp yêu cầu: Vừa vào Home là phải "quét" phiên ngay
+    if (checkSessionStatus) {
+      console.log('[HOME] Mounting, triggering session heartbeat...');
+      checkSessionStatus();
+    }
   }, []);
+
+  useEffect(() => {
+    if (onTabChange) {
+      onTabChange(activeTab);
+    }
+  }, [activeTab]);
 
   const handleLogoutPress = () => {
     Alert.alert(
@@ -53,19 +60,54 @@ export default function HomeScreen({ onNavigate, onLogout }) {
   // --- SUB-COMPONENTS ---
 
   const Header = () => (
-    <LinearGradient colors={['#0058bc', '#00418f']} style={styles.header}>
+    <LinearGradient
+      colors={['#0058bc', '#00418f']}
+      style={[styles.header, { paddingTop: insets.top + 10 }]}
+    >
       <View style={styles.headerContent}>
-        <View style={styles.searchBar}>
+        <TouchableOpacity style={styles.headerAvatar} onPress={() => onNavigate('profile')}>
+          {user?.avatarUrl ? (
+            <Image 
+              key={`header-avatar-${profileVersion}`}
+              source={{ uri: `${user.avatarUrl}?v=${profileVersion}`, cache: 'reload' }} 
+              style={styles.avatarImage} 
+            />
+          ) : (
+            <View style={styles.avatarFallback}>
+              <Text style={styles.avatarInitial}>{user?.fullName ? user.fullName[0].toUpperCase() : 'U'}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        <View style={styles.searchContainer}>
           <Text style={styles.searchIcon}>search</Text>
-          <Text style={styles.searchPlaceholder}>Tìm kiếm</Text>
+          <TextInput 
+            placeholder="Tìm kiếm..." 
+            style={styles.searchInput} 
+            placeholderTextColor="rgba(255, 255, 255, 0.7)"
+          />
         </View>
         <View style={styles.headerIcons}>
-          <TouchableOpacity style={styles.iconButton}>
-            <Text style={styles.headerIconText}>qr_code_scanner</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <Text style={styles.headerIconText}>add</Text>
-          </TouchableOpacity>
+          {activeTab === 'profile' ? (
+            <TouchableOpacity 
+              style={styles.iconButton}
+              onPress={() => onNavigate('settings')}
+            >
+              <Text style={styles.headerIconText}>settings</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              <TouchableOpacity 
+                style={styles.iconButton}
+                onPress={() => onNavigate('qr-scanner')}
+              >
+                <Text style={styles.headerIconText}>qr_code_scanner</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconButton}>
+                <View style={styles.notificationBadge} />
+                <Text style={styles.headerIconText}>notifications</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
     </LinearGradient>
@@ -73,23 +115,46 @@ export default function HomeScreen({ onNavigate, onLogout }) {
 
   const MessagesView = () => (
     <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      {/* Quick Access Stories / Courses */}
+      <View style={styles.quickAccessSection}>
+        <Text style={styles.sectionTitle}>Khóa học gần đây</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+          {[1, 2, 3, 4].map((i) => (
+            <View key={i} style={styles.storyCard}>
+              <View style={styles.storyImagePlaceholder}>
+                 <Text style={styles.storyIcon}>menu_book</Text>
+              </View>
+              <Text style={styles.storyText} numberOfLines={1}>React Native {i}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+
       <View style={styles.chatList}>
+        <Text style={[styles.sectionTitle, { marginLeft: 20, marginBottom: 10 }]}>Tin nhắn nội bộ</Text>
         {MOCK_CHATS.map((chat) => (
           <TouchableOpacity key={chat.id} style={styles.chatItem}>
             <Image source={{ uri: chat.avatar }} style={styles.avatar} />
             <View style={styles.chatInfo}>
               <View style={styles.chatHeader}>
-                <Text style={styles.chatName} numberOfLines={1}>
-                  {chat.name.toUpperCase()}
+                <Text style={[styles.chatName, chat.unread > 0 && styles.chatNameUnread]} numberOfLines={1}>
+                  {chat.name}
                 </Text>
                 <View style={styles.chatHeaderRight}>
                   {chat.pinned && <Text style={styles.pinnedIcon}>push_pin</Text>}
-                  <Text style={styles.chatTime}>{chat.time}</Text>
+                  <Text style={[styles.chatTime, chat.unread > 0 && styles.chatTimeUnread]}>{chat.time}</Text>
                 </View>
               </View>
-              <Text style={styles.lastMsg} numberOfLines={1}>
-                {chat.lastMsg}
-              </Text>
+              <View style={styles.chatFooter}>
+                <Text style={[styles.lastMsg, chat.unread > 0 && styles.lastMsgUnread]} numberOfLines={1}>
+                  {chat.lastMsg}
+                </Text>
+                {chat.unread > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadText}>{chat.unread}</Text>
+                  </View>
+                )}
+              </View>
             </View>
           </TouchableOpacity>
         ))}
@@ -126,18 +191,24 @@ export default function HomeScreen({ onNavigate, onLogout }) {
     </View>
   );
 
-  const ProfileView = () => (
+  // --- RENDER FUNCTIONS ---
+  
+  const renderProfileView = () => (
     <ScrollView style={styles.scrollContainer}>
       <View style={styles.profileHeader}>
         <View style={styles.largeAvatarBox}>
-          {user.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} style={styles.largeAvatarImage} />
+          {user?.avatarUrl ? (
+            <Image 
+              key={`profile-tab-avatar-${profileVersion}`}
+              source={{ uri: `${user.avatarUrl}?v=${profileVersion}`, cache: 'reload' }} 
+              style={styles.largeAvatarImage} 
+            />
           ) : (
-            <Text style={styles.avatarInitial}>{user.fullName ? user.fullName[0] : 'U'}</Text>
+            <Text style={styles.avatarInitial}>{user?.fullName ? user.fullName[0].toUpperCase() : 'U'}</Text>
           )}
         </View>
-        <Text style={styles.profileName}>{user.fullName}</Text>
-        <Text style={styles.profileEmail}>{user.email}</Text>
+        <Text style={styles.profileName}>{user?.fullName || 'Người dùng'}</Text>
+        <Text style={styles.profileEmail}>{user?.email}</Text>
       </View>
 
       <View style={styles.menuContainer}>
@@ -179,17 +250,21 @@ export default function HomeScreen({ onNavigate, onLogout }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#0058bc"
+        translucent={false}
+      />
       <Header />
       
       <View style={styles.content}>
         {activeTab === 'messages' && <MessagesView />}
         {activeTab === 'friends' && <FriendsView />}
         {activeTab === 'ai' && <AIView />}
-        {activeTab === 'profile' && <ProfileView />}
+        {activeTab === 'profile' && renderProfileView()}
       </View>
 
-      <BlurView intensity={80} tint="light" style={styles.tabBar}>
+      <View style={styles.floatingTabBar}>
         <TouchableOpacity 
           style={styles.tabItem} 
           onPress={() => setActiveTab('messages')}
@@ -221,15 +296,20 @@ export default function HomeScreen({ onNavigate, onLogout }) {
           <Text style={[styles.tabIcon, activeTab === 'profile' && styles.tabIconActive]}>person</Text>
           <Text style={[styles.tabLabel, activeTab === 'profile' && styles.tabLabelActive]}>Cá nhân</Text>
         </TouchableOpacity>
-      </BlurView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#f7f9fb' },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f7f9fb',
+    ...Platform.select({
+      android: { paddingTop: 0 },
+    }),
+  },
   header: {
-    paddingTop: Platform.OS === 'ios' ? 10 : 40,
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderBottomLeftRadius: 0,
@@ -261,18 +341,37 @@ const styles = StyleSheet.create({
     ...Typography.body,
     fontSize: 15,
   },
-  headerIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  iconButton: {
-    padding: 4,
-  },
   headerIconText: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
     color: '#ffffff',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+    backgroundColor: '#ff3b30',
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#0058bc',
+    zIndex: 1,
+  },
+  searchContainer: {
+    flex: 1,
+    height: 44,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#ffffff',
+    ...Typography.body,
+    fontSize: 15,
   },
 
   content: { flex: 1 },
@@ -285,7 +384,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     backgroundColor: '#ffffff',
-    borderBottomWidth: 0.5,
+    borderBottomWidth: Platform.OS === 'android' ? 1 : 0.5,
     borderBottomColor: '#eceef0',
   },
   avatar: {
@@ -300,13 +399,82 @@ const styles = StyleSheet.create({
   chatName: { ...Typography.heading, fontSize: 16, color: '#191c1e', flex: 1 },
   chatHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   chatTime: { ...Typography.body, fontSize: 12, color: '#727784' },
-  pinnedIcon: {
-    fontFamily: 'Material Symbols Outlined',
-    fontSize: 14,
-    color: '#727784',
-    fontVariationSettings: "'FILL' 1",
+  lastMsg: { ...Typography.body, fontSize: 14, color: '#727784' },
+  lastMsgUnread: {
+    ...Typography.heading,
+    color: '#191c1e',
+    fontWeight: '700',
   },
-  lastMsg: { ...Typography.body, fontSize: 14, color: '#424753' },
+  chatNameUnread: {
+    color: '#000',
+    fontWeight: '800',
+  },
+  chatTimeUnread: {
+    color: '#0058bc',
+    fontWeight: '700',
+  },
+  chatFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  unreadBadge: {
+    backgroundColor: '#ff3b30',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  unreadText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+
+  // Quick Access Section
+  quickAccessSection: {
+    paddingTop: 20,
+    paddingBottom: 20,
+    backgroundColor: '#fff',
+  },
+  sectionTitle: {
+    ...Typography.heading,
+    fontSize: 17,
+    color: '#191c1e',
+    marginLeft: 20,
+    marginBottom: 12,
+  },
+  horizontalScroll: {
+    paddingHorizontal: 16,
+  },
+  storyCard: {
+    width: 80,
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  storyImagePlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#f0f3f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+    borderWidth: 2,
+    borderColor: '#e8ecf0',
+  },
+  storyIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 28,
+    color: '#0058bc',
+  },
+  storyText: {
+    ...Typography.body,
+    fontSize: 12,
+    color: '#727784',
+    textAlign: 'center',
+  },
 
   // Friends Tab Styles
   sectionHeader: { padding: 16, paddingBottom: 8 },
@@ -316,7 +484,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     backgroundColor: '#fff',
-    borderBottomWidth: 0.5,
+    borderBottomWidth: Platform.OS === 'android' ? 1 : 0.5,
     borderBottomColor: '#eceef0',
   },
   friendAvatar: { width: 48, height: 48, borderRadius: 24, marginRight: 16 },
@@ -361,7 +529,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     marginBottom: 12,
-    ...Shadows.soft,
+    ...Platform.select({
+      android: { elevation: 2 },
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+      },
+    }),
   },
   menuIconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
   menuIcon: { fontFamily: 'Material Symbols Outlined', fontSize: 22 },
@@ -369,22 +545,51 @@ const styles = StyleSheet.create({
   menuArrow: { fontFamily: 'Material Symbols Outlined', fontSize: 20, color: '#c2c6d5' },
   divider: { height: 1, backgroundColor: '#eceef0', marginVertical: 12, marginHorizontal: 8 },
 
-  // Bottom Tab Bar
-  tabBar: {
+  // Floating Bottom Tab Bar
+  floatingTabBar: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: Platform.OS === 'ios' ? 88 : 72,
+    bottom: Platform.OS === 'ios' ? 24 : 16,
+    left: 20,
+    right: 20,
+    height: 64,
+    backgroundColor: '#ffffff',
+    borderRadius: 32,
     flexDirection: 'row',
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(200, 200, 200, 0.3)',
-    paddingBottom: Platform.OS === 'ios' ? 24 : 12,
-    paddingTop: 12,
+    alignItems: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
   },
   tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   tabIcon: { fontFamily: 'Material Symbols Outlined', fontSize: 24, color: '#727784', marginBottom: 4 },
   tabIconActive: { color: '#00418f', fontVariationSettings: "'FILL' 1" },
   tabLabel: { ...Typography.label, fontSize: 10, color: '#727784' },
   tabLabelActive: { color: '#00418f' },
+  // Tab Mini Avatar
+  miniTabAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    marginBottom: 4,
+    overflow: 'hidden',
+  },
+  miniTabAvatarActive: {
+    borderColor: '#00418f',
+  },
+  miniTabAvatarImage: {
+    width: '100%',
+    height: '100%',
+  },
 });

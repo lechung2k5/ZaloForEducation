@@ -137,74 +137,114 @@ const HomePage: React.FC = () => {
       
       {/* COLUMN 1: SideNavBar (80px wide) */}
       <aside className="fixed left-0 top-0 h-full z-50 w-20 flex flex-col items-center py-6 bg-gradient-to-br from-[#0058bc] to-[#00418f] shadow-[0px_20px_40px_rgba(0,65,143,0.06)] shrink-0">
-        <div className="mb-8 relative" ref={dropdownRef}>
+        {/* Top Avatar Area */}
+        <div className="mb-8">
           <img 
             alt="User Avatar" 
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            onClick={() => setIsProfileModalOpen(true)}
             className="w-12 h-12 rounded-full border-2 border-white/20 p-0.5 object-cover bg-white/10 cursor-pointer hover:border-white transition-colors" 
             src={user?.avatarUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuCFw8hQBOq4JKJazc3GAIcVjmlrrfkICsk9jcBPauM53xp43QRLa6DqnEMow0-o1mRGziDfptfm02FgIlDbYltgzrSJtsP-_9ZmmuU5a1HL7JGFMujo8aASzX0ctHu6vqLGHtPPfgD52k6jx6G96Ll7O72OmXDkjh4_ow9-Pm7zokfO_INwwFExRPgQJIjpqmh5hidvLzAXnfEYTg61gAUYlTRiSMH5ZUorMbj1-J4SuqKTeDZetL9hIls8Yq8wumlUwCODZQaS6A"} 
           />
-          
-          {/* Dropdown Menu - Xây dựng theo Zalo layout */}
-          {isDropdownOpen && (
-            <div className="absolute left-full ml-2 top-0 w-64 bg-white rounded-2xl shadow-2xl z-[100] border border-outline-variant/10 overflow-hidden animate-fade-in py-2">
-              <div className="px-5 py-4 border-b border-outline-variant/5">
-                <p className="font-extrabold text-[16px] text-on-surface truncate">{user?.fullName || user?.fullname || 'Người dùng'}</p>
-              </div>
-              
-              <div className="py-2">
-                <button 
-                  onClick={() => { setIsProfileModalOpen(true); setIsDropdownOpen(false); }}
-                  className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-surface-container transition-colors text-on-surface font-semibold text-sm text-left"
-                >
-                  <span className="material-symbols-outlined text-[20px]">account_circle</span>
-                  Hồ sơ của bạn
-                </button>
-                <button 
-                  onClick={() => { setIsProfileModalOpen(true); setIsDropdownOpen(false); }}
-                  className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-surface-container transition-colors text-on-surface font-semibold text-sm text-left"
-                >
-                  <span className="material-symbols-outlined text-[20px]">settings</span>
-                  Cài đặt
-                </button>
-                <Link 
-                  to="/sessions"
-                  className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-surface-container transition-colors text-on-surface font-semibold text-sm"
-                >
-                  <span className="material-symbols-outlined text-[20px]">devices</span>
-                  Thiết bị đăng nhập
-                </Link>
-              </div>
-              
-              <div className="border-t border-outline-variant/5 mt-2 pt-2 pb-1">
-                <button 
-                  onClick={logout}
-                  className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-surface-container transition-colors text-error font-bold text-sm text-left"
-                >
-                  <span className="material-symbols-outlined text-[20px]">logout</span>
-                  Đăng xuất
-                </button>
-              </div>
-            </div>
-          )}
         </div>
+
+        {/* Middle Navigation area */}
         <nav className="flex flex-col gap-4 flex-1">
           {renderNavButton('chat', 'chat')}
           {renderNavButton('contacts', 'group')}
           {renderNavButton('notifications', 'notifications', true)}
           {renderNavButton('cloud', 'cloud')}
         </nav>
+
+        {/* Bottom Settings & Logout area */}
         <div className="mt-auto space-y-4">
-          <Link to="/sessions" className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" title='Thiết bị đăng nhập'>
-            <span className="material-symbols-outlined">devices</span>
-          </Link>
           <button 
             onClick={() => setIsProfileModalOpen(true)}
-            className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" 
-            title='Cài đặt'
+            className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center font-medium" 
+            title='Thông tin cá nhân'
           >
-            <span className="material-symbols-outlined">settings</span>
+            <span className="material-symbols-outlined">person</span>
           </button>
+          
+          <div className="relative" ref={dropdownRef}>
+            <button 
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className={`rounded-2xl transition-all duration-300 p-3 scale-95 flex items-center justify-center relative ${
+                isDropdownOpen ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white hover:bg-white/10 active:scale-90'
+              }`}
+              title='Cài đặt'
+            >
+              <span className="material-symbols-outlined">settings</span>
+            </button>
+
+            {/* Dropdown Menu - ĐỒNG BỘ ZALO UI (Phía trên Bánh răng) */}
+            {isDropdownOpen && (
+              <div className="absolute bottom-full left-0 mb-3 w-64 bg-white rounded-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.15)] z-[100] border border-outline-variant/10 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+                {/* Account Name Header */}
+                <div className="px-5 py-4 border-b border-outline-variant/5 bg-surface-container-lowest/50">
+                  <p className="font-extrabold text-[16px] text-on-surface truncate">{user?.fullName || user?.fullname || 'Người dùng'}</p>
+                </div>
+                
+                <div className="py-1">
+                  <button 
+                    onClick={() => { setIsProfileModalOpen(true); setIsDropdownOpen(false); }}
+                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-surface-container transition-colors text-on-surface font-semibold text-sm text-left group"
+                  >
+                    <span className="material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-colors">account_circle</span>
+                    Thông tin tài khoản
+                  </button>
+                  <Link 
+                    to="/settings"
+                    onClick={() => setIsDropdownOpen(false)}
+                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-surface-container transition-colors text-on-surface font-semibold text-sm text-left group"
+                  >
+                    <span className="material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-colors">settings</span>
+                    Cài đặt
+                  </Link>
+                </div>
+
+                <div className="border-t border-outline-variant/5 py-1">
+                  <button className="w-full flex items-center justify-between px-5 py-3 hover:bg-surface-container transition-colors text-on-surface font-semibold text-sm group">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-colors">database</span>
+                      Dữ liệu
+                    </div>
+                    <span className="material-symbols-outlined text-[18px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">chevron_right</span>
+                  </button>
+                  <button className="w-full flex items-center justify-between px-5 py-3 hover:bg-surface-container transition-colors text-on-surface font-semibold text-sm group">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-colors">language</span>
+                      Ngôn ngữ
+                    </div>
+                    <span className="material-symbols-outlined text-[18px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">chevron_right</span>
+                  </button>
+                  <button className="w-full flex items-center justify-between px-5 py-3 hover:bg-surface-container transition-colors text-on-surface font-semibold text-sm group">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-[20px] text-on-surface-variant group-hover:text-primary transition-colors">support_agent</span>
+                      Hỗ trợ
+                    </div>
+                    <span className="material-symbols-outlined text-[18px] text-outline opacity-0 group-hover:opacity-100 transition-opacity">chevron_right</span>
+                  </button>
+                </div>
+                
+                <div className="border-t border-outline-variant/5 py-1 mb-1">
+                  <button 
+                    onClick={logout}
+                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-surface-container transition-colors text-error font-bold text-sm text-left"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">logout</span>
+                    Đăng xuất
+                  </button>
+                  <button 
+                    onClick={() => setIsDropdownOpen(false)}
+                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-surface-container transition-colors text-on-surface font-bold text-sm text-left"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">power_settings_new</span>
+                    Thoát
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           <button onClick={logout} className="text-white/80 hover:text-error hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" title='Đăng xuất'>
             <span className="material-symbols-outlined">logout</span>
           </button>
@@ -471,16 +511,20 @@ const HomePage: React.FC = () => {
                   <div className="w-11 h-11 rounded-full bg-surface-container-highest group-hover:bg-primary/10 flex items-center justify-center shadow-sm transition-colors text-on-surface group-hover:text-primary"><span className="material-symbols-outlined text-[20px]">notifications_off</span></div>
                   <span className="text-[11px] font-bold">Tắt Tbáo</span>
                 </div>
-                <div className="flex flex-col items-center gap-2 cursor-pointer text-on-surface-variant hover:text-primary transition-all group">
+                <div 
+                  onClick={() => {/* logic ghim */}}
+                  className="flex flex-col items-center gap-2 cursor-pointer text-on-surface-variant hover:text-primary transition-all group"
+                >
                   <div className="w-11 h-11 rounded-full bg-surface-container-highest group-hover:bg-primary/10 flex items-center justify-center shadow-sm transition-colors text-on-surface group-hover:text-primary"><span className="material-symbols-outlined text-[20px]">push_pin</span></div>
                   <span className="text-[11px] font-bold">Ghim hội thoại</span>
                 </div>
-                {selectedChat.type === 'group' && (
-                  <div className="flex flex-col items-center gap-2 cursor-pointer text-on-surface-variant hover:text-primary transition-all group">
-                    <div className="w-11 h-11 rounded-full bg-surface-container-highest group-hover:bg-primary/10 flex items-center justify-center shadow-sm transition-colors text-on-surface group-hover:text-primary"><span className="material-symbols-outlined text-[20px]">person_add</span></div>
-                    <span className="text-[11px] font-bold">Thêm TV</span>
-                  </div>
-                )}
+                <div 
+                  onClick={() => {/* logic thêm TV */}}
+                  className="flex flex-col items-center gap-2 cursor-pointer text-on-surface-variant hover:text-primary transition-all group"
+                >
+                  <div className="w-11 h-11 rounded-full bg-surface-container-highest group-hover:bg-primary/10 flex items-center justify-center shadow-sm transition-colors text-on-surface group-hover:text-primary"><span className="material-symbols-outlined text-[20px]">person_add</span></div>
+                  <span className="text-[11px] font-bold">Thêm TV</span>
+                </div>
               </div>
             </div>
 

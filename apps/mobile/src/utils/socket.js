@@ -7,13 +7,14 @@ class SocketService {
   currentEmail = null;
   listeners = {
     force_logout: [],
-    sessions_update: []
+    sessions_update: [],
+    profile_update: []
   };
 
-  connect(email) {
+  connect(email, deviceId) {
     if (!email) return;
 
-    // Tránh kết nối lại nếu đã kết nối với cùng email
+    // Tránh kết nối lại nếu đã kết nối với cùng email và deviceId
     if (this.socket && this.socket.connected && this.currentEmail === email) {
       console.log('Using existing socket connection for', email);
       return;
@@ -28,29 +29,45 @@ class SocketService {
       transports: ['websocket'],
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,
+      auth: { deviceId } // Pass deviceId in auth handshake
     });
 
     this.socket.on('connect', () => {
       console.log('Mobile connected/reconnected to socket server');
       // Luôn re-join identity khi reconnect để đảm bảo không bị rơi khỏi room
       if (this.currentEmail) {
-        this.socket.emit('join_identity', { email: this.currentEmail });
+        this.socket.emit('join_identity', { 
+          email: this.currentEmail,
+          deviceId: deviceId 
+        });
       }
     });
 
     this.socket.on('force_logout', (data) => {
-      console.log('Force logout event received', data);
+      console.warn('Force logout event received', data);
+      // Pass data to AuthContext listeners (they do their own targetDeviceId check)
       this.listeners.force_logout.forEach(cb => cb(data));
+      
+      // FIX: KHÔNG gọi global.handleForceLogout trực tiếp ở đây
+      // vì nó bỏ qua toàn bộ kiểm tra targetDeviceId trong AuthContext
+      // AuthContext.js listener (đã đăng ký qua SocketService.on) sẽ tự xử lý
     });
 
     this.socket.on(`force_logout_${email}`, (data) => {
       console.log('Legacy force logout event received', data);
+      // FIX: chỉ forward tới listeners, KHÔNG tự logout
+      // listeners trong AuthContext sẽ tự quyết định có logout không
       this.listeners.force_logout.forEach(cb => cb(data));
     });
 
     this.socket.on('sessions_update', (data) => {
       console.log('Sessions update event received', data);
       this.listeners.sessions_update.forEach(cb => cb(data));
+    });
+    
+    this.socket.on('profile_update', (data) => {
+      console.log('Profile update event received', data);
+      this.listeners.profile_update.forEach(cb => cb(data));
     });
 
     this.socket.on('disconnect', (reason) => {
@@ -86,6 +103,7 @@ class SocketService {
       // Clear listeners
       this.listeners.force_logout = [];
       this.listeners.sessions_update = [];
+      this.listeners.profile_update = [];
     }
   }
 }

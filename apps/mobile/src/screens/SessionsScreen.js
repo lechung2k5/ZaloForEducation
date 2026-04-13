@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, ScrollView,
+  View, Text, StyleSheet, ScrollView,
   TouchableOpacity, ActivityIndicator, Platform, StatusBar
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Alert from '../utils/Alert';
 import { Colors, Typography, Shadows } from '../constants/Theme';
@@ -11,9 +12,11 @@ import Storage from '../utils/storage';
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
 import SocketService from '../utils/socket';
+import { apiRequest } from '../utils/api';
 
-export default function SessionsScreen({ onNavigate }) {
-  const [sessions, setSessions] = useState([]);
+export default function SessionsScreen({ onNavigate, goBack }) {
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [loginHistory, setLoginHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
   const [currentDeviceId, setCurrentDeviceId] = useState('');
@@ -72,23 +75,30 @@ export default function SessionsScreen({ onNavigate }) {
 
   const fetchSessions = async (userEmail) => {
     try {
-      const token = await Storage.getItem('token');
-
-      const response = await fetch(`${API_URL}/auth/sessions`, {
-        method: 'GET',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setSessions(data.sessions || data || []);
-      } else {
-        console.error('Fetch sessions failed', data);
+      const data = await apiRequest('/auth/sessions');
+      
+      console.log('[Sessions] Received data:', data);
+      
+      // data from apiRequest is { ok, status, ...actualData }
+      if (data.ok && data.activeDevices) {
+        setActiveSessions(data.activeDevices);
+        setLoginHistory(data.loginHistory || []);
+      } else if (data.ok && data.sessions) {
+        setActiveSessions(data.sessions);
+      } else if (data.ok && Array.isArray(data)) {
+        setActiveSessions(data);
+      } else if (!data.ok || data.message) {
+        const errorMsg = data.message || 'Không thể lấy dữ liệu';
+        console.error('[Sessions] Error:', errorMsg);
+        if (errorMsg !== 'SESSION_INVALIDATED') {
+          Alert.alert('Lỗi', errorMsg);
+        }
       }
     } catch (error) {
-      console.error('Fetch sessions error', error);
+      if (error.message !== 'SESSION_INVALIDATED') {
+        console.error('Fetch sessions error', error);
+        Alert.alert('Lỗi', 'Không thể lấy danh sách thiết bị. Vui lòng thử lại sau.');
+      }
     } finally {
       setLoading(false);
     }
@@ -164,7 +174,7 @@ export default function SessionsScreen({ onNavigate }) {
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => onNavigate('home')} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => goBack ? goBack() : onNavigate('home')} style={styles.backBtn}>
           <Text style={styles.icon}>arrow_back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Thiết bị đăng nhập</Text>
@@ -182,7 +192,12 @@ export default function SessionsScreen({ onNavigate }) {
           <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 40 }} />
         ) : (
           <View style={styles.sessionList}>
-            {sessions.map((item, index) => {
+            <Text style={styles.sectionLabel}>Đang hoạt động</Text>
+            {activeSessions.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>Chưa có thiết bị nào đang hoạt động</Text>
+              </View>
+            ) : activeSessions.map((item, index) => {
               const isCurrent = item.deviceId === currentDeviceId;
               return (
                 <View key={index} style={[styles.sessionCard, isCurrent && styles.sessionCardActive]}>
@@ -213,6 +228,39 @@ export default function SessionsScreen({ onNavigate }) {
                 </View>
               );
             })}
+
+            {loginHistory.length > 0 ? (
+              <>
+                <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Lịch sử đăng xuất (30 ngày gần đây)</Text>
+                {loginHistory.map((item, index) => (
+                  <View key={`history-${index}`} style={styles.historyCard}>
+                    <View style={styles.historyIconBox}>
+                      <Text style={styles.historyIcon}>
+                        {(item.deviceType === 'mobile' || (item.deviceId && (item.deviceId.includes('android') || item.deviceId.includes('ios')))) 
+                          ? (Platform.OS === 'ios' ? 'iphone' : 'smartphone') 
+                          : 'laptop'}
+                      </Text>
+                    </View>
+                    <View style={styles.sessionInfo}>
+                      <Text style={styles.historyName}>{item.deviceName || item.deviceId}</Text>
+                      <Text style={styles.historyTime}>
+                        Đã đăng xuất: {new Date(item.logoutAt || item.updatedAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                      </Text>
+                    </View>
+                    <View style={styles.historyBadge}>
+                      <Text style={styles.historyBadgeText}>ĐÃ THOÁT</Text>
+                    </View>
+                  </View>
+                ))}
+              </>
+            ) : (
+              <>
+                <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Lịch sử đăng xuất</Text>
+                <View style={styles.emptyCard}>
+                  <Text style={styles.emptyText}>Chưa ghi nhận lịch sử đăng xuất</Text>
+                </View>
+              </>
+            )}
           </View>
         )}
 
@@ -316,4 +364,47 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  sectionLabel: { ...Typography.heading, fontSize: 16, color: Colors.primary, marginBottom: 12, marginLeft: 4 },
+  historyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    opacity: 0.8,
+  },
+  historyIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  historyIcon: { fontFamily: 'Material Symbols Outlined', fontSize: 20, color: Colors.outline },
+  historyName: { ...Typography.heading, fontSize: 14, color: Colors.onSurfaceVariant },
+  historyTime: { ...Typography.body, fontSize: 11, color: Colors.outline },
+  historyBadge: { 
+    backgroundColor: Colors.surfaceContainerHighest, 
+    paddingHorizontal: 6, 
+    paddingVertical: 2, 
+    borderRadius: 4 
+  },
+  historyBadgeText: { color: Colors.outline, fontSize: 9, fontWeight: '800' },
+  emptyCard: {
+    padding: 24,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: Colors.outlineVariant,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyText: { ...Typography.body, fontSize: 13, color: Colors.outline, fontStyle: 'italic' },
 });

@@ -33,6 +33,27 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
+  // FIX 7: Đồng bộ hóa Modal với dữ liệu thực tế từ AuthContext (Socket update)
+  useEffect(() => {
+    if (user && isOpen) {
+      console.log('[ProfileModal] Syncing with latest user from context:', user);
+      setProfile((prev: any) => ({ ...prev, ...user }));
+      
+      // Chỉ cập nhật formData nếu KHÔNG đang trong chế độ chỉnh sửa (để tránh ghi đè dữ liệu user đang nhập)
+      if (!isEditing) {
+        setFormData(prev => ({
+          ...prev,
+          fullName: user.fullName || prev.fullName,
+          gender: user.gender !== undefined ? user.gender : prev.gender,
+          dataOfBirth: user.dataOfBirth || prev.dataOfBirth,
+          phone: user.phone || prev.phone,
+          address: user.address || prev.address,
+          bio: user.bio || prev.bio
+        }));
+      }
+    }
+  }, [user, isOpen, isEditing]);
+
   const loadProfile = async () => {
     setLoading(true);
     try {
@@ -250,13 +271,52 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
                   {!isEditing ? (
                     <p className="font-bold text-on-surface">{formData.dataOfBirth || 'Chưa cập nhật'}</p>
                   ) : (
-                    <input 
-                      type="text"
-                      className="w-full bg-surface-container rounded-xl border-none p-2 mt-1 outline-none font-bold text-sm"
-                      value={formData.dataOfBirth}
-                      onChange={e => setFormData({...formData, dataOfBirth: e.target.value})}
-                      placeholder="DD-MM-YYYY"
-                    />
+                    <div className="flex gap-2 mt-1">
+                    <div className="flex gap-2 mt-1">
+                      <input 
+                        type="text"
+                        maxLength={2}
+                        className="w-12 bg-surface-container rounded-xl border-none p-2 outline-none font-bold text-sm text-center"
+                        value={formData.dataOfBirth.split(/[-/]/)[0] || ''}
+                        onChange={e => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+                          const parts = formData.dataOfBirth.split(/[-/]/);
+                          const m = parts[1] || '';
+                          const y = parts[2] || '';
+                          setFormData({...formData, dataOfBirth: `${val}-${m}-${y}`});
+                        }}
+                        placeholder="DD"
+                      />
+                      <input 
+                        type="text"
+                        maxLength={2}
+                        className="w-12 bg-surface-container rounded-xl border-none p-2 outline-none font-bold text-sm text-center"
+                        value={formData.dataOfBirth.split(/[-/]/)[1] || ''}
+                        onChange={e => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+                          const parts = formData.dataOfBirth.split(/[-/]/);
+                          const d = parts[0] || '';
+                          const y = parts[2] || '';
+                          setFormData({...formData, dataOfBirth: `${d}-${val}-${y}`});
+                        }}
+                        placeholder="MM"
+                      />
+                      <input 
+                        type="text"
+                        maxLength={4}
+                        className="w-20 bg-surface-container rounded-xl border-none p-2 outline-none font-bold text-sm text-center"
+                        value={formData.dataOfBirth.split(/[-/]/)[2] || ''}
+                        onChange={e => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                          const parts = formData.dataOfBirth.split(/[-/]/);
+                          const d = parts[0] || '';
+                          const m = parts[1] || '';
+                          setFormData({...formData, dataOfBirth: `${d}-${m}-${val}`});
+                        }}
+                        placeholder="YYYY"
+                      />
+                    </div>
+                    </div>
                   )}
                 </div>
               </div>

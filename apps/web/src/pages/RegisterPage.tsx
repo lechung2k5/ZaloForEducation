@@ -140,6 +140,12 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
+    const dobRegex = /^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[012])-(19|20)\d\d$/;
+    if (!dobRegex.test(dataOfBirth)) {
+      setError('Ngày sinh phải đúng định dạng DD-MM-YYYY (VD: 15-05-2005).');
+      return;
+    }
+
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(password)) {
       setError('Mật khẩu phải tối thiểu 8 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt.');
@@ -488,10 +494,12 @@ const RegisterPage: React.FC = () => {
                     <label className="block text-sm font-semibold text-on-surface-variant ml-1">Ngày sinh</label>
                     <div className="relative">
                       <input 
-                        type="date"
-                        className="w-full px-5 py-4 bg-surface-container-highest rounded-xl border-none focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest transition-all duration-300 outline-none text-on-surface appearance-none" 
+                        type="text"
+                        className={`w-full px-5 py-4 bg-surface-container-highest rounded-xl border-2 transition-all duration-300 outline-none text-on-surface ${touchedFields.dataOfBirth && !/^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[012])-(19|20)\d\d$/.test(dataOfBirth) ? 'border-error bg-error-container/10' : 'border-transparent focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest'}`} 
+                        placeholder="DD-MM-YYYY" 
                         value={dataOfBirth}
                         onChange={(e) => setDataOfBirth(e.target.value)}
+                        onBlur={() => handleBlur('dataOfBirth')}
                         required
                       />
                     </div>
