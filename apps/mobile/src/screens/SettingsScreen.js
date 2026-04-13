@@ -6,7 +6,6 @@ import {
     ScrollView,
     StatusBar,
     StyleSheet,
-    Switch,
     Text,
     TouchableOpacity,
     View
@@ -67,6 +66,20 @@ function Chip({ label, active, onPress }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={[styles.chip, active && styles.chipActive]}>
       <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function PillToggle({ value, onValueChange }) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={onValueChange}
+      style={[styles.pillToggle, value ? styles.pillToggleOn : styles.pillToggleOff]}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value }}
+    >
+      <View style={[styles.pillToggleKnob, value ? styles.pillToggleKnobOn : styles.pillToggleKnobOff]} />
     </TouchableOpacity>
   );
 }
@@ -194,11 +207,9 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
             title="Khóa ứng dụng"
             subtitle="Bật xác thực khi mở app"
             rightElement={
-              <Switch
+              <PillToggle
                 value={settings.lockApp}
                 onValueChange={() => toggleSwitch('lockApp')}
-                trackColor={{ false: '#d7dde8', true: '#9cc3ff' }}
-                thumbColor={settings.lockApp ? '#0058bc' : '#f4f4f4'}
               />
             }
           />
@@ -210,11 +221,9 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
             title="Trạng thái hoạt động"
             subtitle="Hiển thị khi bạn đang online"
             rightElement={
-              <Switch
+              <PillToggle
                 value={settings.showOnlineStatus}
                 onValueChange={() => toggleSwitch('showOnlineStatus')}
-                trackColor={{ false: '#d7dde8', true: '#9cc3ff' }}
-                thumbColor={settings.showOnlineStatus ? '#0058bc' : '#f4f4f4'}
               />
             }
           />
@@ -223,11 +232,9 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
             title="Tìm bằng số điện thoại"
             subtitle="Cho phép người khác tìm bạn qua số điện thoại"
             rightElement={
-              <Switch
+              <PillToggle
                 value={settings.allowSearchByPhone}
                 onValueChange={() => toggleSwitch('allowSearchByPhone')}
-                trackColor={{ false: '#d7dde8', true: '#9cc3ff' }}
-                thumbColor={settings.allowSearchByPhone ? '#0058bc' : '#f4f4f4'}
               />
             }
             divider
@@ -237,11 +244,9 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
             title="Đồng bộ danh bạ"
             subtitle="Kết nối danh bạ để gợi ý liên hệ"
             rightElement={
-              <Switch
+              <PillToggle
                 value={settings.syncContacts}
                 onValueChange={() => toggleSwitch('syncContacts')}
-                trackColor={{ false: '#d7dde8', true: '#9cc3ff' }}
-                thumbColor={settings.syncContacts ? '#0058bc' : '#f4f4f4'}
               />
             }
           />
@@ -253,11 +258,9 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
             title="Thông báo"
             subtitle="Nhận thông báo từ ứng dụng"
             rightElement={
-              <Switch
+              <PillToggle
                 value={settings.notifications}
                 onValueChange={() => toggleSwitch('notifications')}
-                trackColor={{ false: '#d7dde8', true: '#9cc3ff' }}
-                thumbColor={settings.notifications ? '#0058bc' : '#f4f4f4'}
               />
             }
           />
@@ -266,11 +269,9 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
             title="Âm thanh tin nhắn"
             subtitle="Phát âm thanh khi có tin mới"
             rightElement={
-              <Switch
+              <PillToggle
                 value={settings.messageSound}
                 onValueChange={() => toggleSwitch('messageSound')}
-                trackColor={{ false: '#d7dde8', true: '#9cc3ff' }}
-                thumbColor={settings.messageSound ? '#0058bc' : '#f4f4f4'}
               />
             }
             divider
@@ -280,11 +281,9 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
             title="Rung cuộc gọi"
             subtitle="Rung khi có cuộc gọi đến"
             rightElement={
-              <Switch
+              <PillToggle
                 value={settings.callVibrate}
                 onValueChange={() => toggleSwitch('callVibrate')}
-                trackColor={{ false: '#d7dde8', true: '#9cc3ff' }}
-                thumbColor={settings.callVibrate ? '#0058bc' : '#f4f4f4'}
               />
             }
           />
@@ -296,11 +295,9 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
             title="Lưu media về máy"
             subtitle="Tự động lưu ảnh và video nhận được"
             rightElement={
-              <Switch
+              <PillToggle
                 value={settings.saveMediaToDevice}
                 onValueChange={() => toggleSwitch('saveMediaToDevice')}
-                trackColor={{ false: '#d7dde8', true: '#9cc3ff' }}
-                thumbColor={settings.saveMediaToDevice ? '#0058bc' : '#f4f4f4'}
               />
             }
           />
@@ -563,6 +560,42 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: Colors.primary,
+  },
+  pillToggle: {
+    width: 74,
+    height: 42,
+    borderRadius: 999,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  pillToggleOn: {
+    backgroundColor: '#16ef67',
+    borderWidth: 1,
+    borderColor: '#18d95f',
+  },
+  pillToggleOff: {
+    backgroundColor: '#d9d9dc',
+    borderWidth: 1,
+    borderColor: '#d0d0d4',
+  },
+  pillToggleKnob: {
+    position: 'absolute',
+    top: 2,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f0f0f0',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.16,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  pillToggleKnobOn: {
+    left: 36,
+  },
+  pillToggleKnobOff: {
+    left: 2,
   },
   footerNote: {
     paddingHorizontal: 8,

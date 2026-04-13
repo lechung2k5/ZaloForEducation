@@ -4,12 +4,55 @@ import ChatBot from '../components/ChatBot';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
+const SETTINGS_KEY = 'mobile_settings';
+const EXPIRE_IN_MS = 24 * 60 * 60 * 1000;
+
+const STATUS_GROUPS = [
+  {
+    title: 'Feelings',
+    items: [
+      { icon: 'wb_sunny', label: 'Hopeful' },
+      { icon: 'local_fire_department', label: 'Fighting' },
+      { icon: 'sentiment_very_satisfied', label: 'Happy' },
+      { icon: 'local_florist', label: 'Lucky' },
+      { icon: 'favorite', label: 'In Love' },
+      { icon: 'sentiment_surprised', label: 'Surprised' },
+      { icon: 'sentiment_dissatisfied', label: 'Sad' },
+      { icon: 'mood_bad', label: 'Low mood' },
+    ],
+  },
+  {
+    title: 'Study & Work',
+    items: [
+      { icon: 'laptop_chromebook', label: 'Hardworking' },
+      { icon: 'menu_book', label: 'Reading' },
+      { icon: 'do_not_disturb_on', label: 'Do not disturb!' },
+      { icon: 'psychology', label: 'Thinking' },
+      { icon: 'sick', label: 'Stuck' },
+      { icon: 'event_busy', label: 'Day off' },
+    ],
+  },
+  {
+    title: 'Activities',
+    items: [
+      { icon: 'directions_run', label: 'Runnnn!' },
+      { icon: 'medication', label: 'Sick' },
+      { icon: 'self_improvement', label: 'Pray' },
+      { icon: 'restaurant', label: 'Eating' },
+      { icon: 'coffee', label: 'Coffee time' },
+      { icon: 'sports_esports', label: 'Gaming' },
+    ],
+  },
+];
+
 const HomePage: React.FC = () => {
-  const { user, logout, socket } = useAuth();
+  const { user, logout, socket, updateUser } = useAuth();
   
   // STATE MANAGEMENT giống cấu trúc Zalo
   const [activeTab, setActiveTab] = useState<'chat' | 'contacts' | 'notifications' | 'cloud' | 'chatbot'>('chat');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [statusPickerOpen, setStatusPickerOpen] = useState(false);
+  const [showOnlineStatus, setShowOnlineStatus] = useState(true);
   const [selectedChat, setSelectedChat] = useState<any | null>(null);
   const [conversations, setConversations] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
@@ -17,6 +60,53 @@ const HomePage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const displayName = useMemo(() => user?.fullName || user?.fullname || 'Bạn', [user]);
   const displayAvatar = useMemo(() => user?.avatarUrl || user?.urlAvatar || 'https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png', [user]);
+  const currentStatus = useMemo(() => String(user?.currentStatus || user?.statusMessage || ''), [user]);
+
+  const clearStatus = () => {
+    if (!user) return;
+    updateUser({
+      currentStatus: '',
+      statusMessage: '',
+      statusExpiresAt: null,
+    });
+    setStatusPickerOpen(false);
+  };
+
+  const updateStatus = (label: string) => {
+    if (!user) return;
+    updateUser({
+      currentStatus: label,
+      statusMessage: label,
+      statusExpiresAt: label ? Date.now() + EXPIRE_IN_MS : null,
+    });
+    setStatusPickerOpen(false);
+  };
+
+  useEffect(() => {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.showOnlineStatus === 'boolean') {
+      setShowOnlineStatus(parsed.showOnlineStatus);
+    }
+  }, []);
+
+  useEffect(() => {
+    const expiresAt = Number(user?.statusExpiresAt || 0);
+    if (!expiresAt) return;
+
+    const ttl = expiresAt - Date.now();
+    if (ttl <= 0) {
+      clearStatus();
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      clearStatus();
+    }, ttl);
+
+    return () => window.clearTimeout(timer);
+  }, [user?.statusExpiresAt]);
 
   // FETCH CONVERSATIONS ON LOAD
   useEffect(() => {
@@ -133,12 +223,20 @@ const HomePage: React.FC = () => {
               src={displayAvatar}
             />
           </button>
+          {showOnlineStatus && <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-green-500 border-2 border-[#00418f]"></span>}
 
           {profileMenuOpen && (
             <div className="absolute left-[72px] top-0 w-72 rounded-[24px] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.15)] ring-1 ring-black/5 p-3 text-on-surface z-50">
               <div className="px-2 py-2 border-b border-outline-variant/15">
                 <p className="text-[17px] font-extrabold text-on-surface leading-tight">{displayName}</p>
                 <p className="text-sm text-on-surface-variant mt-1 truncate">{user?.email}</p>
+                <button
+                  type="button"
+                  onClick={() => setStatusPickerOpen(true)}
+                  className="mt-3 inline-flex items-center rounded-xl border border-[#d6e2f4] bg-[#f7fbff] px-3 py-1.5 text-xs font-semibold text-[#3e5a7b]"
+                >
+                  {currentStatus || 'Set status'}
+                </button>
               </div>
               <div className="py-2 space-y-1">
                 <button className="w-full flex items-center justify-between gap-3 px-3 py-3 rounded-2xl text-left hover:bg-surface-container transition-colors">
@@ -149,7 +247,7 @@ const HomePage: React.FC = () => {
                   <span>Hồ sơ của bạn</span>
                   <span className="material-symbols-outlined text-[20px] text-on-surface-variant">person</span>
                 </Link>
-                <Link to="/sessions" onClick={() => setProfileMenuOpen(false)} className="w-full flex items-center justify-between gap-3 px-3 py-3 rounded-2xl text-left hover:bg-surface-container transition-colors">
+                <Link to="/settings" onClick={() => setProfileMenuOpen(false)} className="w-full flex items-center justify-between gap-3 px-3 py-3 rounded-2xl text-left hover:bg-surface-container transition-colors">
                   <span>Cài đặt</span>
                   <span className="material-symbols-outlined text-[20px] text-on-surface-variant">settings</span>
                 </Link>
@@ -175,9 +273,9 @@ const HomePage: React.FC = () => {
           {renderNavButton('chatbot', 'smart_toy')}
         </nav>
         <div className="mt-auto space-y-4">
-          <button className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" title='Cài đặt'>
+          <Link to="/settings" className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" title='Cài đặt'>
             <span className="material-symbols-outlined">settings</span>
-          </button>
+          </Link>
           <button onClick={logout} className="text-white/80 hover:text-error hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center" title='Đăng xuất'>
             <span className="material-symbols-outlined">logout</span>
           </button>
@@ -490,6 +588,54 @@ const HomePage: React.FC = () => {
             </div>
           </aside>
         </>
+      )}
+      {statusPickerOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/35 backdrop-blur-[2px] flex items-start justify-center p-6">
+          <div className="w-full max-w-3xl rounded-[28px] overflow-hidden shadow-[0_28px_70px_rgba(15,23,42,0.35)]">
+            <div className="bg-gradient-to-b from-[#496e9a] to-[#9f7480] max-h-[88vh] overflow-y-auto p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <button
+                  type="button"
+                  onClick={() => setStatusPickerOpen(false)}
+                  className="w-9 h-9 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+                <div>
+                  <h3 className="text-white text-3xl font-extrabold leading-tight">Add status</h3>
+                  <p className="text-white/90 text-sm font-medium">Visible for 24 hours</p>
+                </div>
+              </div>
+
+              {STATUS_GROUPS.map((group) => (
+                <section key={group.title} className="mb-5 last:mb-2">
+                  <h4 className="text-white text-xl font-bold mb-3">{group.title}</h4>
+                  <div className="rounded-2xl bg-black/15 p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    {group.items.map((item) => (
+                      <button
+                        key={`${group.title}-${item.label}`}
+                        type="button"
+                        onClick={() => updateStatus(item.label)}
+                        className="rounded-xl px-2 py-3 text-white hover:bg-white/10 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[30px] block mb-1">{item.icon}</span>
+                        <span className="text-sm font-semibold leading-tight">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+
+              <button
+                type="button"
+                onClick={clearStatus}
+                className="w-full mt-3 rounded-xl border border-white/45 py-2.5 text-white font-semibold hover:bg-white/10 transition-colors"
+              >
+                Clear current status
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

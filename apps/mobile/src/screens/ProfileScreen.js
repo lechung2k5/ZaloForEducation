@@ -20,6 +20,7 @@ import { getApiBaseUrl } from '../utils/api';
 
 const API_URL = getApiBaseUrl();
 const COVER_URL = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80';
+const POSTS_STORAGE_KEY = 'mobile_profile_posts';
 
 const EMPTY_PROFILE = {
   fullName: '',
@@ -47,6 +48,11 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
   const [quickSaving, setQuickSaving] = useState(false);
   const [bioDraft, setBioDraft] = useState('');
   const [statusDraft, setStatusDraft] = useState('');
+  const [infoExpanded, setInfoExpanded] = useState(false);
+  const [showPostComposer, setShowPostComposer] = useState(false);
+  const [postDraft, setPostDraft] = useState('');
+  const [postAttachment, setPostAttachment] = useState(null);
+  const [posts, setPosts] = useState([]);
 
   const storage = useMemo(() => AsyncStorage.default || AsyncStorage, []);
 
@@ -166,6 +172,23 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
     fetchProfile();
   }, []);
 
+  useEffect(() => {
+    const loadPosts = async () => {
+      try {
+        const raw = await storage.getItem(POSTS_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setPosts(parsed);
+        }
+      } catch (error) {
+        console.error('Load profile posts error', error);
+      }
+    };
+
+    loadPosts();
+  }, []);
+
   const handleChange = (field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
   };
@@ -244,6 +267,64 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
       Alert.alert('Lỗi', 'Không thể cập nhật trạng thái.');
     } finally {
       setQuickSaving(false);
+    }
+  };
+
+  const handleCreatePost = async () => {
+    const content = postDraft.trim();
+    if (!content && !postAttachment) {
+      Alert.alert('Thiếu nội dung', 'Vui lòng nhập nội dung hoặc đính kèm ảnh/video trước khi đăng bài.');
+      return;
+    }
+
+    try {
+      const nextPost = {
+        id: `${Date.now()}`,
+        content,
+        createdAt: new Date().toISOString(),
+        authorName: displayName,
+        authorAvatar: avatarUrl || '',
+        attachment: postAttachment ? { ...postAttachment } : null,
+      };
+      const nextPosts = [nextPost, ...posts];
+      setPosts(nextPosts);
+      await storage.setItem(POSTS_STORAGE_KEY, JSON.stringify(nextPosts));
+      setPostDraft('');
+      setPostAttachment(null);
+      setShowPostComposer(false);
+      Alert.alert('Thành công', 'Đã đăng bài.');
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể đăng bài lúc này.');
+    }
+  };
+
+  const pickAttachment = async (mediaKind) => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Lỗi', 'Vui lòng cấp quyền truy cập thư viện ảnh.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: mediaKind === 'video' ? ImagePicker.MediaTypeOptions.Videos : ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: mediaKind === 'image',
+        quality: 0.85,
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      setPostAttachment({
+        type: mediaKind,
+        uri: asset.uri,
+        name: asset.fileName || `${mediaKind}-${Date.now()}`,
+      });
+      setShowPostComposer(true);
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể chọn tệp đính kèm.');
     }
   };
 
@@ -665,27 +746,146 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
               </ScrollView>
 
               <View style={styles.infoSection}>
-                <Text style={styles.infoTitle}>Thông tin cá nhân</Text>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Giới tính</Text>
-                  <Text style={styles.infoValue}>{profile.gender ? 'Nam' : 'Nữ'}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Ngày sinh</Text>
-                  <Text style={styles.infoValue}>{formatBirthDate(profile.dataOfBirth)}</Text>
-                </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Điện thoại</Text>
-                  <Text style={styles.infoValue}>{profile.phone || 'Chưa cập nhật'}</Text>
-                </View>
-
-                <Text style={styles.privacyNote}>Chỉ bạn bè có lưu số của bạn trong danh bạ máy xem được số này</Text>
-
-                <TouchableOpacity style={styles.updateInlineButton} onPress={startEditing}>
-                  <Text style={styles.updateInlineIcon}>edit</Text>
-                  <Text style={styles.updateInlineText}>Cập nhật</Text>
+                <TouchableOpacity style={styles.infoHeader} onPress={() => setInfoExpanded((prev) => !prev)} activeOpacity={0.82}>
+                  <Text style={styles.infoTitle}>Thông tin cá nhân</Text>
+                  <Text style={styles.infoChevron}>{infoExpanded ? 'expand_less' : 'expand_more'}</Text>
                 </TouchableOpacity>
+
+                {!infoExpanded && <Text style={styles.infoCollapsedHint}>Nhấn để mở rộng và xem chi tiết</Text>}
+
+                {infoExpanded && (
+                  <>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Giới tính</Text>
+                      <Text style={styles.infoValue}>{profile.gender ? 'Nam' : 'Nữ'}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Ngày sinh</Text>
+                      <Text style={styles.infoValue}>{formatBirthDate(profile.dataOfBirth)}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Điện thoại</Text>
+                      <Text style={styles.infoValue}>{profile.phone || 'Chưa cập nhật'}</Text>
+                    </View>
+
+                    <Text style={styles.privacyNote}>Chỉ bạn bè có lưu số của bạn trong danh bạ máy xem được số này</Text>
+
+                    <TouchableOpacity style={styles.updateInlineButton} onPress={startEditing}>
+                      <Text style={styles.updateInlineIcon}>edit</Text>
+                      <Text style={styles.updateInlineText}>Cập nhật</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+
+              <View style={styles.postSection}>
+                <TouchableOpacity style={styles.postButton} onPress={() => setShowPostComposer((prev) => !prev)} activeOpacity={0.88}>
+                  <Text style={styles.postButtonIcon}>edit_square</Text>
+                  <Text style={styles.postButtonText}>Đăng bài</Text>
+                </TouchableOpacity>
+
+                {showPostComposer && (
+                  <View style={styles.postComposerCard}>
+                    <View style={styles.postComposerAuthorRow}>
+                      {avatarUrl ? (
+                        <Image source={{ uri: avatarUrl }} style={styles.postComposerAvatar} />
+                      ) : (
+                        <View style={styles.postComposerAvatarFallback}>
+                          <Text style={styles.postComposerAvatarInitial}>{displayName ? displayName[0].toUpperCase() : 'U'}</Text>
+                        </View>
+                      )}
+                      <View style={styles.postComposerAuthorInfo}>
+                        <Text style={styles.postComposerAuthorName}>{displayName}</Text>
+                        <Text style={styles.postComposerAuthorEmail}>{profile.email || ''}</Text>
+                      </View>
+                    </View>
+                    <TextInput
+                      style={styles.postComposerInput}
+                      value={postDraft}
+                      onChangeText={setPostDraft}
+                      placeholder="Bạn đang nghĩ gì?"
+                      placeholderTextColor={Colors.outline}
+                      multiline
+                      maxLength={500}
+                      textAlignVertical="top"
+                    />
+                    {postAttachment && (
+                      <View style={styles.postAttachmentPreview}>
+                        {postAttachment.type === 'image' ? (
+                          <Image source={{ uri: postAttachment.uri }} style={styles.postAttachmentImage} />
+                        ) : (
+                          <View style={styles.postAttachmentVideoCard}>
+                            <Text style={styles.postAttachmentVideoIcon}>play_circle</Text>
+                            <Text style={styles.postAttachmentVideoText}>{postAttachment.name || 'Video đính kèm'}</Text>
+                          </View>
+                        )}
+                        <TouchableOpacity style={styles.postAttachmentRemoveButton} onPress={() => setPostAttachment(null)}>
+                          <Text style={styles.postAttachmentRemoveIcon}>close</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    <View style={styles.postComposerToolbar}>
+                      <TouchableOpacity style={styles.postComposerAttachButton} onPress={() => pickAttachment('image')}>
+                        <Text style={styles.postComposerAttachIcon}>image</Text>
+                        <Text style={styles.postComposerAttachText}>Ảnh</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.postComposerAttachButton} onPress={() => pickAttachment('video')}>
+                        <Text style={styles.postComposerAttachIcon}>movie</Text>
+                        <Text style={styles.postComposerAttachText}>Video</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.postComposerActions}>
+                      <TouchableOpacity
+                        style={styles.postComposerCancel}
+                        onPress={() => {
+                          setShowPostComposer(false);
+                          setPostDraft('');
+                          setPostAttachment(null);
+                        }}
+                      >
+                        <Text style={styles.postComposerCancelText}>Hủy</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.postComposerSubmit} onPress={handleCreatePost}>
+                        <Text style={styles.postComposerSubmitText}>Đăng</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {posts.length > 0 && (
+                  <View style={styles.postList}>
+                    {posts.map((post) => (
+                      <View key={post.id} style={styles.postCard}>
+                        <View style={styles.postCardAuthorRow}>
+                          {post.authorAvatar ? (
+                            <Image source={{ uri: post.authorAvatar }} style={styles.postCardAvatar} />
+                          ) : (
+                            <View style={styles.postCardAvatarFallback}>
+                              <Text style={styles.postCardAvatarInitial}>{post.authorName ? post.authorName[0].toUpperCase() : 'U'}</Text>
+                            </View>
+                          )}
+                          <View style={styles.postCardAuthorInfo}>
+                            <Text style={styles.postCardAuthorName}>{post.authorName || 'Người dùng'}</Text>
+                            <Text style={styles.postDate}>{new Date(post.createdAt).toLocaleString('vi-VN')}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.postContent}>{post.content}</Text>
+                        {post.attachment && (
+                          <View style={styles.postCardAttachment}>
+                            {post.attachment.type === 'image' ? (
+                              <Image source={{ uri: post.attachment.uri }} style={styles.postCardAttachmentImage} />
+                            ) : (
+                              <View style={styles.postCardVideoCard}>
+                                <Text style={styles.postCardVideoIcon}>play_circle</Text>
+                                <Text style={styles.postCardVideoText}>{post.attachment.name || 'Video đính kèm'}</Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
               </View>
             </View>
@@ -899,6 +1099,285 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.primary,
   },
+  postButton: {
+    marginTop: 4,
+    alignSelf: 'center',
+    borderRadius: 22,
+    backgroundColor: '#0b72ff',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    ...Shadows.soft,
+  },
+  postButtonIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 18,
+    color: '#fff',
+  },
+  postButtonText: {
+    ...Typography.heading,
+    fontSize: 16,
+    color: '#fff',
+  },
+  postSection: {
+    marginTop: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+    gap: 10,
+  },
+  postComposerCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#d7e0ef',
+    backgroundColor: '#f7fbff',
+    padding: 12,
+  },
+  postComposerAuthorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  postComposerAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#e0e3e5',
+  },
+  postComposerAvatarFallback: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#0058bc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postComposerAvatarInitial: {
+    fontSize: 18,
+    color: '#fff',
+    fontWeight: '800',
+  },
+  postComposerAuthorInfo: {
+    flex: 1,
+  },
+  postComposerAuthorName: {
+    ...Typography.heading,
+    fontSize: 15,
+    color: '#1e2f4d',
+  },
+  postComposerAuthorEmail: {
+    ...Typography.body,
+    fontSize: 12,
+    color: '#6f7d91',
+    marginTop: 2,
+  },
+  postComposerInput: {
+    minHeight: 90,
+    borderWidth: 1,
+    borderColor: '#d3d9e2',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    ...Typography.body,
+    color: '#1e2f4d',
+    fontSize: 14,
+  },
+  postComposerToolbar: {
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  postComposerAttachButton: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d3d9e2',
+    backgroundColor: '#fff',
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  postComposerAttachIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 18,
+    color: '#1e2f4d',
+  },
+  postComposerAttachText: {
+    ...Typography.label,
+    fontSize: 13,
+    color: '#1e2f4d',
+  },
+  postAttachmentPreview: {
+    marginTop: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#d3d9e2',
+    backgroundColor: '#fff',
+    position: 'relative',
+  },
+  postAttachmentImage: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#eef1f6',
+  },
+  postAttachmentVideoCard: {
+    minHeight: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0f172a',
+    padding: 14,
+  },
+  postAttachmentVideoIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 44,
+    color: '#fff',
+    marginBottom: 8,
+  },
+  postAttachmentVideoText: {
+    ...Typography.body,
+    fontSize: 14,
+    color: '#fff',
+    textAlign: 'center',
+  },
+  postAttachmentRemoveButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postAttachmentRemoveIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 18,
+    color: '#1e2f4d',
+  },
+  postComposerActions: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  postComposerCancel: {
+    borderRadius: 8,
+    backgroundColor: '#e3e9f2',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  postComposerCancelText: {
+    ...Typography.label,
+    color: '#1e2f4d',
+    fontSize: 13,
+  },
+  postComposerSubmit: {
+    borderRadius: 8,
+    backgroundColor: '#0b72ff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  postComposerSubmitText: {
+    ...Typography.label,
+    color: '#fff',
+    fontSize: 13,
+  },
+  postList: {
+    gap: 10,
+    marginTop: 2,
+  },
+  postCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e0e6f0',
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  postCardAuthorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  postCardAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#e0e3e5',
+  },
+  postCardAvatarFallback: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#0058bc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postCardAvatarInitial: {
+    fontSize: 18,
+    color: '#fff',
+    fontWeight: '800',
+  },
+  postCardAuthorInfo: {
+    flex: 1,
+  },
+  postCardAuthorName: {
+    ...Typography.heading,
+    fontSize: 15,
+    color: '#1e2f4d',
+  },
+  postDate: {
+    ...Typography.body,
+    fontSize: 12,
+    color: '#7a879b',
+    marginBottom: 6,
+  },
+  postContent: {
+    ...Typography.body,
+    fontSize: 14,
+    color: '#1e2f4d',
+    lineHeight: 20,
+  },
+  postCardAttachment: {
+    marginTop: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  postCardAttachmentImage: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#eef1f6',
+    borderRadius: 12,
+  },
+  postCardVideoCard: {
+    minHeight: 150,
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+  },
+  postCardVideoIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 38,
+    color: '#fff',
+    marginBottom: 6,
+  },
+  postCardVideoText: {
+    ...Typography.body,
+    fontSize: 13,
+    color: '#fff',
+    textAlign: 'center',
+  },
   quickEditorCard: {
     marginHorizontal: 16,
     marginBottom: 12,
@@ -994,16 +1473,31 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#fff',
   },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   infoTitle: {
     ...Typography.heading,
     color: '#1e2f4d',
     fontSize: 18,
-    marginBottom: 18,
+  },
+  infoChevron: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 24,
+    color: '#1e2f4d',
+  },
+  infoCollapsedHint: {
+    ...Typography.body,
+    marginTop: 8,
+    fontSize: 13,
+    color: '#70819b',
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginTop: 12,
   },
   infoLabel: {
     ...Typography.body,

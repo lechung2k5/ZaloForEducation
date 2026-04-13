@@ -501,7 +501,6 @@ const styles = StyleSheet.create({
   friendStatus: { ...Typography.body, fontSize: 12, color: '#727784' },
   friendAction: { padding: 8 },
   friendActionIcon: { fontFamily: 'Material Symbols Outlined', fontSize: 24, color: '#00418f' },
-
   // AI Tab Styles
   centeredView: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
   aiIcon: { fontFamily: 'Material Symbols Outlined', fontSize: 80, color: '#00418f', marginBottom: 20, opacity: 0.8 },

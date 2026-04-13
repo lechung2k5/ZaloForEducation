@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
 import RegisterPage from './pages/RegisterPage';
 import SessionsPage from './pages/SessionsPage';
+import SettingsPage from './pages/SettingsPage';
 
 // Component bảo vệ Route
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -34,6 +35,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <HomePage />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                <PrivateRoute>
+                  <SettingsPage />
                 </PrivateRoute>
               } 
             />
