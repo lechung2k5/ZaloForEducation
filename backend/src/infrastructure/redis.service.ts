@@ -67,6 +67,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     await this.client.del(key);
   }
 
+  async incr(key: string): Promise<number> {
+    return await this.client.incr(key);
+  }
+
   async sAdd(key: string, value: string) {
     await this.client.sAdd(key, value);
   }

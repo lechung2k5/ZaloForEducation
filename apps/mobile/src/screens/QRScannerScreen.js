@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, Modal, Platform, ActivityIndi
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { apiRequest } from '../utils/api';
 import Alert from '../utils/Alert';
+import * as LocalAuthentication from 'expo-local-authentication';
 
 const QRScannerScreen = ({ onNavigate, goBack }) => {
   const [permission, requestPermission] = useCameraPermissions();
@@ -12,24 +13,39 @@ const QRScannerScreen = ({ onNavigate, goBack }) => {
   const [qrCodeId, setQrCodeId] = useState(null);
 
   const handleBarCodeScanned = ({ data }) => {
-    // Valid qrCodeId is a UUID string. Simple check if it looks like one or just take it
     setScanned(true);
     setQrCodeId(data);
     setConfirmModal(true);
   };
 
   const confirmLogin = async () => {
+    // 1. Check if device has any security (Passcode/PIN)
+    const securityLevel = await LocalAuthentication.getEnrolledLevelAsync();
+    
+    if (securityLevel > 0) {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Xác thực bảo mật để tiếp tục',
+        fallbackLabel: 'Sử dụng mật mã máy',
+      });
+
+      if (!result.success) return;
+    }
+
+    // 2. Proceed to API
     setLoading(true);
     try {
       const response = await apiRequest('/auth/qr-confirm', {
         method: 'POST',
-        body: JSON.stringify({ qrCodeId }),
+        body: JSON.stringify({ 
+          qrCodeId,
+          isBiometricVerified: false // Flag updated
+        }),
       });
       
       if (response.ok) {
         Alert.alert('Thành công', 'Đã đăng nhập thành công trên máy tính!');
         setConfirmModal(false);
-        goBack(); // Go back to profile or home
+        goBack();
       } else {
         Alert.alert('Lỗi', response.message || 'Không thể xác nhận đăng nhập.');
         setScanned(false);
@@ -122,33 +138,39 @@ const QRScannerScreen = ({ onNavigate, goBack }) => {
               <Text style={styles.modalIcon}>important_devices</Text>
             </View>
             <Text style={styles.modalTitle}>Xác nhận đăng nhập</Text>
-            <Text style={styles.modalDesc}>
-              Bạn có đồng ý đăng nhập tài khoản ZaloEdu trên máy tính này không?
-            </Text>
             
-            <View style={styles.modalActions}>
-              <TouchableOpacity 
-                style={styles.cancelBtn} 
-                onPress={() => {
-                  setConfirmModal(false);
-                  setScanned(false);
-                }}
-                disabled={loading}
-              >
-                <Text style={styles.cancelText}>Hủy bỏ</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.confirmBtn} 
-                onPress={confirmLogin}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.confirmText}>Đăng nhập</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+            {loading ? (
+              <View style={{ alignItems: 'center', marginVertical: 20 }}>
+                <ActivityIndicator size="large" color="#006af5" />
+                <Text style={{ marginTop: 12, color: '#666', fontWeight: '500' }}>Đang xác nhận...</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.modalDesc}>
+                  Bạn có đồng ý đăng nhập tài khoản Zalo Education trên máy tính này không?
+                </Text>
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity 
+                    style={styles.cancelBtn} 
+                    onPress={() => {
+                      setConfirmModal(false);
+                      setScanned(false);
+                    }}
+                    disabled={loading}
+                  >
+                    <Text style={styles.cancelText}>Hủy bỏ</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.confirmBtn} 
+                    onPress={confirmLogin}
+                    disabled={loading}
+                  >
+                    <Text style={styles.confirmText}>Đăng nhập</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -202,7 +224,23 @@ const styles = StyleSheet.create({
 
   errorText: { color: '#ff4d4f', fontSize: 16, marginBottom: 20 },
   retryBtn: { paddingHorizontal: 24, paddingVertical: 12, backgroundColor: '#006af5', borderRadius: 12 },
-  retryText: { color: '#fff', fontWeight: '700' }
+  retryText: { color: '#fff', fontWeight: '700' },
+  
+  authErrorBox: { 
+    width: '100%', 
+    backgroundColor: '#fff1f0', 
+    borderWidth: 1, 
+    borderColor: '#ffa39e', 
+    borderRadius: 12, 
+    padding: 12, 
+    marginBottom: 20 
+  },
+  authErrorText: { 
+    color: '#cf1322', 
+    fontSize: 13, 
+    fontWeight: '600', 
+    textAlign: 'center' 
+  }
 });
 
 export default QRScannerScreen;

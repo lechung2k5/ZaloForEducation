@@ -34,7 +34,7 @@ export class EmailService {
     }
   }
 
-  async sendOtp(to: string, code: string, type: 'register' | 'forgot_password' | 'change_password') {
+  async sendOtp(to: string, code: string, type: 'register' | 'forgot_password' | 'change_password' | 'login') {
     let subject = '';
     let title = '';
 
@@ -44,9 +44,12 @@ export class EmailService {
     } else if (type === 'forgot_password') {
       subject = 'Mã đặt lại mật khẩu ZaloEdu';
       title = 'Đặt lại mật khẩu';
-    } else {
+    } else if (type === 'change_password') {
       subject = 'Mã xác thực đổi mật khẩu ZaloEdu';
       title = 'Đổi mật khẩu';
+    } else {
+      subject = 'Cảnh báo đăng nhập ZaloEdu';
+      title = 'Xác thực đăng nhập';
     }
     
     const html = `

@@ -157,14 +157,6 @@ const HomePage: React.FC = () => {
 
         {/* Bottom Settings & Logout area */}
         <div className="mt-auto space-y-4">
-          <button 
-            onClick={() => setIsProfileModalOpen(true)}
-            className="text-white/60 hover:text-white hover:bg-white/10 rounded-2xl transition-all duration-300 p-3 scale-95 active:scale-90 flex items-center justify-center font-medium" 
-            title='Thông tin cá nhân'
-          >
-            <span className="material-symbols-outlined">person</span>
-          </button>
-          
           <div className="relative" ref={dropdownRef}>
             <button 
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -314,7 +306,7 @@ const HomePage: React.FC = () => {
                     }`}
                   >
                     <div className="relative shrink-0">
-                      <img className="w-12 h-12 rounded-full object-cover shadow-sm bg-surface-container" alt={chatName} src={chat.avatar || 'https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png'} />
+                      <img className="w-12 h-12 rounded-full object-cover shadow-sm bg-surface-container" alt={chatName} src={chat.avatar || '/logo_blue.png'} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-center mb-0.5">
@@ -344,7 +336,7 @@ const HomePage: React.FC = () => {
         // WELCOME SCREEN (Empty State)
         <main className="flex-1 bg-[#f7f9fb] flex flex-col items-center justify-center relative shadow-[inset_1px_0_0_rgba(0,0,0,0.05)]">
            <img 
-              src="https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png"
+              src="/logo_blue.png"
               alt="Welcome"
               className="w-48 h-auto mb-8 animate-float opacity-80 mix-blend-multiply"
               onError={(e) => {
@@ -354,7 +346,7 @@ const HomePage: React.FC = () => {
               }}
            />
            <span className="material-symbols-outlined text-primary text-[120px] mb-8 hidden" style={{ fontVariationSettings: "'wght' 200" }}>forum</span>
-           <h2 className="text-2xl font-extrabold text-on-surface mb-3 tracking-tight">Chào mừng đến với ZaloEdu</h2>
+           <h2 className="text-2xl font-extrabold text-on-surface mb-3 tracking-tight">Chào mừng đến với Zalo Education</h2>
            <p className="text-on-surface-variant font-medium max-w-md text-center leading-relaxed">
              Khám phá tiện ích hỗ trợ làm việc và học tập, kết nối với giảng viên và sinh viên một cách dễ dàng.
            </p>
@@ -445,7 +437,7 @@ const HomePage: React.FC = () => {
                         <img 
                           className="w-9 h-9 rounded-full mt-1 object-cover bg-surface-container" 
                           alt="Avatar" 
-                          src="https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png"
+                          src="/logo_blue.png"
                         />
                         <div>
                           {selectedChat.type === 'group' && <span className="text-[12px] font-bold ml-1 mb-1 block text-on-surface-variant">{message.senderId}</span>}

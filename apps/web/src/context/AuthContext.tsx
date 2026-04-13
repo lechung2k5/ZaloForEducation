@@ -6,7 +6,7 @@ import { getDeviceId, getDeviceInfo } from '../utils/device';
 interface AuthContextType {
   user: any;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ requireOtp?: boolean; email?: string; success?: boolean }>;
   requestRegisterOtp: (email: string) => Promise<void>;
   confirmRegister: (data: any) => Promise<void>;
   resendOtp: (email: string, type: 'register' | 'forgot_password') => Promise<void>;
@@ -19,6 +19,7 @@ interface AuthContextType {
   logoutAll: () => Promise<void>;
   requestChangePassword: (data: { currentPassword: string; newPassword: string }) => Promise<void>;
   confirmChangePassword: (otp: string) => Promise<void>;
+  verifyLoginOtp: (otp: string, email: string) => Promise<any>;
   socket: any;
   deviceId: string;
 }
@@ -46,10 +47,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
-      setupSocket(parsedUser.email);
+    if (savedUser && savedUser !== 'undefined') {
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        setupSocket(parsedUser.email);
+      } catch (e) {
+        console.error('Failed to parse saved user:', e);
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+      }
     }
     setLoading(false);
 
@@ -79,19 +86,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       newSocket.emit('join_identity', { email, deviceId: currentDeviceId });
     });
 
-    // FIX 4: xử lý cả 2 trường hợp backend emit force_logout
-    // TH1: backend emit thẳng tới socket (không có targetDeviceId)
-    // TH2: backend emit kèm targetDeviceId hoặc all
     newSocket.on('force_logout', (data) => {
+      console.log('🔥 [SOCKET] force_logout EVENT RECEIVED:', data);
       const currentDeviceId = deviceId || localStorage.getItem('deviceId') || '';
 
-      // FIX: Chỉ logout khi có targetDeviceId khớp hoặc data.all === true
-      // Không logout khi thiếu thông tin để tránh logout nhầm sau QR login
+      // FIX: Chấp nhận logout nếu targetDeviceId khớp, all=true, hoặc bị invalidate session
       const shouldLogout =
         data?.all === true ||
-        (data?.targetDeviceId && data.targetDeviceId === currentDeviceId);
+        (data?.targetDeviceId && data.targetDeviceId === currentDeviceId) ||
+        (data?.reason === 'SESSION_INVALIDATED');
 
       if (shouldLogout) {
+        console.log('✅ [SOCKET] Target device matched. Initiating local logout...');
         alert('Phiên đăng nhập của bạn đã hết hạn hoặc bị đăng xuất từ thiết bị khác.');
         logoutLocal();
       } else {
@@ -123,24 +129,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { deviceName, deviceType } = getDeviceInfo();
     const currentDeviceId = deviceId || await Promise.resolve(getDeviceId());
 
-    const res = await api.post('/auth/login', {
+    try {
+      const res = await api.post('/auth/login', {
+        email,
+        password,
+        deviceId: currentDeviceId,
+        deviceName,
+        deviceType,
+        platform: 'web',
+      });
+
+      if (res.data.type === 'REQUIRE_OTP') {
+        return { requireOtp: true, email };
+      }
+
+      const { accessToken, user: userData } = res.data;
+
+      localStorage.setItem('token', accessToken);
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('deviceId', currentDeviceId);
+
+      setUser(userData);
+      setupSocket(userData.email);
+      return { success: true };
+    } catch (err: any) {
+      if (err.response?.data?.type === 'REQUIRE_OTP') {
+        return { requireOtp: true, email };
+      }
+      throw err;
+    }
+  };
+
+  const verifyLoginOtp = async (otp: string, email: string) => {
+    const { deviceName, deviceType } = getDeviceInfo();
+    const currentDeviceId = deviceId || await Promise.resolve(getDeviceId());
+
+    const res = await api.post('/auth/verify-login-otp', {
       email,
-      password,
+      otp,
       deviceId: currentDeviceId,
       deviceName,
       deviceType,
-      platform: 'web',
     });
+
     const { accessToken, user: userData } = res.data;
 
     localStorage.setItem('token', accessToken);
     localStorage.setItem('user', JSON.stringify(userData));
-    // Lưu deviceId để dùng trong force_logout khi deviceId state chưa kịp set
     localStorage.setItem('deviceId', currentDeviceId);
 
     setUser(userData);
-    // FIX 3: setupSocket đã tự disconnect socket cũ trước khi tạo mới
     setupSocket(userData.email);
+    return userData;
   };
 
   const requestRegisterOtp = async (email: string) => {
@@ -187,7 +227,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logoutLocal = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    localStorage.removeItem('deviceId');
+    // deviceId được giữ lại để duy trì trạng thái "Thiết bị tin cậy"
+    // tránh việc phải nhập OTP mỗi khi đăng xuất rồi đăng nhập lại trên cùng 1 máy.
     // FIX 2: disconnect socket đúng cách qua ref
     if (socketRef.current) {
       socketRef.current.disconnect();
@@ -249,7 +290,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user, loading, login, requestRegisterOtp, confirmRegister,
       resendOtp, requestForgotPassword, resetPassword, getSessions,
       revokeSession, logout, logoutAll, socket, deviceId, refreshUser,
-      requestChangePassword, confirmChangePassword
+      requestChangePassword, confirmChangePassword, verifyLoginOtp
     }}>
       {children}
     </AuthContext.Provider>

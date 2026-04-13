@@ -1,181 +1,296 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
 
-const LandingPage: React.FC = () => {
+// --- STYLED COMPONENTS ---
+
+const Navbar: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  return (
+    <nav className="fixed top-8 left-1/2 -translate-x-1/2 w-[90%] max-w-7xl z-50 liquid-glass-strong rounded-full px-8 py-4 flex justify-between items-center animate-fade-in shadow-2xl">
+      <Link to="/" className="flex items-center gap-3">
+        <img src="/logo_blue.png" alt="Logo" className="w-10 h-10 object-contain" />
+        <span className="text-2xl font-black tracking-tighter text-primary font-heading italic">
+          Zalo Education<sup className="text-[10px] font-normal not-italic ml-0.5">®</sup>
+        </span>
+      </Link>
+
+      <div className="hidden md:flex items-center gap-10">
+        <a href="#features" className="text-sm font-bold text-primary hover:opacity-70 transition-opacity font-body uppercase tracking-widest">Tính năng</a>
+        <a href="#about" className="text-sm font-bold text-secondary hover:text-primary transition-colors font-body uppercase tracking-widest">Giới thiệu</a>
+        <a href="#" className="text-sm font-bold text-secondary hover:text-primary transition-colors font-body uppercase tracking-widest">Tài liệu</a>
+        <button 
+          onClick={() => navigate(user ? '/chat' : '/login')}
+          className="px-8 py-3 bg-primary text-white rounded-full font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-xl font-body"
+        >
+          {user ? 'Vào ứng dụng' : 'Đăng nhập'}
+        </button>
+      </div>
+    </nav>
+  );
+};
+
+const HeroSection: React.FC = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [opacity, setOpacity] = useState(0);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let frameId: number;
+    const checkTime = () => {
+      const { currentTime, duration } = video;
+      if (duration) {
+        // Fade in logic (first 0.5s)
+        if (currentTime < 0.5) {
+          setOpacity(currentTime / 0.5);
+        } 
+        // Fade out logic (last 0.5s)
+        else if (currentTime > duration - 0.5) {
+          setOpacity((duration - currentTime) / 0.5);
+        } 
+        // Steady state
+        else {
+          setOpacity(1);
+        }
+      }
+      frameId = requestAnimationFrame(checkTime);
+    };
+
+    video.play();
+    frameId = requestAnimationFrame(checkTime);
+
+    return () => cancelAnimationFrame(frameId);
+  }, []);
+
+  const handleEnded = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    setOpacity(0);
+    setTimeout(() => {
+      video.currentTime = 0;
+      video.play();
+    }, 100);
+  };
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface font-sans overflow-x-hidden">
-      {/* Navbar */}
-      <nav className="fixed top-0 w-full z-50 academic-glass border-b border-outline-variant/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <Link to="/" className="flex items-center gap-3 group">
-              <div className="w-10 h-10 signature-gradient rounded-xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform">
-                <span className="material-symbols-outlined text-white text-2xl">school</span>
-              </div>
-              <span className="text-2xl font-black tracking-tighter text-primary">
-                ZaloEdu
-              </span>
-            </Link>
-            <div className="flex items-center gap-8">
-              <nav className="hidden md:flex items-center gap-6">
-                <a href="#features" className="text-sm font-bold text-on-surface-variant hover:text-primary transition-colors">Tính năng</a>
-                <a href="#about" className="text-sm font-bold text-on-surface-variant hover:text-primary transition-colors">Giới thiệu</a>
-              </nav>
-              <button 
-                onClick={() => navigate('/login')}
-                className="flex items-center gap-2 px-6 py-2.5 signature-gradient text-white rounded-full font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all inner-glow"
-              >
-                <span className="material-symbols-outlined text-xl">login</span>
-                Đăng nhập
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <section className="relative h-screen w-full flex items-center justify-center text-center px-6 overflow-hidden bg-white">
+      {/* Cinematic Video Background */}
+      <div className="absolute inset-0 z-0 bg-white">
+        <video
+          ref={videoRef}
+          onEnded={handleEnded}
+          muted
+          playsInline
+          className="w-full h-full object-cover pointer-events-none"
+          style={{ opacity, transition: 'opacity 0.1s linear' }}
+          src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_083109_283f3553-e28f-428b-a723-d639c617eb2b.mp4"
+        />
+        {/* Gradients to blend video */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-transparent to-white/40" />
+        <div className="absolute inset-0 bg-white/5" />
+      </div>
 
-      {/* Hero Section */}
-      <section className="relative pt-40 pb-24 lg:pt-56 lg:pb-32 overflow-hidden">
-        {/* Background Decorative Elements */}
-        <div className="absolute top-[-10%] left-[-5%] w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] pointer-events-none"></div>
-        <div className="absolute bottom-[10%] right-[-5%] w-[500px] h-[500px] bg-secondary/10 rounded-full blur-[100px] pointer-events-none"></div>
-
-        {/* Side Graphic (Decorative) */}
-        <div className="hidden lg:block fixed left-8 top-1/2 -translate-y-1/2 w-48 space-y-4 opacity-20 pointer-events-none">
-          <div className="h-32 bg-primary/10 rounded-3xl animate-float"></div>
-          <div className="h-48 bg-secondary/10 rounded-3xl ml-12"></div>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-black uppercase tracking-widest mb-8 animate-fade-in">
-              <span className="material-symbols-outlined text-sm">bolt</span>
-              Nền tảng Giáo dục Thông minh 4.0
-            </div>
-            <h1 className="text-5xl lg:text-7xl font-black tracking-tighter mb-8 leading-[1.1] animate-slide-up">
-              Học tập Không giới hạn hướng tới <span className="text-primary italic">Tương lai</span>
-            </h1>
-            <p className="text-xl text-on-surface-variant mb-12 leading-relaxed max-w-2xl mx-auto font-medium animate-slide-up" style={{ animationDelay: '0.1s' }}>
-              ZaloEdu mang đến giải pháp kết nối học viên và giảng viên thông qua hệ thống OTT chuyên nghiệp. 
-              An toàn, bảo mật và hiệu quả vượt trội.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-5 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-              <button 
-                onClick={() => navigate('/login')}
-                className="w-full sm:w-auto px-10 py-5 signature-gradient text-white rounded-[2rem] font-black text-lg hover:scale-105 transition-all shadow-2xl shadow-primary/30 active:scale-95 flex items-center justify-center gap-3 inner-glow"
-              >
-                <span className="material-symbols-outlined text-2xl">rocket_launch</span>
-                Sử dụng ngay
-              </button>
-              <button 
-                onClick={() => navigate('/register')}
-                className="w-full sm:w-auto px-10 py-5 bg-surface-container-lowest text-on-surface border border-outline-variant/30 rounded-[2rem] font-black text-lg hover:bg-surface-container-low transition-all active:scale-95 shadow-xl shadow-black/5"
-              >
-                Khám phá thêm
-              </button>
-            </div>
-            
-            {/* Stats Badges */}
-            <div className="mt-24 grid grid-cols-2 lg:grid-cols-4 gap-8 opacity-40 grayscale hover:grayscale-0 hover:opacity-100 transition-all duration-700 animate-fade-in" style={{ animationDelay: '0.4s' }}>
-              <div className="flex flex-col items-center gap-2">
-                <span className="material-symbols-outlined text-3xl">verified_user</span>
-                <span className="text-xs font-black uppercase tracking-tighter">Bảo mật AES-256</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="material-symbols-outlined text-3xl">sync</span>
-                <span className="text-xs font-black uppercase tracking-tighter">Real-time Sync</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="material-symbols-outlined text-3xl">qr_code_scanner</span>
-                <span className="text-xs font-black uppercase tracking-tighter">QR Authentication</span>
-              </div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="material-symbols-outlined text-3xl">group</span>
-                <span className="text-xs font-black uppercase tracking-tighter">100k+ Học viên</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Feature Cards Section */}
-      <section id="features" className="py-24 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-black tracking-tighter text-on-surface mb-4">Tại sao chọn ZaloEdu?</h2>
-            <div className="w-16 h-1 bg-primary mx-auto rounded-full"></div>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                title: 'Đăng nhập Một chạm',
-                desc: 'Xác thực nhanh chóng bằng mã QR từ điện thoại, loại bỏ gánh nặng ghi nhớ mật khẩu phức tạp.',
-                icon: 'qr_code_2',
-                color: 'text-primary',
-                bg: 'bg-primary/5'
-              },
-              {
-                title: 'Kết nối Tức thì',
-                desc: 'Hệ thống Chat Socket.io mạnh mẽ giúp tương tác thời gian thực giữa giảng viên và học viên.',
-                icon: 'forum',
-                color: 'text-secondary',
-                bg: 'bg-secondary/5'
-              },
-              {
-                title: 'Trải Nghiệm Đa Luồng',
-                desc: 'Đồng bộ hóa hoàn hảo trên mọi thiết bị. Học mọi lúc, mọi nơi với bảo mật đa tầng.',
-                icon: 'devices',
-                color: 'text-tertiary',
-                bg: 'bg-tertiary/5'
-              }
-            ].map((feature, i) => (
-              <div key={i} className="group p-10 rounded-[2.5rem] bg-surface-container-lowest border border-outline-variant/10 hover:border-primary/30 hover:shadow-2xl hover:shadow-primary/5 transition-all duration-500">
-                <div className={`w-16 h-16 ${feature.bg} ${feature.color} rounded-2xl flex items-center justify-center mb-8 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-500`}>
-                  <span className="material-symbols-outlined text-3xl">{feature.icon}</span>
-                </div>
-                <h3 className="text-2xl font-black mb-4 tracking-tight">{feature.title}</h3>
-                <p className="text-on-surface-variant font-medium leading-relaxed">{feature.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-12 mb-20">
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="signature-gradient rounded-[3rem] p-12 lg:p-16 text-center text-white relative overflow-hidden shadow-2xl shadow-primary/40">
-            <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-            <div className="relative z-10">
-              <h2 className="text-4xl lg:text-5xl font-black tracking-tighter mb-6">Sẵn sàng để bắt đầu?</h2>
-              <p className="text-white/80 text-lg font-bold mb-10 max-w-xl mx-auto">Gia nhập cộng đồng ZaloEdu ngay hôm nay và trải nghiệm môi trường học tập hiện đại nhất.</p>
-              <button 
-                onClick={() => navigate('/register')}
-                className="px-12 py-5 bg-white text-primary rounded-[2rem] font-black text-xl hover:scale-105 transition-all shadow-xl active:scale-95"
-              >
-                Đăng ký Miễn phí
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-12 border-t border-outline-variant/10">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-3">
-             <div className="w-8 h-8 signature-gradient rounded-lg flex items-center justify-center">
-                <span className="material-symbols-outlined text-white text-sm">school</span>
-             </div>
-             <span className="font-black tracking-tighter text-primary">ZaloEdu</span>
-          </div>
-          <p className="text-on-surface-variant text-sm font-bold opacity-50">
-            © 2026 ZaloEdu System. Built with NestJS & React.
+      <div className="relative z-10 max-w-7xl pt-20 text-primary">
+        <motion.div
+           initial={{ opacity: 0, y: 30, filter: 'blur(10px)' }}
+           whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+           transition={{ duration: 1, ease: 'easeOut' }}
+           viewport={{ once: true }}
+        >
+          <h1 className="text-6xl md:text-9xl font-normal tracking-tight font-heading leading-[0.9] mb-12">
+            Invisible <span className="text-secondary italic">technology.</span><br />
+            Infinite <span className="text-secondary italic">wisdom.</span>
+          </h1>
+          <p className="text-lg md:text-xl text-secondary font-body max-w-2xl mx-auto mb-16 leading-relaxed">
+            Học tập Không giới hạn hướng tới Tương lai. Zalo Education mang đến giải pháp OTT chuyên nghiệp, an toàn và bảo mật tuyệt đối cho mọi tâm hồn học thuật.
           </p>
-          <div className="flex gap-6">
-            <a href="#" className="text-on-surface-variant hover:text-primary text-sm font-bold transition-colors">Bảo mật</a>
-            <a href="#" className="text-on-surface-variant hover:text-primary text-sm font-bold transition-colors">Điều khoản</a>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+            <button 
+              onClick={() => navigate(user ? '/chat' : '/login')}
+              className="bg-primary text-white px-14 py-5 rounded-full font-bold text-lg hover:scale-105 transition-all shadow-2xl active:scale-95"
+            >
+              {user ? 'Truy cập trò chuyện' : 'Sử dụng ngay'}
+            </button>
+            <button 
+              onClick={() => navigate(user ? '/profile' : '/register')}
+              className="text-primary font-bold text-lg hover:opacity-70 transition-opacity"
+            >
+              {user ? 'Quản lý tài khoản' : 'Khám phá thế giới'}
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </section>
+  );
+};
+
+const FeatureChess: React.FC = () => {
+  const features = [
+    {
+      title: "Đăng nhập Một chạm",
+      highlight: "QR Code",
+      desc: "Xác thực nhanh chóng bằng mã QR từ điện thoại, loại bỏ gánh nặng ghi nhớ mật khẩu. Bảo mật đa tầng, tiện lợi tối đa cho giảng viên và học viên.",
+      visual: "/4731-179738656_medium.mp4"
+    },
+    {
+      title: "Kết nối Tức thì",
+      highlight: "Socket.io",
+      desc: "Hệ thống tương tác thời gian thực với độ trễ tối thiểu. Trao đổi tài liệu, thảo luận nhóm và nhận thông báo ngay lập tức trên mọi thiết bị.",
+      visual: "/141519-777930387_medium.mp4"
+    }
+  ];
+
+  return (
+    <section id="features" className="py-40 bg-white overflow-hidden px-6">
+      <div className="max-w-7xl mx-auto space-y-40">
+        {features.map((f, i) => (
+          <div key={i} className={`flex flex-col ${i % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'} items-center gap-20`}>
+            <motion.div 
+               className="flex-1 space-y-8"
+               initial={{ opacity: 0, x: i % 2 === 0 ? -50 : 50 }}
+               whileInView={{ opacity: 1, x: 0 }}
+               transition={{ duration: 0.8 }}
+               viewport={{ once: true, margin: "-100px" }}
+            >
+              <h3 className="text-4xl md:text-6xl font-heading leading-tight text-primary">
+                {f.title}<br />
+                <span className="text-secondary italic underline decoration-1 underline-offset-8">({f.highlight})</span>
+              </h3>
+              <p className="text-lg text-secondary font-body leading-relaxed max-w-lg">
+                {f.desc}
+              </p>
+            </motion.div>
+            <motion.div 
+               className="flex-1 w-full"
+               initial={{ opacity: 0, scale: 0.9 }}
+               whileInView={{ opacity: 1, scale: 1 }}
+               transition={{ duration: 0.8 }}
+               viewport={{ once: true }}
+            >
+              <div className="liquid-glass-strong rounded-[3rem] p-4 overflow-hidden relative group">
+                <video 
+                  src={f.visual} 
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full aspect-square md:aspect-video object-cover rounded-[2.5rem] shadow-2xl scale-[1.01]" 
+                />
+              </div>
+            </motion.div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
+
+const StatsSection: React.FC = () => {
+  return (
+    <section className="relative py-60 overflow-hidden flex items-center justify-center bg-white">
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover saturate-0 opacity-10"
+        src="/3160-166338886_medium.mp4"
+      />
+      <div className="absolute inset-0 bg-white/20" />
+      
+      <div className="relative z-10 max-w-7xl mx-auto px-6 w-full text-center">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-12 md:gap-24">
+          {[
+            { label: "Bảo mật", val: "AES-256" },
+            { label: "Sync", val: "Real-time" },
+            { label: "Auth", val: "QR Scan" },
+            { label: "User", val: "100k+" }
+          ].map((s, i) => (
+            <motion.div 
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              viewport={{ once: true }}
+              className="space-y-4"
+            >
+              <h4 className="text-xs uppercase tracking-[0.3em] text-secondary font-body">{s.label}</h4>
+              <p className="text-3xl md:text-5xl font-heading text-primary italic">{s.val}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const CTASection: React.FC = () => {
+  const navigate = useNavigate();
+  return (
+    <section className="py-60 px-6 text-center bg-white">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        whileInView={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1 }}
+        viewport={{ once: true }}
+        className="max-w-4xl mx-auto space-y-12"
+      >
+        <h2 className="text-5xl md:text-8xl font-heading italic leading-tight text-primary">
+          Sẵn sàng để bắt đầu<br /> cùng Zalo Education?
+        </h2>
+        <p className="text-xl text-secondary font-body max-w-xl mx-auto">
+          Giao diện tối giản, trải nghiệm tối ưu. Nơi kiến thức được truyền tải một cách thuần khiết nhất.
+        </p>
+        <div className="pt-8">
+           <button 
+            onClick={() => navigate('/register')}
+            className="px-20 py-6 bg-primary text-white rounded-full font-black text-xl hover:scale-105 transition-all shadow-2xl active:scale-95 font-body"
+          >
+            Đăng ký tham gia
+          </button>
+        </div>
+      </motion.div>
+    </section>
+  );
+};
+
+// --- MAIN PAGE ---
+
+const LandingPage: React.FC = () => {
+  return (
+    <div className="min-h-screen bg-white text-primary font-body selection:bg-primary selection:text-white">
+      <Navbar />
+      
+      <main>
+        <HeroSection />
+        
+        <FeatureChess />
+        
+        <StatsSection />
+        
+        <CTASection />
+      </main>
+
+      <footer className="py-20 border-t border-primary/5 font-body bg-white">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-10">
+          <div className="flex items-center gap-4">
+            <img src="/logo_blue.png" alt="Logo" className="w-8 h-8 object-contain" />
+            <span className="font-heading italic text-xl text-primary">Zalo Education</span>
+          </div>
+          
+          <p className="text-secondary text-sm">
+            © 2026 Zalo Education System. Luxury Editorial Refactor.
+          </p>
+          
+          <div className="flex gap-10 text-sm uppercase tracking-widest text-secondary font-bold">
+            <a href="#" className="hover:text-primary transition-colors">Bảo mật</a>
+            <a href="#" className="hover:text-primary transition-colors">Điều khoản</a>
           </div>
         </div>
       </footer>

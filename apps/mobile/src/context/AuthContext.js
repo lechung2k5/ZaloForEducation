@@ -37,7 +37,11 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }) => {
   };
 
   const handleForceLogout = (data = {}) => {
-    if (isKickingRef.current) return;
+    console.log('🔥 [AUTH] handleForceLogout CALLED with data:', data);
+    if (isKickingRef.current) {
+        console.log('[AUTH] Kick-out already in progress, skipping duplicate call.');
+        return;
+    }
     isKickingRef.current = true;
 
     const message = data.message || 'Phiên đăng nhập đã hết hạn hoặc bị thay thế bởi thiết bị khác.';
@@ -48,15 +52,15 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }) => {
     // QUY TẮC CỨNG: 1. Xóa sạch Storage NGAY LẬP TỨC
     const triggerLogout = async () => {
       try {
-        await AsyncStorage.multiRemove(['token', 'user', 'deviceId']);
-        console.log('[AUTH] Storage cleared.');
+        await AsyncStorage.multiRemove(['token', 'user']);
+        console.log('[AUTH] Storage cleared (token, user). deviceId retained.');
       } catch (err) {
         console.error('[AUTH] Storage cleanup error:', err);
       } finally {
         // 2. Xóa State để kích hoạt Re-render
         setUser(null);
         setToken(null);
-        setDeviceId('');
+        // deviceId retained
         SocketService.disconnect();
 
         // 3. Cưỡng chế điều hướng ngay lập tức (Không đợi Alert)
@@ -142,13 +146,24 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }) => {
 
           // Listening for real-time kickout
           SocketService.on('force_logout', (data) => {
+            console.log('🔥 [SOCKET] force_logout EVENT RECEIVED:', data);
+            
             if (handleForceLogoutRef.current) {
+              const currentDeviceIdRef = savedDeviceId || deviceId; // Ưu tiên ID từ storage
+              
               const shouldLogout =
                 data?.all === true ||
-                (data?.targetDeviceId && data.targetDeviceId === currentDeviceId);
+                (data?.targetDeviceId && data.targetDeviceId === currentDeviceIdRef) ||
+                (data?.reason === 'SESSION_INVALIDATED');
 
               if (shouldLogout) {
+                console.log('✅ [SOCKET] Target device matched. Initiating force logout...');
                 handleForceLogoutRef.current(data);
+              } else {
+                console.log('ℹ️ [SOCKET] force_logout ignored — not targeting this device', {
+                  target: data?.targetDeviceId,
+                  current: currentDeviceIdRef
+                });
               }
             }
           });
@@ -207,10 +222,9 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }) => {
     } finally {
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
-      await AsyncStorage.removeItem('deviceId');
+      // deviceId NOT removed to preserve trusted status
       setUser(null);
       setToken(null);
-      setDeviceId('');
       SocketService.disconnect();
     }
   };

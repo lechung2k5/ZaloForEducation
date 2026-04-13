@@ -10,16 +10,15 @@ export class DeviceService {
 
   /**
    * Đánh dấu thiết bị là đã đăng xuất (hoặc bị kick).
-   * @param email Email của người dùng
-   * @param deviceId ID của thiết bị
-   * @param metadata Các thông tin bổ sung (tên máy, loại máy) lấy từ session trước khi xóa
    */
-  async markAsLoggedOut(email: string, deviceId: string, metadata?: { deviceName?: string, deviceType?: string }) {
-    this.logger.log(`Marking device ${deviceId} as LOGGED_OUT for ${email}`);
+  async markAsLoggedOut(email: string, deviceId: string, metadata?: { deviceName?: string, deviceType?: string, reason?: 'USER_LOGOUT' | 'SESSION_REPLACED' | string }) {
+    this.logger.log(`Marking device ${deviceId} as LOGGED_OUT for ${email} (Reason: ${metadata?.reason || 'USER_LOGOUT'})`);
 
     const now = new Date().toISOString();
-    // TTL: 30 ngày kể từ lúc logout (tính bằng giây)
     const expiresAt = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
+
+    // Rule: If kicked by another device, it's no longer trusted
+    const isUntrusted = metadata?.reason === 'SESSION_REPLACED';
 
     try {
       await this.db.docClient.send(new UpdateCommand({
@@ -28,7 +27,7 @@ export class DeviceService {
           PK: `USER#${email}`, 
           SK: `DEVICE#${deviceId}` 
         },
-        UpdateExpression: 'SET #status = :s, logoutAt = :now, updatedAt = :now, expiresAt = :ttl, deviceName = :dName, deviceType = :dType',
+        UpdateExpression: 'SET #status = :s, logoutAt = :now, updatedAt = :now, expiresAt = :ttl, deviceName = :dName, deviceType = :dType, lastLogoutReason = :reason' + (isUntrusted ? ', trusted = :f' : ''),
         ExpressionAttributeNames: { 
           '#status': 'status' 
         },
@@ -38,10 +37,33 @@ export class DeviceService {
           ':ttl': expiresAt,
           ':dName': metadata?.deviceName || 'Thiết bị cũ',
           ':dType': metadata?.deviceType || 'unknown',
+          ':reason': metadata?.reason || 'USER_LOGOUT',
+          ...(isUntrusted ? { ':f': false } : {}),
         },
       }));
     } catch (error) {
       this.logger.error(`Failed to mark device ${deviceId} as LOGGED_OUT`, error.stack);
+    }
+  }
+
+  /**
+   * Đánh dấu thiết bị là tin cậy (đã qua OTP).
+   */
+  async trustDevice(email: string, deviceId: string) {
+    this.logger.log(`Trusting device ${deviceId} for ${email}`);
+    try {
+      await this.db.docClient.send(new UpdateCommand({
+        TableName: this.db.tableName,
+        Key: { PK: `USER#${email}`, SK: `DEVICE#${deviceId}` },
+        UpdateExpression: 'SET trusted = :t, updatedAt = :now, lastLogoutReason = :null',
+        ExpressionAttributeValues: {
+          ':t': true,
+          ':now': new Date().toISOString(),
+          ':null': null,
+        },
+      }));
+    } catch (error) {
+      this.logger.error(`Error trusting device ${deviceId}`, error.stack);
     }
   }
 

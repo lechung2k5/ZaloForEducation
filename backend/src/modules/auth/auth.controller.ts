@@ -22,6 +22,17 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @Post('verify-login-otp')
+  async verifyLoginOtp(@Body() body: { 
+    email: string; 
+    otp: string; 
+    deviceId: string; 
+    deviceName?: string; 
+    deviceType?: string; 
+  }) {
+    return this.authService.verifyLoginOtp(body.email, body.otp, body.deviceId, body.deviceName, body.deviceType);
+  }
+
   // ===== QUÊN MẬT KHẨU =====
 
   @Post('forgot-password/request-otp')
@@ -129,9 +140,9 @@ export class AuthController {
 
   @Post('qr-confirm')
   @UseGuards(JwtAuthGuard)
-  async confirmQrCode(@Req() req, @Body() body: { qrCodeId: string }) {
+  async confirmQrCode(@Req() req, @Body() body: { qrCodeId: string; isBiometricVerified?: boolean }) {
     const email = req.user.email;
-    return this.authService.confirmQrCode(email, body.qrCodeId);
+    return this.authService.confirmQrCode(email, body.qrCodeId, body.isBiometricVerified);
   }
 
   // ===== CHANGE PASSWORD (SUPREME SECURITY) =====

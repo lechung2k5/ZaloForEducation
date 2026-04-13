@@ -85,7 +85,7 @@ export default function ResetPasswordScreen({ onNavigate }) {
             >
               <Text style={styles.logoIcon}>edu</Text>
             </LinearGradient>
-            <Text style={styles.brandTitle}>ZaloEdu</Text>
+            <Text style={styles.brandTitle}>Zalo Education</Text>
           </View>
 
           <View style={styles.cardContainer}>

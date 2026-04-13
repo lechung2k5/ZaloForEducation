@@ -22,6 +22,8 @@ import StatusPickerScreen from './src/screens/StatusPickerScreen';
 import ProfileMoreScreen from './src/screens/ProfileMoreScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ChangePasswordScreen from './src/screens/ChangePasswordScreen';
+import LoginOtpScreen from './src/screens/LoginOtpScreen';
+import SplashScreen from './src/components/SplashScreen';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Alert from './src/utils/Alert';
@@ -29,9 +31,18 @@ import SocketService from './src/utils/socket';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-function MainApp({ user, authLoading, screen, setScreen, homeTab, setHomeTab }) {
+function MainApp({ user, authLoading, screen, setScreen, homeTab, setHomeTab, params, setParams }) {
+  const { logout } = useAuth();
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [history, setHistory] = useState([]);
+  const [isSplashTimeout, setIsSplashTimeout] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsSplashTimeout(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     async function loadFonts() {
@@ -57,7 +68,7 @@ function MainApp({ user, authLoading, screen, setScreen, homeTab, setHomeTab }) 
   // QUY TẮC CỨNG: "Cảnh sát điều hướng" tối cao
   useEffect(() => {
     if (!authLoading) {
-      const authScreens = ['login', 'register', 'forgot', 'reset-password'];
+      const authScreens = ['login', 'register', 'forgot', 'reset-password', 'login-otp'];
       
       if (user && screen === 'login') {
         // Nếu có user mà lại đang ở Login -> Vào Home ngay
@@ -82,19 +93,17 @@ function MainApp({ user, authLoading, screen, setScreen, homeTab, setHomeTab }) 
 
   const handleLogout = async () => {
     try {
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('user');
-      SocketService.disconnect();
+      await logout();
       setScreen('login');
     } catch (err) {
       console.error('Logout error', err);
     }
   };
 
-  const navigate = (target, tab = 'messages') => {
-    const nonStackScreens = ['login', 'register', 'forgot', 'reset-password'];
+  const navigate = (target, tab = 'messages', data = {}) => {
+    const nonStackScreens = ['login', 'register', 'forgot', 'reset-password', 'login-otp'];
     if (!nonStackScreens.includes(screen)) {
-      setHistory(prev => [...prev, { screen, tab: homeTab }]);
+      setHistory(prev => [...prev, { screen, tab: homeTab, params }]);
     } else {
       setHistory([]); 
     }
@@ -102,6 +111,8 @@ function MainApp({ user, authLoading, screen, setScreen, homeTab, setHomeTab }) 
     if (target === 'home') {
       setHomeTab(tab);
     }
+    
+    setParams(data);
     setScreen(target);
   };
 
@@ -117,6 +128,7 @@ function MainApp({ user, authLoading, screen, setScreen, homeTab, setHomeTab }) 
     if (last.screen === 'home') {
       setHomeTab(last.tab);
     }
+    setParams(last.params || {});
     setScreen(last.screen);
   };
 
@@ -124,12 +136,8 @@ function MainApp({ user, authLoading, screen, setScreen, homeTab, setHomeTab }) 
     setHomeTab(tab);
   };
 
-  if (!fontsLoaded || authLoading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#f7f9fb', alignItems: 'center', justifyContent: 'center' }}>
-        <Text>Đang tải tài nguyên giao diện...</Text>
-      </View>
-    );
+  if (!fontsLoaded || authLoading || !isSplashTimeout) {
+    return <SplashScreen />;
   }
 
   switch (screen) {
@@ -142,14 +150,15 @@ function MainApp({ user, authLoading, screen, setScreen, homeTab, setHomeTab }) 
     case 'qr-scanner': return <QRScannerScreen onNavigate={navigate} goBack={goBack} />;
     case 'status-picker': return <StatusPickerScreen onNavigate={navigate} goBack={goBack} />;
     case 'profile-more': return <ProfileMoreScreen onNavigate={navigate} goBack={goBack} />;
-    case 'settings': return <SettingsScreen onNavigate={navigate} goBack={goBack} />;
+    case 'settings': return <SettingsScreen onNavigate={navigate} onLogout={handleLogout} goBack={goBack} />;
     case 'change-password': return <ChangePasswordScreen onNavigate={navigate} goBack={goBack} />;
+    case 'login-otp': return <LoginOtpScreen onNavigate={navigate} goBack={goBack} params={params} />;
     case 'login':
     default: return <LoginScreen onNavigate={navigate} />;
   }
 }
 
-function MainContainer({ user, authLoading, screen, setScreen, homeTab, setHomeTab }) {
+function MainContainer({ user, authLoading, screen, setScreen, homeTab, setHomeTab, params, setParams }) {
   return (
     <MainApp 
       user={user} 
@@ -158,18 +167,22 @@ function MainContainer({ user, authLoading, screen, setScreen, homeTab, setHomeT
       setScreen={setScreen}
       homeTab={homeTab}
       setHomeTab={setHomeTab}
+      params={params}
+      setParams={setParams}
     />
   );
 }
 
 export default function App() {
   const [screen, setScreen] = useState('login');
+  const [params, setParams] = useState({});
   const [homeTab, setHomeTab] = useState('messages');
 
   return (
     <SafeAreaProvider>
       <AuthProvider onForceLogoutNavigate={(target) => {
         console.log('🚨 [APP] Global Force Logout trigger received. Navigating to:', target);
+        setParams({});
         setScreen(target); // Sếp yêu cầu: Reset navigation ngay tại Provider
       }}>
         <MainContainerWithAuth 
@@ -177,13 +190,15 @@ export default function App() {
           setScreen={setScreen}
           homeTab={homeTab}
           setHomeTab={setHomeTab}
+          params={params}
+          setParams={setParams}
         />
       </AuthProvider>
     </SafeAreaProvider>
   );
 }
 
-function MainContainerWithAuth({ screen, setScreen, homeTab, setHomeTab }) {
+function MainContainerWithAuth({ screen, setScreen, homeTab, setHomeTab, params, setParams }) {
   const { user, loading: authLoading } = useAuth();
   return (
     <MainContainer 
@@ -193,6 +208,8 @@ function MainContainerWithAuth({ screen, setScreen, homeTab, setHomeTab }) {
       setScreen={setScreen}
       homeTab={homeTab}
       setHomeTab={setHomeTab}
+      params={params}
+      setParams={setParams}
     />
   );
 }

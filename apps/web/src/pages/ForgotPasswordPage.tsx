@@ -144,7 +144,7 @@ export default function ForgotPasswordPage() {
                 <div className="w-10 h-10 bg-primary-container rounded-xl flex items-center justify-center text-white">
                   <span className="material-symbols-outlined">school</span>
                 </div>
-                <span className="text-2xl font-bold tracking-tighter text-primary">ZaloEdu</span>
+                <span className="text-2xl font-bold tracking-tighter text-primary">Zalo Education</span>
               </div>
             </div>
             
@@ -215,7 +215,7 @@ export default function ForgotPasswordPage() {
         <Link to="/login" className="w-12 h-12 flex items-center justify-center rounded-2xl bg-surface-container-lowest shadow-[0px_10px_20px_rgba(0,65,143,0.04)] text-primary transition-transform active:scale-95 duration-200">
           <span className="material-symbols-outlined">arrow_back_ios_new</span>
         </Link>
-        <div className="text-xl font-bold tracking-tighter text-primary">ZaloEdu</div>
+        <div className="text-xl font-bold tracking-tighter text-primary">Zalo Education</div>
         <div className="w-12 h-12"></div>
       </nav>
 

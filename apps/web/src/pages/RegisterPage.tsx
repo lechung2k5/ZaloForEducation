@@ -194,8 +194,11 @@ const RegisterPage: React.FC = () => {
         {/* Main Container */}
         <div className="w-full max-w-xl z-10 animate-fade-in">
           {/* Brand Identity */}
-          <div className="mb-10 text-center">
-            <span className="text-3xl font-extrabold tracking-tighter text-primary">ZaloEdu</span>
+          <div className="mb-10 flex flex-col items-center">
+            <Link to="/" className="w-16 h-16 bg-[#eef4ff] rounded-2xl flex items-center justify-center shadow-xl shadow-primary/10 hover:scale-105 transition-transform border border-[#00418f10] overflow-hidden">
+              <img src="/logo_blue.png" alt="Logo" className="w-full h-full object-cover" />
+            </Link>
+            <span className="text-3xl font-extrabold tracking-tighter text-primary">Zalo Education</span>
           </div>
 
           {/* Stepper Component */}
@@ -230,7 +233,7 @@ const RegisterPage: React.FC = () => {
               Bắt đầu hành trình tri thức
             </h1>
             <p className="text-on-surface-variant text-center mb-10 font-medium">
-              Tham gia cộng đồng học thuật tinh hoa cùng ZaloEdu.
+              Tham gia cộng đồng học thuật tinh hoa cùng Zalo Education.
             </p>
 
             {error && (
@@ -319,11 +322,9 @@ const RegisterPage: React.FC = () => {
           <div className="w-full max-w-md z-10">
             {/* Branding Anchor */}
             <div className="flex justify-center mb-10">
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-primary-container rounded-xl flex items-center justify-center text-white">
-                  <span className="material-symbols-outlined">school</span>
-                </div>
-                <span className="text-2xl font-bold tracking-tighter text-primary">ZaloEdu</span>
+              <div className="flex items-center gap-4">
+                <img src="/logo_blue.png" alt="Logo" className="w-10 h-10 object-contain" />
+                <span className="text-2xl font-bold tracking-tighter text-primary">Zalo Education</span>
               </div>
             </div>
             
@@ -412,7 +413,7 @@ const RegisterPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-center text-on-surface-variant px-12 leading-relaxed">
-                Kết nối của bạn được bảo mật bằng mã hóa 256-bit chuẩn quốc tế. ZaloEdu cam kết bảo vệ dữ liệu học tập của bạn.
+                Kết nối của bạn được bảo mật bằng mã hóa 256-bit chuẩn quốc tế. Zalo Education cam kết bảo vệ dữ liệu học tập của bạn.
               </p>
             </div>
           </div>
@@ -429,7 +430,7 @@ const RegisterPage: React.FC = () => {
     <div className="bg-surface text-on-surface min-h-screen w-full relative z-0 animate-fade-in">
       <main className="max-w-4xl mx-auto px-6 py-12 md:py-24 relative z-10">
         <header className="text-center mb-16">
-          <h1 className="text-3xl font-extrabold tracking-tighter text-primary mb-4">ZaloEdu</h1>
+          <h1 className="text-3xl font-extrabold tracking-tighter text-primary mb-4">Zalo Education</h1>
           <div className="flex items-center justify-center space-x-4">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 rounded-full bg-primary-container text-white flex items-center justify-center text-xs font-bold">
@@ -581,7 +582,7 @@ const RegisterPage: React.FC = () => {
                     />
                   </div>
                   <label htmlFor="terms" className="text-sm text-on-surface-variant leading-relaxed">
-                    Tôi đồng ý với các <span className="text-primary font-semibold">Điều khoản dịch vụ</span> và <span className="text-primary font-semibold">Chính sách bảo mật</span> của ZaloEdu.
+                    Tôi đồng ý với các <span className="text-primary font-semibold">Điều khoản dịch vụ</span> và <span className="text-primary font-semibold">Chính sách bảo mật</span> của Zalo Education.
                   </label>
                 </div>
 
@@ -602,7 +603,7 @@ const RegisterPage: React.FC = () => {
               <div className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
               <span className="material-symbols-outlined text-4xl mb-6 opacity-80">format_quote</span>
               <p className="text-xl font-medium leading-relaxed mb-8 relative z-10 italic">
-                "Hệ thống học tập tại ZaloEdu giúp mình tối ưu hóa thời gian và đạt được chứng chỉ học thuật chỉ trong thời gian ngắn."
+                "Hệ thống học tập tại Zalo Education giúp mình tối ưu hóa thời gian và đạt được chứng chỉ học thuật chỉ trong thời gian ngắn."
               </p>
               <div className="flex items-center gap-4 relative z-10">
                 <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center border-2 border-white/50 text-white font-bold text-xl">MT</div>

@@ -6,8 +6,10 @@ import { io } from 'socket.io-client';
 
 const LoginPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'password' | 'qr'>('password');
+  const [step, setStep] = useState<'login' | 'otp'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -17,7 +19,7 @@ const LoginPage: React.FC = () => {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrTimer, setQrTimer] = useState(120);
 
-  const { login } = useAuth();
+  const { login, verifyLoginOtp } = useAuth();
   const navigate = useNavigate();
   const qrSocketRef = useRef<any>(null);
 
@@ -26,10 +28,41 @@ const LoginPage: React.FC = () => {
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/chat');
+      const res = await login(email, password);
+      if (res?.requireOtp) {
+        setStep('otp');
+      } else if (res?.success) {
+        navigate('/chat');
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Email hoặc mật khẩu không chính xác.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await verifyLoginOtp(otp, email);
+      navigate('/chat');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Mã xác thực không chính xác hoặc đã hết hạn.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      await login(email, password);
+      alert('Mã xác thực mới đã được gửi vào email của bạn.');
+    } catch (err: any) {
+      setError('Không thể gửi lại mã. Vui lòng thử lại sau.');
     } finally {
       setLoading(false);
     }
@@ -138,11 +171,11 @@ const LoginPage: React.FC = () => {
       <main className="w-full max-w-[480px] z-10 flex flex-col items-center animate-fade-in">
         <header className="mb-10 text-center">
           <div className="inline-flex items-center justify-center mb-4">
-            <Link to="/" className="w-16 h-16 signature-gradient rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 hover:scale-105 transition-transform">
-              <span className="material-symbols-outlined text-white text-4xl">school</span>
+            <Link to="/" className="w-16 h-16 bg-[#eef4ff] rounded-2xl flex items-center justify-center shadow-xl shadow-primary/10 hover:scale-105 transition-transform border border-[#00418f10] overflow-hidden">
+              <img src="/logo_blue.png" alt="Logo" className="w-full h-full object-cover" />
             </Link>
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tighter text-primary mb-1">ZaloEdu</h1>
+          <h1 className="text-4xl font-extrabold tracking-tighter text-primary mb-1">Zalo Education</h1>
           <p className="text-on-surface-variant font-medium tracking-tight">Khai phóng tiềm năng tri thức</p>
         </header>
 
@@ -164,7 +197,76 @@ const LoginPage: React.FC = () => {
         </div>
 
         <section className="w-full academic-glass rounded-[2rem] p-8 md:p-10 shadow-[0px_20px_40px_rgba(0,65,143,0.06)] ring-1 ring-white/20 min-h-[480px] flex flex-col">
-          {activeTab === 'password' ? (
+          {step === 'otp' ? (
+            <div className="animate-slide-up flex flex-col h-full">
+              <button 
+                onClick={() => setStep('login')}
+                className="flex items-center gap-2 text-primary font-bold mb-8 hover:opacity-70 transition-opacity"
+              >
+                <span className="material-symbols-outlined text-xl">arrow_back</span>
+                <span>Quay lại</span>
+              </button>
+
+              <h2 className="text-3xl font-bold text-on-surface mb-2 tracking-tight">Xác thực bảo mật</h2>
+              <p className="text-on-surface-variant font-medium mb-8 leading-relaxed">
+                Chúng tôi đã gửi mã xác thực gồm 6 chữ số đến <span className="text-primary font-bold">{email}</span>. Vui lòng kiểm tra hộp thư đến (hoặc thư rác).
+              </p>
+
+              {error && (
+                <div className="bg-error-container text-on-error-container p-4 rounded-2xl mb-8 text-sm font-medium border border-error/20">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleOtpSubmit} className="space-y-8">
+                <div className="space-y-4">
+                  <label className="block text-sm font-semibold text-on-surface-variant ml-1 uppercase tracking-widest">Mã xác thực 6 số</label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    className="w-full bg-surface-container-highest border-none rounded-2xl py-6 text-center text-4xl font-black tracking-[0.5em] text-primary placeholder:text-outline transition-all duration-300 focus:ring-2 focus:ring-primary/40 focus:bg-surface-container-lowest outline-none shadow-inner"
+                    placeholder="000000"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  <button
+                    type="submit"
+                    disabled={loading || otp.length < 6}
+                    className="w-full signature-gradient text-white font-bold py-4 rounded-2xl inner-glow shadow-lg shadow-primary/25 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2 group disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    ) : (
+                      <>
+                        <span>Xác nhận đăng nhập</span>
+                        <span className="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform">verified_user</span>
+                      </>
+                    )}
+                  </button>
+                  
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={handleResendOtp}
+                      disabled={loading}
+                      className="text-sm font-bold text-secondary hover:text-primary transition-colors"
+                    >
+                      Chưa nhận được mã? <span className="underline italic">Gửi lại ngay</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              <div className="mt-auto pt-10 flex items-center gap-4 text-xs text-on-surface-variant bg-surface-container-low/50 p-4 rounded-2xl border border-white/20">
+                <span className="material-symbols-outlined text-primary">security</span>
+                <p>Mã xác thực này chỉ có hiệu lực trong vòng 5 phút để đảm bảo an toàn cho tài khoản của bạn.</p>
+              </div>
+            </div>
+          ) : activeTab === 'password' ? (
             <div className="animate-slide-up">
               <h2 className="text-2xl font-bold text-on-surface mb-8 tracking-tight">Đăng nhập tài khoản</h2>
               {error && (
@@ -233,7 +335,7 @@ const LoginPage: React.FC = () => {
           ) : (
             <div className="animate-slide-up flex flex-1 flex-col items-center justify-center py-4">
               <h2 className="text-2xl font-bold text-on-surface mb-2 tracking-tight">Đăng nhập bằng mã QR</h2>
-              <p className="text-on-surface-variant text-sm mb-8 font-medium">Sử dụng ứng dụng ZaloEdu trên điện thoại để quét mã</p>
+              <p className="text-on-surface-variant text-sm mb-8 font-medium">Sử dụng ứng dụng Zalo Education trên điện thoại để quét mã</p>
               <div className="relative p-6 bg-white rounded-[2rem] shadow-xl shadow-primary/5 ring-1 ring-slate-100 mb-6 group">
                 {qrLoading ? (
                   <div className="w-48 h-48 flex items-center justify-center bg-surface-container-low rounded-2xl">
@@ -286,7 +388,7 @@ const LoginPage: React.FC = () => {
 
         <footer className="mt-8 flex flex-col items-center gap-6">
           <p className="text-on-surface-variant font-medium">
-            Bạn mới sử dụng ZaloEdu?
+            Bạn mới sử dụng Zalo Education?
             <Link to="/register" className="text-primary font-bold hover:underline ml-1">Đăng ký ngay</Link>
           </p>
           <nav className="flex items-center gap-6 text-sm font-semibold text-outline">

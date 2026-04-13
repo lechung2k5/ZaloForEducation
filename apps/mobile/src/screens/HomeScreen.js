@@ -18,7 +18,7 @@ const MOCK_CHATS = [
   { id: '3', name: 'Giảng viên Nguyễn Văn A', lastMsg: 'Em làm bài tập nhóm tốt lắm.', time: '08:45', unread: 0, avatar: 'https://i.pravatar.cc/150?u=2' },
   { id: '4', name: 'Trần Thị B (Lớp trưởng)', lastMsg: 'Chiều nay họp nhóm nhé!', time: 'Hôm qua', unread: 2, avatar: 'https://i.pravatar.cc/150?u=3' },
   { id: '5', name: 'Media Box', lastMsg: 'Báo Mới: [APP] Không nghỉ liền 9...', time: 'Hôm qua', unread: 0, avatar: 'https://i.pravatar.cc/150?u=media', isSystem: true },
-  { id: '6', name: 'ZaloEdu Support', lastMsg: 'Chào mừng bạn đến với Mạng lưới giáo dục số!', time: 'Tuần trước', unread: 0, avatar: 'https://i.pravatar.cc/150?u=5' },
+  { id: '6', name: 'Zalo Education Support', lastMsg: 'Chào mừng bạn đến với Mạng lưới giáo dục số!', time: 'Tuần trước', unread: 0, avatar: 'https://i.pravatar.cc/150?u=5' },
 ];
 
 const MOCK_FRIENDS = [

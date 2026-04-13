@@ -136,7 +136,7 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
   };
 
   const handleAbout = () => {
-    Alert.alert('About Zalo', 'ZaloEdu Mobile\nPhiên bản giáo dục nội bộ cho hồ sơ, thiết bị và cài đặt.');
+    Alert.alert('About Zalo', 'Zalo Education Mobile\nPhiên bản giáo dục nội bộ cho hồ sơ, thiết bị và cài đặt.');
   };
 
   const handleRestore = () => {

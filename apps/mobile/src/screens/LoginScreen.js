@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Alert from '../utils/Alert';
@@ -66,16 +67,38 @@ export default function LoginScreen({ onNavigate }) {
         }),
       });
 
+      console.log('🔥 [LOGIN] API Response Raw:', JSON.stringify(data, null, 2));
+
+      // 1. Kiểm tra nếu có Token (Đăng nhập thành công ngay)
       if (data.accessToken) {
-        console.log('[DEBUG] Login successful');
-
-        // Use context login (handles state, storage and socket)
+        console.log('✅ [LOGIN] Access granted');
         await login(data.user, data.accessToken, deviceId);
-
         if (onNavigate) onNavigate('home');
-      } else {
-        Alert.alert('Đăng nhập thất bại', data.message || 'Sai tài khoản hoặc mật khẩu');
+        return;
       }
+
+      // 2. Kiểm tra nếu yêu cầu OTP (Bảo mật)
+      const isOtpRequired = 
+        data.requireOtp === true || 
+        data.type === 'REQUIRE_OTP' || 
+        (data.message && data.message.includes('Xác thực bảo mật'));
+
+      if (isOtpRequired) {
+        console.log('🛡️ [LOGIN] Security verification needed. Navigating to OTP Screen.');
+        if (onNavigate) {
+          onNavigate('login-otp', 'messages', {
+            email,
+            deviceId,
+            deviceName,
+            deviceType
+          });
+        }
+        return;
+      }
+
+      // 3. Nếu không phải cả 2 -> Coi như lỗi đăng nhập thông thường
+      console.warn('❌ [LOGIN] Login failed:', data.message);
+      Alert.alert('Đăng nhập thất bại', data.message || 'Sai tài khoản hoặc mật khẩu');
     } catch (error) {
       if (error.message !== 'SESSION_INVALIDATED') {
         console.error('[DEBUG] Connection error:', error);
@@ -111,13 +134,14 @@ export default function LoginScreen({ onNavigate }) {
       >
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.headerContainer}>
-            <LinearGradient
-              colors={['#0058bc', '#00418f']}
-              style={styles.logoBox}
-            >
-              <Text style={styles.logoIcon}>edu</Text>
-            </LinearGradient>
-            <Text style={styles.brandTitle}>ZaloEdu</Text>
+            <View style={styles.logoBox}>
+              <Image 
+                source={require('../../assets/logo_blue.png')} 
+                style={styles.logoImage}
+                resizeMode="cover"
+              />
+            </View>
+            <Text style={styles.brandTitle}>Zalo Education</Text>
             <Text style={styles.brandSubtitle}>Khai phóng tiềm năng tri thức</Text>
           </View>
 
@@ -166,7 +190,7 @@ export default function LoginScreen({ onNavigate }) {
               />
 
               <View style={styles.footer}>
-                <Text style={styles.footerText}>Bạn mới sử dụng ZaloEdu? </Text>
+                <Text style={styles.footerText}>Bạn mới sử dụng Zalo Education? </Text>
                 <TouchableOpacity onPress={handleRegister}>
                   <Text style={styles.footerLink}>Đăng ký ngay</Text>
                 </TouchableOpacity>
@@ -187,8 +211,8 @@ const styles = StyleSheet.create({
   blobTopRight: { top: -100, right: -100, width: 300, height: 300, backgroundColor: 'rgba(0, 65, 143, 0.08)' },
   blobBottomLeft: { bottom: -100, left: -100, width: 250, height: 250, backgroundColor: 'rgba(75, 94, 134, 0.1)' },
   headerContainer: { alignItems: 'center', marginBottom: 40 },
-  logoBox: { width: 64, height: 64, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 16, ...Shadows.glow },
-  logoIcon: { color: '#ffffff', ...Typography.heading, fontSize: 20 },
+  logoBox: { width: 64, height: 64, borderRadius: 20, backgroundColor: '#eef4ff', alignItems: 'center', justifyContent: 'center', marginBottom: 16, borderWide: 1, borderColor: '#00418f10', overflow: 'hidden', ...Shadows.medium },
+  logoImage: { width: '100%', height: '100%' },
   brandTitle: { ...Typography.heading, fontSize: 32, color: Colors.primary, marginBottom: 4 },
   brandSubtitle: { ...Typography.body, fontSize: 14, color: Colors.onSurfaceVariant },
   cardContainer: { borderRadius: 32, overflow: 'hidden', ...Shadows.medium },

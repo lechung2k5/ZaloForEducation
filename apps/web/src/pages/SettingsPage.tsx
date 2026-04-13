@@ -87,7 +87,7 @@ const SettingsPage: React.FC = () => {
 
   const displayName = useMemo(() => user?.fullName || user?.fullname || 'Bạn', [user]);
   const displayAvatar = useMemo(
-    () => user?.avatarUrl || user?.urlAvatar || 'https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png',
+    () => user?.avatarUrl || user?.urlAvatar || '/logo_blue.png',
     [user],
   );
 
@@ -119,7 +119,7 @@ const SettingsPage: React.FC = () => {
           </Link>
           <div>
             <h1 className="text-2xl font-black tracking-tight text-primary leading-none">Cài đặt</h1>
-            <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mt-1.5">ZaloEdu Experience</p>
+            <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mt-1.5">Zalo Education Experience</p>
           </div>
         </div>
         <div className="flex items-center gap-4 bg-white/80 p-1.5 pr-4 rounded-2xl border border-outline-variant/10 shadow-sm">
@@ -138,7 +138,7 @@ const SettingsPage: React.FC = () => {
           </div>
           <h2 className="text-4xl font-black tracking-tight text-on-surface mb-4">Tuỳ chỉnh ứng dụng</h2>
           <p className="text-on-surface-variant font-medium leading-relaxed">
-            Mọi thay đổi sẽ được lưu cục bộ trên trình duyệt này và đồng bộ hoá khi bạn đăng nhập trên các thiết bị ZaloEdu khác.
+            Mọi thay đổi sẽ được lưu cục bộ trên trình duyệt này và đồng bộ hoá khi bạn đăng nhập trên các thiết bị Zalo Education khác.
           </p>
         </header>
 
@@ -249,7 +249,7 @@ const SettingsPage: React.FC = () => {
         </div>
 
         <footer className="mt-20 pt-10 border-t border-outline-variant/10 text-center">
-          <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">ZaloEdu v1.0.0 Alpha</p>
+          <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Zalo Education v1.0.0 Alpha</p>
           <p className="text-[11px] text-outline mt-2 tracking-wide font-medium max-w-md mx-auto leading-relaxed">
             Hệ thống giáo dục nội bộ. Các thiết lập giao diện chỉ có hiệu lực trên trình duyệt này.
           </p>

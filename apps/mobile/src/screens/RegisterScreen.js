@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Alert from '../utils/Alert';
@@ -213,13 +214,14 @@ export default function RegisterScreen({ onNavigate }) {
       >
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.headerContainer}>
-            <LinearGradient
-              colors={['#0058bc', '#00418f']}
-              style={styles.logoBox}
-            >
-              <Text style={styles.logoIcon}>edu</Text>
-            </LinearGradient>
-            <Text style={styles.brandTitle}>ZaloEdu</Text>
+            <View style={styles.logoBox}>
+              <Image 
+                source={require('../../assets/logo_blue.png')} 
+                style={styles.logoImage}
+                resizeMode="cover"
+              />
+            </View>
+            <Text style={styles.brandTitle}>Zalo Education</Text>
           </View>
 
           <StepIndicator />
@@ -429,8 +431,8 @@ const styles = StyleSheet.create({
   blobBottomLeft: { bottom: -100, right: -100, width: 250, height: 250, backgroundColor: 'rgba(75, 94, 134, 0.1)' },
   
   headerContainer: { alignItems: 'center', marginBottom: 24 },
-  logoBox: { width: 56, height: 56, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 12, ...Shadows.glow },
-  logoIcon: { color: '#ffffff', ...Typography.heading, fontSize: 18 },
+  logoBox: { width: 56, height: 56, borderRadius: 16, backgroundColor: '#eef4ff', alignItems: 'center', justifyContent: 'center', marginBottom: 12, overflow: 'hidden', ...Shadows.medium },
+  logoImage: { width: '100%', height: '100%' },
   brandTitle: { ...Typography.heading, fontSize: 24, color: Colors.primary },
   
   stepContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 32 },

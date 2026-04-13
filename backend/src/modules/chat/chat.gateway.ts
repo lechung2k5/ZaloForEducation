@@ -39,8 +39,13 @@ export class ChatGateway {
         
         if (!session) {
           console.warn(`[SOCKET] Unauthorized identity join attempt: ${data.email} on ${data.deviceId}`);
-          client.emit('force_logout', { reason: 'SESSION_INVALIDATED' });
-          client.disconnect(true);
+          // Gửi payload chuẩn để Client nhận diện được và logout
+          client.emit('force_logout', { 
+            targetDeviceId: data.deviceId,
+            message: 'Phiên làm việc không hợp lệ hoặc đã bị chấm dứt. Vui lòng đăng nhập lại.',
+            time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+          });
+          // Không disconnect ngay, để client nhận được event và tự xử lý
           return;
         }
       }

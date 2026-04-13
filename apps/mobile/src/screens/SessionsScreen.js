@@ -184,7 +184,7 @@ export default function SessionsScreen({ onNavigate, goBack }) {
         <View style={styles.infoBox}>
           <Text style={styles.infoTitle}>Phiên đăng nhập</Text>
           <Text style={styles.infoSubtitle}>
-            Quản lý các thiết bị hiện đang truy cập vào tài khoản ZaloEdu của bạn.
+            Quản lý các thiết bị hiện đang truy cập vào tài khoản Zalo Education của bạn.
           </Text>
         </View>
 

@@ -124,12 +124,78 @@ export class AuthService {
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+    
+    // RULE 3: Failed Login Attempts tracking
+    const failKey = `login_fail:${dto.email}`;
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác.');
+      const fails = await this.redisService.incr(failKey);
+      await this.redisService.expire(failKey, 3600); // 1 hour TTL
+      
+      const message = fails >= 3 
+        ? `Bạn đã nhập sai mật khẩu ${fails} lần. Vui lòng kiểm tra lại mật khẩu hoặc dùng tính năng Quên mật khẩu.`
+        : 'Email hoặc mật khẩu không chính xác.';
+        
+      throw new UnauthorizedException(message);
     }
 
+    // 2. Platform detection
     const deviceId = dto.deviceId || `unknown-${Date.now()}`;
     const platform = dto.platform || (dto.deviceType === 'web' ? 'web' : 'mobile');
+
+    let requireOtp = false;
+    let otpReason = '';
+
+    // 3. RULE 1: Device existence and trust status
+    const deviceRecord = await this.deviceService.getDeviceStatus(user.email, deviceId);
+    if (!deviceRecord) {
+      requireOtp = true;
+      otpReason = 'Thiết bị mới chưa từng đăng nhập.';
+    } else if (deviceRecord.trusted === false) {
+      requireOtp = true;
+      otpReason = 'Thiết bị này hiện chưa được tin cậy.';
+    }
+
+    // 4. RULE 2: Session Replaced (Force Logout)
+    if (!requireOtp && deviceRecord?.lastLogoutReason === 'SESSION_REPLACED') {
+      requireOtp = true;
+      otpReason = 'Phiên làm việc trước đó đã bị thay thế bởi thiết bị khác.';
+    }
+
+    // 5. RULE 3: Failed Attempts (Wrong pass >= 3)
+    const currentFails = parseInt(await this.redisService.get(failKey) || '0');
+    if (!requireOtp && currentFails >= 3) {
+      requireOtp = true;
+      otpReason = 'Tài khoản có dấu hiệu bị xâm nhập (nhập sai mật khẩu nhiều lần).';
+    }
+
+    // 6. RULE 4: Inactive User (> 7 days since last login)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    if (!requireOtp && deviceRecord?.lastLoginAt && new Date(deviceRecord.lastLoginAt) < sevenDaysAgo) {
+      requireOtp = true;
+      otpReason = 'Đã quá 7 ngày kể từ lần đăng nhập cuối trên thiết bị này.';
+    }
+
+    // IF OTP REQUIRED: SEND AND RETURN
+    if (requireOtp) {
+      console.log(`🔥 [OTP_DEBUG] Rule triggered for ${dto.email}. Reason: ${otpReason}`);
+      const code = await this.otpService.createOtp(user.email, 'login' as any);
+      const emailSent = await this.emailService.sendOtp(user.email, code, 'login' as any);
+      
+      if (!emailSent) {
+        console.error(`❌ [OTP_DEBUG] Failed to send email to ${user.email}`);
+      }
+
+      return { 
+        requireOtp: true, 
+        type: 'REQUIRE_OTP',
+        email: user.email, 
+        message: `Xác thực bảo mật: ${otpReason}` 
+      };
+    }
+
+    // SUCCESSFUL LOGIN (No OTP needed)
+    await this.redisService.del(failKey); // Reset failed attempts
     
     await this.db.docClient.send(new UpdateCommand({
       TableName: this.db.tableName,
@@ -156,6 +222,7 @@ export class AuthService {
       await this.deviceService.markAsLoggedOut(user.email, oldId, {
         deviceName: oldSession?.deviceName,
         deviceType: oldSession?.deviceType,
+        reason: 'SESSION_REPLACED',
       });
 
       await this.sessionService.removeSession(user.email, oldId);
@@ -242,6 +309,76 @@ export class AuthService {
     return { message: 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.' };
   }
 
+  async verifyLoginOtp(email: string, otp: string, deviceId: string, deviceName?: string, deviceType?: string) {
+    // 1. Xác thực OTP
+    await this.otpService.verifyOtp(email, otp);
+
+    // 2. Lấy thông tin User
+    const result = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+    const user = result.Item as User;
+    if (!user) throw new BadRequestException('Người dùng không tồn tại.');
+
+    // 3. Trust thiết bị
+    await this.deviceService.trustDevice(email, deviceId);
+
+    // 4. Reset counter đăng nhập sai
+    await this.redisService.del(`login_fail:${email}`);
+
+    // 5. Tạo phiên làm việc (Session)
+    const platform = deviceType === 'web' ? 'web' : 'mobile';
+    const metadata = { deviceName, deviceType, platform };
+    await this.sessionService.createSession(email, deviceId, metadata);
+
+    // 6. Cập nhật DynamoDB (Metadata & Login At)
+    await this.db.docClient.send(new PutCommand({
+      TableName: this.db.tableName,
+      Item: {
+        PK: `USER#${email}`,
+        SK: `DEVICE#${deviceId}`,
+        email,
+        deviceId,
+        deviceName: deviceName || 'Unknown Device',
+        deviceType: deviceType || 'unknown',
+        lastLoginAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        status: 'ACTIVE',
+        trusted: true,
+        lastLogoutReason: null,
+      },
+    }));
+
+    await this.db.docClient.send(new UpdateCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+      UpdateExpression: 'SET currentDeviceId = :deviceId, lastLoginAt = :now',
+      ExpressionAttributeValues: {
+        ':deviceId': deviceId,
+        ':now': new Date().toISOString(),
+      },
+    }));
+
+    this.chatGateway.notifySessionsUpdate(email);
+
+    // 7. Tạo Tokens
+    const payload = { sub: email, email, deviceId };
+    return {
+      accessToken: this.jwtService.sign(payload),
+      user: {
+        email: user.email,
+        fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+        backgroundUrl: user.backgroundUrl || '',
+        phone: user.phone,
+        gender: user.gender,
+        dataOfBirth: user.dataOfBirth,
+        bio: user.bio,
+      },
+    };
+  }
+
   async logout(email: string, deviceId: string) {
     const session = await this.sessionService.getSession(email, deviceId);
 
@@ -250,6 +387,7 @@ export class AuthService {
     await this.deviceService.markAsLoggedOut(email, deviceId, {
       deviceName: session?.deviceName,
       deviceType: session?.deviceType,
+      reason: 'USER_LOGOUT',
     });
 
     this.chatGateway.notifyForceLogout(email, deviceId, 'Phiên đăng nhập đã kết thúc thành công.');
@@ -265,6 +403,7 @@ export class AuthService {
       await this.deviceService.markAsLoggedOut(email, deviceId, {
         deviceName: session?.deviceName,
         deviceType: session?.deviceType,
+        reason: 'SESSION_REPLACED',
       });
     }
 
@@ -364,9 +503,9 @@ export class AuthService {
     };
   }
 
-  async resendOtp(email: string, type: 'register' | 'forgot_password') {
-    const code = await this.otpService.createOtp(email, type);
-    await this.emailService.sendOtp(email, code, type);
+  async resendOtp(email: string, type: 'register' | 'forgot_password' | 'login') {
+    const code = await this.otpService.createOtp(email, type as any);
+    await this.emailService.sendOtp(email, code, type as any);
     return { message: 'Đã gửi lại mã OTP mới.' };
   }
 
@@ -406,7 +545,7 @@ export class AuthService {
     return { qrCodeId };
   }
 
-  async confirmQrCode(email: string, qrCodeId: string) {
+  async confirmQrCode(email: string, qrCodeId: string, isBiometricVerified?: boolean) {
     const redisKey = `qr_login:${qrCodeId}`;
     const status = await this.redisService.get(redisKey);
 
@@ -417,6 +556,9 @@ export class AuthService {
     if (status !== 'PENDING') {
       throw new BadRequestException('Mã QR này đã được sử dụng.');
     }
+
+    // AUTH LOG: Record if this login session was biometric-verified
+    console.log(`[QR_LOGIN] User ${email} confirming session ${qrCodeId}. Biometric Verified: ${isBiometricVerified || false}`);
 
     // 1. Lấy thông tin User
     const result = await this.db.docClient.send(new GetCommand({

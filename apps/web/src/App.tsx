@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import SplashScreen from './components/SplashScreen';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
@@ -14,11 +15,7 @@ import './App.css';
 // Component bảo vệ Route
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
+  if (loading) return null; // Sẽ được SplashScreen che phủ
   return user ? <>{children}</> : <Navigate to="/login" />;
 };
 
@@ -29,23 +26,33 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return user ? <Navigate to="/chat" /> : <>{children}</>;
 };
 
-function App() {
+const AppContent: React.FC = () => {
+  const { loading } = useAuth();
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    // Luôn hiển thị Splash tối thiểu 2s để tạo cảm giác Premium
+    const timer = setTimeout(() => {
+      if (!loading) {
+        setShowSplash(false);
+      }
+    }, 2000);
+
+    // Nếu loading xong nhưng timer chưa xong thì timer sẽ handle
+    // Nếu timer xong nhưng loading chưa xong thì useEffect [loading] sẽ handle
+    return () => clearTimeout(timer);
+  }, [loading]);
+
   return (
-    <Router>
-      <AuthProvider>
-        <div className="app-container">
-          <Routes>
-            <Route 
-              path="/" 
-              element={
-                <PublicRoute>
-                  <LandingPage />
-                </PublicRoute>
-              } 
-            />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+    <>
+      <SplashScreen isVisible={showSplash} />
+      
+      <div className={`app-container ${showSplash ? 'opacity-0' : 'opacity-100 transition-opacity duration-1000 delay-500'}`}>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+            <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+            <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
             <Route 
               path="/chat" 
               element={
@@ -79,8 +86,17 @@ function App() {
               } 
             />
             <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </div>
+        </Routes>
+      </div>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <AppContent />
       </AuthProvider>
     </Router>
   );
