@@ -27,6 +27,7 @@ const EMPTY_PROFILE = {
   phone: '',
   address: '',
   bio: '',
+  currentStatus: '',
   dataOfBirth: '',
   gender: true,
   avatarUrl: '',
@@ -42,6 +43,10 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
   const [saving, setSaving] = useState(false);
   const [mediaUploading, setMediaUploading] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [quickMode, setQuickMode] = useState(null);
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [bioDraft, setBioDraft] = useState('');
+  const [statusDraft, setStatusDraft] = useState('');
 
   const storage = useMemo(() => AsyncStorage.default || AsyncStorage, []);
 
@@ -61,6 +66,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
     const fullName = source.fullName || source.fullname || '';
     const avatarUrl = source.avatarUrl || source.urlAvatar || '';
     const backgroundUrl = source.backgroundUrl || source.urlBackground || '';
+    const currentStatus = source.currentStatus || source.statusMessage || '';
 
     return {
       ...EMPTY_PROFILE,
@@ -71,6 +77,8 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
       urlAvatar: avatarUrl,
       backgroundUrl,
       urlBackground: backgroundUrl,
+      currentStatus,
+      statusMessage: currentStatus,
       gender: typeof source.gender === 'boolean' ? source.gender : true,
     };
   };
@@ -87,6 +95,8 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
       urlAvatar: nextProfile.avatarUrl || nextProfile.urlAvatar || currentUser.avatarUrl || currentUser.urlAvatar || '',
       backgroundUrl: nextProfile.backgroundUrl || nextProfile.urlBackground || currentUser.backgroundUrl || currentUser.urlBackground || '',
       urlBackground: nextProfile.backgroundUrl || nextProfile.urlBackground || currentUser.backgroundUrl || currentUser.urlBackground || '',
+      currentStatus: nextProfile.currentStatus || nextProfile.statusMessage || currentUser.currentStatus || currentUser.statusMessage || '',
+      statusMessage: nextProfile.currentStatus || nextProfile.statusMessage || currentUser.currentStatus || currentUser.statusMessage || '',
     };
 
     await storage.setItem('user', JSON.stringify(mergedUser));
@@ -126,8 +136,9 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
     const fetchProfile = async () => {
       try {
         const savedUser = await storage.getItem('user');
+        const parsedSavedUser = savedUser ? JSON.parse(savedUser) : null;
         if (savedUser) {
-          const localProfile = normalizeProfile(JSON.parse(savedUser));
+          const localProfile = normalizeProfile(parsedSavedUser);
           setProfile(localProfile);
           setDraft(localProfile);
         }
@@ -141,7 +152,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
           throw new Error(data.message || 'Không thể tải hồ sơ.');
         }
 
-        const apiProfile = normalizeProfile(data.profile || data);
+        const apiProfile = normalizeProfile({ ...(parsedSavedUser || {}), ...(data.profile || data) });
         setProfile(apiProfile);
         setDraft(apiProfile);
         await persistUser(apiProfile);
@@ -167,6 +178,73 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
   const cancelEditing = () => {
     setDraft(profile);
     setEditing(false);
+  };
+
+  const openQuickBioEditor = () => {
+    setBioDraft(profile.bio || '');
+    setQuickMode('bio');
+  };
+
+  const openQuickStatusEditor = () => {
+    setStatusDraft(profile.currentStatus || '');
+    setQuickMode('status');
+  };
+
+  const closeQuickEditor = () => {
+    setQuickMode(null);
+    setBioDraft('');
+    setStatusDraft('');
+  };
+
+  const saveQuickBio = async () => {
+    setQuickSaving(true);
+    try {
+      const headers = await authHeaders();
+      const response = await fetch(`${API_URL}/users/profile`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          fullName: profile.fullName,
+          phone: profile.phone,
+          address: profile.address,
+          bio: bioDraft.trim(),
+          dataOfBirth: profile.dataOfBirth,
+          gender: profile.gender,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể cập nhật bio.');
+      }
+
+      const nextProfile = normalizeProfile({ ...profile, ...(data.profile || data), bio: bioDraft.trim() });
+      setProfile(nextProfile);
+      setDraft(nextProfile);
+      await persistUser(nextProfile);
+      closeQuickEditor();
+      Alert.alert('Thành công', 'Đã cập nhật bio.');
+    } catch (error) {
+      Alert.alert('Lỗi', error.message || 'Không thể cập nhật bio.');
+    } finally {
+      setQuickSaving(false);
+    }
+  };
+
+  const saveQuickStatus = async () => {
+    setQuickSaving(true);
+    try {
+      const nextProfile = normalizeProfile({ ...profile, currentStatus: statusDraft.trim() });
+      setProfile(nextProfile);
+      setDraft(nextProfile);
+      await persistUser(nextProfile);
+      closeQuickEditor();
+      Alert.alert('Thành công', 'Đã cập nhật trạng thái.');
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể cập nhật trạng thái.');
+    } finally {
+      setQuickSaving(false);
+    }
   };
 
   const appendImageToFormData = async (formData, asset, target) => {
@@ -479,35 +557,112 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
             </View>
           ) : (
             <View style={styles.sheetWrap}>
-              <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>Thông tin tài khoản</Text>
-                <TouchableOpacity style={styles.headerIconButton} onPress={() => onNavigate && onNavigate('home')}>
-                  <Text style={styles.headerIcon}>close</Text>
+              <View style={styles.profileCanvas}>
+              <View style={styles.heroCard}>
+                <Image source={{ uri: backgroundUrl || COVER_URL }} style={styles.heroImage} />
+                <View style={styles.heroOverlay} />
+
+                <View style={styles.heroBar}>
+                  <TouchableOpacity style={styles.heroIconButton} onPress={() => onNavigate && onNavigate('home')}>
+                    <Text style={styles.heroIcon}>arrow_back</Text>
+                  </TouchableOpacity>
+                  <View style={styles.heroActions}>
+                    <TouchableOpacity style={styles.heroIconButton} onPress={openQuickStatusEditor}>
+                      <Text style={styles.heroIcon}>schedule</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.heroIconButton} onPress={() => onNavigate && onNavigate('profile-more')}>
+                      <Text style={styles.heroIcon}>more_horiz</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.avatarDock}>
+                  <View style={styles.avatarWrapperLarge}>
+                    {avatarUrl ? (
+                      <Image source={{ uri: avatarUrl }} style={styles.avatarLarge} />
+                    ) : (
+                      <View style={styles.avatarFallbackLarge}>
+                        <Text style={styles.avatarInitial}>{displayName ? displayName[0].toUpperCase() : 'U'}</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity style={styles.cameraButton} onPress={startEditing}>
+                      <Text style={styles.cameraIcon}>photo_camera</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity style={styles.statusBubble} onPress={openQuickStatusEditor} activeOpacity={0.85}>
+                    <Text style={styles.statusBubbleText}>{profile.currentStatus || 'Current status'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.identityCard}>
+                <Text style={styles.nameTitle}>{displayName}</Text>
+                <TouchableOpacity style={styles.bioButton} onPress={openQuickBioEditor}>
+                  <Text style={styles.bioButtonIcon}>edit</Text>
+                  <Text style={styles.bioButtonText}>Update Bio</Text>
                 </TouchableOpacity>
               </View>
 
-              <Image source={{ uri: backgroundUrl || COVER_URL }} style={styles.coverImage} />
+              {quickMode === 'bio' && (
+                <View style={styles.quickEditorCard}>
+                  <Text style={styles.quickEditorTitle}>Cập nhật Bio</Text>
+                  <TextInput
+                    style={[styles.quickEditorInput, styles.quickEditorInputMulti]}
+                    value={bioDraft}
+                    onChangeText={setBioDraft}
+                    placeholder="Nhập bio của bạn"
+                    placeholderTextColor={Colors.outline}
+                    multiline
+                    maxLength={180}
+                    textAlignVertical="top"
+                  />
+                  <View style={styles.quickEditorActions}>
+                    <TouchableOpacity style={styles.quickEditorCancel} onPress={closeQuickEditor}>
+                      <Text style={styles.quickEditorCancelText}>Hủy</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.quickEditorSave, quickSaving && styles.quickEditorSaveDisabled]}
+                      onPress={saveQuickBio}
+                      disabled={quickSaving}
+                    >
+                      <Text style={styles.quickEditorSaveText}>{quickSaving ? 'Đang lưu...' : 'Lưu Bio'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
 
-              <View style={styles.profileBlock}>
-                <View style={styles.avatarWrapperLarge}>
-                  {avatarUrl ? (
-                    <Image source={{ uri: avatarUrl }} style={styles.avatarLarge} />
-                  ) : (
-                    <View style={styles.avatarFallbackLarge}>
-                      <Text style={styles.avatarInitial}>{displayName ? displayName[0].toUpperCase() : 'U'}</Text>
-                    </View>
-                  )}
-                  <TouchableOpacity style={styles.cameraButton} onPress={startEditing}>
-                    <Text style={styles.cameraIcon}>photo_camera</Text>
-                  </TouchableOpacity>
+              {quickMode === 'status' && (
+                <View style={styles.quickEditorCard}>
+                  <Text style={styles.quickEditorTitle}>Cập nhật Current status</Text>
+                  <TextInput
+                    style={styles.quickEditorInput}
+                    value={statusDraft}
+                    onChangeText={setStatusDraft}
+                    placeholder="Nhập trạng thái hiện tại"
+                    placeholderTextColor={Colors.outline}
+                    maxLength={60}
+                  />
+                  <View style={styles.quickEditorActions}>
+                    <TouchableOpacity style={styles.quickEditorCancel} onPress={closeQuickEditor}>
+                      <Text style={styles.quickEditorCancelText}>Hủy</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.quickEditorSave, quickSaving && styles.quickEditorSaveDisabled]}
+                      onPress={saveQuickStatus}
+                      disabled={quickSaving}
+                    >
+                      <Text style={styles.quickEditorSaveText}>{quickSaving ? 'Đang lưu...' : 'Lưu status'}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={styles.nameRow}>
-                  <Text style={styles.nameTitle}>{displayName}</Text>
-                  <TouchableOpacity onPress={startEditing}>
-                    <Text style={styles.editIcon}>edit</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+              )}
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionStrip}>
+                <TouchableOpacity style={styles.actionPill} onPress={() => Alert.alert('Riêng tư', 'Mục này sẽ được mở rộng trong màn Settings.') }>
+                  <Text style={styles.actionPillIcon}>lock</Text>
+                  <Text style={styles.actionPillText}>Riêng tư</Text>
+                </TouchableOpacity>
+              </ScrollView>
 
               <View style={styles.infoSection}>
                 <Text style={styles.infoTitle}>Thông tin cá nhân</Text>
@@ -532,16 +687,6 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
                   <Text style={styles.updateInlineText}>Cập nhật</Text>
                 </TouchableOpacity>
               </View>
-
-              <View style={styles.quickActions}>
-                <TouchableOpacity style={styles.quickActionButton} onPress={() => onNavigate && onNavigate('sessions')}>
-                  <Text style={styles.quickActionIcon}>devices</Text>
-                  <Text style={styles.quickActionText}>Thiết bị</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.quickActionButton} onPress={onLogout}>
-                  <Text style={styles.quickActionIcon}>logout</Text>
-                  <Text style={styles.quickActionText}>Đăng xuất</Text>
-                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -555,6 +700,9 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#e7eaef' },
   flex: { flex: 1 },
   scrollContent: { padding: 6, paddingBottom: 18 },
+  profileCanvas: {
+    paddingBottom: 18,
+  },
 
   loadingBox: {
     minHeight: 500,
@@ -568,14 +716,6 @@ const styles = StyleSheet.create({
     color: Colors.onSurfaceVariant,
   },
 
-  sheetWrap: {
-    borderRadius: 6,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#d7dbe3',
-    ...Shadows.soft,
-  },
   sheetHeader: {
     minHeight: 58,
     paddingHorizontal: 12,
@@ -604,24 +744,80 @@ const styles = StyleSheet.create({
     color: '#1e2f4d',
   },
 
-  coverImage: {
+  sheetWrap: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d7dbe3',
+    ...Shadows.soft,
+  },
+  heroCard: {
+    backgroundColor: '#0f2540',
+  },
+  heroImage: {
     width: '100%',
-    height: 210,
+    height: 280,
     backgroundColor: '#d9dde4',
   },
-  profileBlock: {
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(7, 18, 33, 0.22)',
+  },
+  heroBar: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  heroActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  heroIconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  heroIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 22,
+    color: '#fff',
+  },
+  avatarDock: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -52,
+    alignItems: 'center',
+  },
+  statusBubble: {
+    position: 'absolute',
+    top: -8,
+    right: 28,
+    backgroundColor: '#fff',
+    borderRadius: 14,
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 16,
-    borderBottomWidth: 8,
-    borderBottomColor: '#eef1f5',
+    paddingVertical: 12,
+    ...Shadows.soft,
+  },
+  statusBubbleText: {
+    ...Typography.body,
+    color: '#7e7e7e',
+    fontSize: 13,
+    maxWidth: 90,
   },
   avatarWrapperLarge: {
-    marginTop: -54,
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    borderWidth: 3,
+    width: 112,
+    height: 112,
+    borderRadius: 56,
+    borderWidth: 4,
     borderColor: '#fff',
     backgroundColor: '#fff',
   },
@@ -661,32 +857,148 @@ const styles = StyleSheet.create({
     fontSize: 19,
     color: '#1e2f4d',
   },
+  identityCard: {
+    paddingTop: 64,
+    paddingBottom: 18,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef1f5',
+  },
+  nameTitle: {
+    ...Typography.heading,
+    color: '#1e2f4d',
+    fontSize: 28,
+    textAlign: 'center',
+  },
   nameRow: {
     marginTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  nameTitle: {
-    ...Typography.heading,
-    color: '#1e2f4d',
-    fontSize: 19,
-    flex: 1,
-  },
   editIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 23,
     color: '#1e2f4d',
   },
+  bioButton: {
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bioButtonIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 20,
+    color: Colors.primary,
+  },
+  bioButtonText: {
+    ...Typography.body,
+    fontSize: 16,
+    color: Colors.primary,
+  },
+  quickEditorCard: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    marginTop: 2,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#d7e0ef',
+    backgroundColor: '#f7fbff',
+    padding: 12,
+  },
+  quickEditorTitle: {
+    ...Typography.heading,
+    fontSize: 15,
+    color: '#1e2f4d',
+    marginBottom: 8,
+  },
+  quickEditorInput: {
+    borderWidth: 1,
+    borderColor: '#d3d9e2',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    ...Typography.body,
+    color: '#1e2f4d',
+    fontSize: 14,
+  },
+  quickEditorInputMulti: {
+    minHeight: 78,
+  },
+  quickEditorActions: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  quickEditorCancel: {
+    borderRadius: 8,
+    backgroundColor: '#e3e9f2',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  quickEditorCancelText: {
+    ...Typography.label,
+    color: '#1e2f4d',
+    fontSize: 13,
+  },
+  quickEditorSave: {
+    borderRadius: 8,
+    backgroundColor: '#0b72ff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  quickEditorSaveDisabled: {
+    opacity: 0.7,
+  },
+  quickEditorSaveText: {
+    ...Typography.label,
+    color: '#fff',
+    fontSize: 13,
+  },
+  actionStrip: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 8,
+    gap: 12,
+  },
+  actionPill: {
+    width: 160,
+    minHeight: 54,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e3e8f1',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  actionPillIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 18,
+    color: Colors.primary,
+  },
+  actionPillText: {
+    ...Typography.heading,
+    fontSize: 14,
+    color: '#223553',
+  },
 
   infoSection: {
     padding: 16,
+    backgroundColor: '#fff',
   },
   infoTitle: {
     ...Typography.heading,
     color: '#1e2f4d',
-    fontSize: 17,
-    marginBottom: 16,
+    fontSize: 18,
+    marginBottom: 18,
   },
   infoRow: {
     flexDirection: 'row',
@@ -730,33 +1042,6 @@ const styles = StyleSheet.create({
   updateInlineText: {
     ...Typography.heading,
     fontSize: 17,
-    color: '#1e2f4d',
-  },
-
-  quickActions: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  quickActionButton: {
-    flex: 1,
-    borderRadius: 12,
-    backgroundColor: '#eef2f8',
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 6,
-  },
-  quickActionIcon: {
-    fontFamily: 'Material Symbols Outlined',
-    fontSize: 20,
-    color: '#1e2f4d',
-  },
-  quickActionText: {
-    ...Typography.label,
-    fontSize: 14,
     color: '#1e2f4d',
   },
 

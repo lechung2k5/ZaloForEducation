@@ -1,10 +1,10 @@
 import {
-    PlusJakartaSans_300Light,
-    PlusJakartaSans_400Regular,
-    PlusJakartaSans_500Medium,
-    PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold,
-    PlusJakartaSans_800ExtraBold
+  PlusJakartaSans_300Light,
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold
 } from '@expo-google-fonts/plus-jakarta-sans';
 import * as Font from 'expo-font';
 import React, { useEffect, useState } from 'react';
@@ -13,10 +13,13 @@ import { Platform, Text, View } from 'react-native';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import LoginScreen from './src/screens/LoginScreen';
+import ProfileMoreScreen from './src/screens/ProfileMoreScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import SessionsScreen from './src/screens/SessionsScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
+import StatusPickerScreen from './src/screens/StatusPickerScreen';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Alert from './src/utils/Alert';
@@ -25,6 +28,8 @@ import SocketService from './src/utils/socket';
 export default function App() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [screen, setScreen] = useState('login');
+  const [homeInitialTab, setHomeInitialTab] = useState('messages');
+  const [settingsReturnTo, setSettingsReturnTo] = useState('home');
   const [email, setEmail] = useState('');
   const [deviceId, setDeviceId] = useState('');
 
@@ -113,6 +118,22 @@ export default function App() {
   };
 
   const navigate = (target) => {
+    if (target === 'settings') {
+      setSettingsReturnTo(screen === 'profile' ? 'profile' : 'home');
+      setScreen('settings');
+      return;
+    }
+
+    if (target === 'home-me') {
+      setHomeInitialTab('profile');
+      setScreen('home');
+      return;
+    }
+
+    if (target === 'home') {
+      setHomeInitialTab('messages');
+    }
+
     setScreen(target);
     // Sau khi login, setup socket lại nếu cần
     if (target === 'home') {
@@ -154,10 +175,16 @@ export default function App() {
       return <ResetPasswordScreen onNavigate={navigate} />;
     case 'sessions':
       return <SessionsScreen onNavigate={navigate} />;
+    case 'settings':
+      return <SettingsScreen onNavigate={navigate} returnTo={settingsReturnTo} onLogout={handleLogout} />;
     case 'profile':
       return <ProfileScreen onNavigate={navigate} onLogout={handleLogout} />;
+    case 'profile-more':
+      return <ProfileMoreScreen onNavigate={navigate} />;
+    case 'status-picker':
+      return <StatusPickerScreen onNavigate={navigate} />;
     case 'home':
-      return <HomeScreen onNavigate={navigate} onLogout={handleLogout} />;
+      return <HomeScreen onNavigate={navigate} onLogout={handleLogout} initialTab={homeInitialTab} />;
     case 'login':
     default:
       return <LoginScreen onNavigate={navigate} />;
