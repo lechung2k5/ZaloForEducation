@@ -1,12 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/dynamodb.service';
 import { QueryCommand, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { SessionService } from './session.service';
+import { ChatGateway } from '../chat/chat.gateway';
 
 @Injectable()
 export class DeviceService {
   private readonly logger = new Logger(DeviceService.name);
 
-  constructor(private readonly db: DynamoDBService) {}
+  constructor(
+    private readonly db: DynamoDBService,
+    private readonly sessionService: SessionService,
+    @Inject(forwardRef(() => ChatGateway))
+    private readonly chatGateway: ChatGateway,
+  ) { }
 
   /**
    * Đánh dấu thiết bị là đã đăng xuất (hoặc bị kick).
@@ -108,5 +115,89 @@ export class DeviceService {
       this.logger.error(`Error getting status for ${deviceId}`, error.stack);
       return null;
     }
+  }
+
+  /**
+   * Bắt buộc tạo Session bản ghi vào bảng Sessions (DynamoDB/Redis).
+   * Giúp các Guard không bị lỗi SESSION_INVALIDATED.
+   */
+  /**
+   * Hybrid Single-Session Logic (V4) - BẢN GIA CỐ ƯU TIÊN DYNAMODB
+   * Đảm bảo: 1 Web + 1 Mobile cùng lúc.
+   * - Login Web mới -> "Đá" Web cũ, giữ Mobile.
+   * - Login Mobile mới -> "Đá" Mobile cũ, giữ Web.
+   */
+  async handleNewSession(email: string, deviceId: string, metadata?: any) {
+    const rawNewType = (metadata?.deviceType || 'web').toLowerCase();
+    // Chuẩn hóa loại thiết bị: web/desktop -> WEB, mobile/tablet/android/ios -> MOBILE
+    const newCategory = (rawNewType === 'mobile' || rawNewType === 'tablet' || rawNewType === 'android' || rawNewType === 'ios') ? 'MOBILE' : 'WEB';
+    
+    this.logger.log(`[DeviceService.handleNewSession] Hybrid Session check for ${email} (Type: ${rawNewType}, Category: ${newCategory})`);
+    
+    // 1. Quét TOÀN BỘ thiết bị trong DynamoDB của User này
+    const result = await this.db.docClient.send(new QueryCommand({
+      TableName: this.db.tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+      ExpressionAttributeValues: {
+        ':pk': `USER#${email}`,
+        ':sk': 'DEVICE#',
+      },
+    }));
+
+    const allDevices = result.Items || [];
+
+    for (const oldDevice of allDevices) {
+      const oldDeviceId = oldDevice.deviceId;
+      if (oldDeviceId === deviceId) continue;
+
+      // Chỉ xét các thiết bị đang ACTIVE
+      if (oldDevice.status !== 'ACTIVE') continue;
+
+      const rawOldType = (oldDevice.deviceType || 'unknown').toLowerCase();
+      const oldCategory = (rawOldType === 'mobile' || rawOldType === 'tablet' || rawOldType === 'android' || rawOldType === 'ios' || oldDevice.platform === 'mobile') ? 'MOBILE' : 'WEB';
+
+      // QUY TẮC CỐT LÕI: Chỉ "đá" nếu cùng nhóm phân loại (WEB đá WEB, MOBILE đá MOBILE)
+      if (oldCategory === newCategory) {
+        this.logger.warn(`[DeviceService] Kicking out duplicate session category: ${oldCategory} (ID: ${oldDeviceId}, Type: ${rawOldType})`);
+        
+        // A. Đánh dấu REVOKED trong DynamoDB
+        await this.markAsLoggedOut(email, oldDeviceId, {
+          deviceName: oldDevice.deviceName,
+          deviceType: oldDevice.deviceType,
+          reason: 'SESSION_REPLACED'
+        });
+
+        // B. Xóa Key trong Redis (Chặn đứng Request ngay lập tức)
+        await this.sessionService.removeSession(email, oldDeviceId);
+
+        // C. Bắn tín hiệu Socket (Đá đích danh)
+        this.chatGateway.notifyForceLogout(
+          email, 
+          oldDeviceId, 
+          `Hệ thống phát hiện đăng nhập mới trên một thiết bị ${newCategory.toLowerCase()} khác. Phiên làm việc này đã bị chấm dứt để bảo mật.`
+        );
+      }
+    }
+
+    const now = new Date().toISOString();
+    
+    // 2. Kích hoạt phiên mới trong DynamoDB (Dùng PutCommand để ghi đè toàn bộ hoặc UpdateCommand)
+    // Ở đây dùng UpdateCommand để giữ lại các trường như 'trusted' và 'createdAt' nếu đã có
+    await this.db.docClient.send(new UpdateCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: `DEVICE#${deviceId}` },
+      UpdateExpression: 'SET #status = :s, lastLoginAt = :now, updatedAt = :now, deviceName = :dName, deviceType = :dType, platform = :p, lastLogoutReason = :null',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':s': 'ACTIVE',
+        ':now': now,
+        ':dName': metadata?.deviceName || 'Thiết bị mới',
+        ':dType': rawNewType,
+        ':p': newCategory.toLowerCase(),
+        ':null': null,
+      },
+    }));
+
+    return { success: true };
   }
 }

@@ -20,17 +20,25 @@ interface AuthContextType {
   requestChangePassword: (data: { currentPassword: string; newPassword: string }) => Promise<void>;
   confirmChangePassword: (otp: string) => Promise<void>;
   verifyLoginOtp: (otp: string, email: string) => Promise<any>;
+  googleLogin: (idToken: string) => Promise<{ isProfileComplete?: boolean; requireOtp?: boolean; email?: string; success?: boolean }>;
+  requestGoogleCompletionOtp: (email: string) => Promise<void>;
+  completeGoogleProfile: (data: any) => Promise<void>;
+  pendingGoogleUser: any;
+  setPendingGoogleUser: (user: any) => void;
   socket: any;
   deviceId: string;
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any>(null);
+  const [pendingGoogleUser, setPendingGoogleUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [socket, setSocket] = useState<any>(null);
   const [deviceId, setDeviceId] = useState<string>('');
+
 
   // FIX 2+3: dùng ref để track socket hiện tại,
   // tránh tạo nhiều socket và memory leak
@@ -46,21 +54,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser && savedUser !== 'undefined') {
-      try {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
-        setupSocket(parsedUser.email);
-      } catch (e) {
-        console.error('Failed to parse saved user:', e);
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-      }
-    }
-    setLoading(false);
+    const initSession = async () => {
+      const savedUser = localStorage.getItem('user');
+      const savedToken = localStorage.getItem('token');
+      const savedPending = localStorage.getItem('pendingGoogleUser');
 
-    // FIX 2: cleanup socket khi unmount
+      // 1. Khôi phục user đầy đủ nếu có
+      if (savedUser && savedUser !== 'undefined' && savedToken) {
+        try {
+          const parsedUser = JSON.parse(savedUser);
+          setUser(parsedUser);
+          setupSocket(parsedUser.email);
+        } catch (e) {
+          console.error('Failed to parse saved user:', e);
+        }
+      } 
+      // 2. Nếu chỉ có token (VD: F5 khi đang Profile Completion), gọi API lấy profile
+      else if (savedToken) {
+        try {
+          // Sếp yêu cầu dùng /auth/me để lấy profile mới nhất
+          const res = await api.get('/auth/me');
+          if (res.data.profile) {
+            setUser(res.data.profile);
+            setupSocket(res.data.profile.email);
+            localStorage.setItem('user', JSON.stringify(res.data.profile));
+          }
+        } catch (err: any) {
+          console.error('Rehydration failed:', err);
+          // Nếu lỗi 403 (Pending) hoặc 401 thì check savedPending
+          if (savedPending) {
+            setPendingGoogleUser(JSON.parse(savedPending));
+          } else {
+            localStorage.removeItem('token');
+          }
+        }
+      }
+      
+      setLoading(false);
+    };
+
+    initSession();
+
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
@@ -135,7 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
         deviceId: currentDeviceId,
         deviceName,
-        deviceType,
+        deviceType: 'web', // Ép kiểu web cho app Web
         platform: 'web',
       });
 
@@ -169,7 +203,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       otp,
       deviceId: currentDeviceId,
       deviceName,
-      deviceType,
+      deviceType: 'web', // Ép kiểu web
     });
 
     const { accessToken, user: userData } = res.data;
@@ -227,15 +261,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logoutLocal = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('pendingGoogleUser');
     // deviceId được giữ lại để duy trì trạng thái "Thiết bị tin cậy"
-    // tránh việc phải nhập OTP mỗi khi đăng xuất rồi đăng nhập lại trên cùng 1 máy.
-    // FIX 2: disconnect socket đúng cách qua ref
+    
     if (socketRef.current) {
       socketRef.current.disconnect();
       socketRef.current = null;
     }
     setUser(null);
     setSocket(null);
+    setPendingGoogleUser(null);
     window.location.href = '/login';
   };
 
@@ -285,13 +320,78 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logoutLocal();
   };
 
+  const googleLogin = async (idToken: string) => {
+    const { deviceName, deviceType } = getDeviceInfo();
+    const currentDeviceId = deviceId || await Promise.resolve(getDeviceId());
+
+    const res = await api.post('/auth/google-login', {
+      idToken,
+      deviceId: currentDeviceId,
+      deviceName,
+      deviceType: 'web' // Ép kiểu web cho app Web
+    });
+
+    if (res.data.isProfileComplete === false) {
+      const { accessToken, ...pendingData } = res.data;
+      localStorage.setItem('token', accessToken);
+      localStorage.setItem('pendingGoogleUser', JSON.stringify(pendingData));
+      localStorage.setItem('deviceId', currentDeviceId);
+      
+      setPendingGoogleUser(pendingData);
+      return { isProfileComplete: false, email: res.data.email };
+    }
+
+    if (res.data.type === 'REQUIRE_OTP') {
+      return { requireOtp: true, email: res.data.email };
+    }
+
+    const { accessToken, user: userData } = res.data;
+    localStorage.setItem('token', accessToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('deviceId', currentDeviceId);
+
+    setUser(userData);
+    setupSocket(userData.email);
+    return { success: true };
+  };
+
+  const requestGoogleCompletionOtp = async (email: string) => {
+    await api.post('/auth/google-complete/request-otp', { email });
+  };
+
+  const completeGoogleProfile = async (data: any) => {
+    const { deviceName, deviceType } = getDeviceInfo();
+    const currentDeviceId = deviceId || await Promise.resolve(getDeviceId());
+
+    const res = await api.post('/auth/google-complete/confirm', {
+      ...data,
+      deviceId: currentDeviceId,
+      deviceName,
+      deviceType: 'web', // Ép kiểu web
+    });
+
+    const { accessToken, user: userData } = res.data;
+    localStorage.setItem('token', accessToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('deviceId', currentDeviceId);
+    localStorage.removeItem('pendingGoogleUser');
+
+    setUser(userData);
+    setPendingGoogleUser(null);
+    setupSocket(userData.email);
+  };
+
+
   return (
     <AuthContext.Provider value={{
       user, loading, login, requestRegisterOtp, confirmRegister,
       resendOtp, requestForgotPassword, resetPassword, getSessions,
       revokeSession, logout, logoutAll, socket, deviceId, refreshUser,
-      requestChangePassword, confirmChangePassword, verifyLoginOtp
+      requestChangePassword, confirmChangePassword, verifyLoginOtp,
+      googleLogin, requestGoogleCompletionOtp, completeGoogleProfile,
+      pendingGoogleUser, setPendingGoogleUser
     }}>
+
       {children}
     </AuthContext.Provider>
   );

@@ -1,5 +1,0 @@
-{
-  "plugins": [
-    "expo-barcode-scanner"
-  ]
-}

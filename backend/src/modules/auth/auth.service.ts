@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcrypt';
 import { DynamoDBService } from '../../infrastructure/dynamodb.service';
 import { OtpService } from '../otp/otp.service';
+import { OtpLimiterService } from '../otp/otp-limiter.service';
 import { EmailService } from '../../infrastructure/email/email.service';
 import { SessionService } from './session.service';
 import { ChatGateway } from '../chat/chat.gateway';
@@ -13,6 +14,9 @@ import { RedisService } from '../../infrastructure/redis.service';
 import { validateDobStrict } from '../../infrastructure/utils/date.util';
 import { DeviceService } from './device.service';
 import { ConfigService } from '@nestjs/config';
+import { OAuth2Client } from 'google-auth-library';
+import { UserService } from '../user/user.service';
+
 
 @Injectable()
 export class AuthService {
@@ -22,12 +26,18 @@ export class AuthService {
     private readonly sessionService: SessionService,
     private readonly deviceService: DeviceService,
     private readonly otpService: OtpService,
+    private readonly otpLimiterService: OtpLimiterService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
     @Inject(forwardRef(() => ChatGateway))
     private readonly chatGateway: ChatGateway,
+    @Inject(forwardRef(() => UserService))
+    private readonly userService: UserService,
   ) { }
+
+  private readonly googleClient = new OAuth2Client(this.configService.get('GOOGLE_CLIENT_ID') || '1094444929007-avg6u84ak9i7n9ggnc543e1prb4otv9g.apps.googleusercontent.com');
+
 
   private validatePassword(password: string) {
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
@@ -55,6 +65,7 @@ export class AuthService {
   }
 
   async requestRegisterOtp(email: string) {
+    await this.otpLimiterService.checkCooldown(email, 'register');
     const existingUser = await this.db.docClient.send(new GetCommand({
       TableName: this.db.tableName,
       Key: { PK: `USER#${email}`, SK: 'METADATA' },
@@ -138,9 +149,11 @@ export class AuthService {
       throw new UnauthorizedException(message);
     }
 
-    // 2. Platform detection
+    // 2. Identify platform: web or mobile
     const deviceId = dto.deviceId || `unknown-${Date.now()}`;
-    const platform = dto.platform || (dto.deviceType === 'web' ? 'web' : 'mobile');
+    const deviceType = dto.deviceType || 'web';
+    const platform = (deviceType.toLowerCase() === 'mobile' || deviceType.toLowerCase() === 'tablet') ? 'mobile' : 'web';
+    const metadata = { deviceName: dto.deviceName || 'Unknown Device', deviceType, platform };
 
     let requireOtp = false;
     let otpReason = '';
@@ -197,41 +210,13 @@ export class AuthService {
     // SUCCESSFUL LOGIN (No OTP needed)
     await this.redisService.del(failKey); // Reset failed attempts
     
-    await this.db.docClient.send(new UpdateCommand({
-      TableName: this.db.tableName,
-      Key: { PK: `USER#${dto.email}`, SK: 'METADATA' },
-      UpdateExpression: 'SET currentDeviceId = :deviceId, lastLoginAt = :now',
-      ExpressionAttributeValues: {
-        ':deviceId': deviceId,
-        ':now': new Date().toISOString(),
-      },
-    }));
+    // 1. Quản lý phiên (Hybrid Single-Session V4) - Đá thiết bị cùng loại
+    await this.deviceService.handleNewSession(user.email, deviceId, metadata);
 
-    const activeSessions = await this.sessionService.getSessions(user.email);
-
-    for (const oldId of activeSessions) {
-      if (oldId === deviceId) continue;
-
-      const oldSession = await this.sessionService.getSession(user.email, oldId);
-      const oldPlatform = oldSession?.platform || 'mobile';
-
-      if (oldPlatform !== platform) {
-        continue;
-      }
-      
-      await this.deviceService.markAsLoggedOut(user.email, oldId, {
-        deviceName: oldSession?.deviceName,
-        deviceType: oldSession?.deviceType,
-        reason: 'SESSION_REPLACED',
-      });
-
-      await this.sessionService.removeSession(user.email, oldId);
-      this.chatGateway.notifyForceLogout(user.email, oldId, 'Một thiết bị khác vừa đăng nhập và thay thế phiên làm việc này.');
-    }
-
-    const metadata = { deviceName: dto.deviceName, deviceType: dto.deviceType, platform };
+    // 2. Tạo Session mới trong Redis
     await this.sessionService.createSession(user.email, deviceId, metadata);
 
+    // 3. Metadata thiết bị chi tiết trong DynamoDB (Dùng PutCommand để ghi đè/tạo mới hoàn chỉnh)
     await this.db.docClient.send(new PutCommand({
       TableName: this.db.tableName,
       Item: {
@@ -239,11 +224,12 @@ export class AuthService {
         SK: `DEVICE#${deviceId}`,
         email: user.email,
         deviceId,
-        deviceName: dto.deviceName || 'Unknown Device',
-        deviceType: dto.deviceType || 'unknown',
+        deviceName: dto.deviceName,
+        deviceType: dto.deviceType,
+        platform,
+        status: 'ACTIVE',
         lastLoginAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        status: 'ACTIVE',
       },
     }));
 
@@ -266,6 +252,7 @@ export class AuthService {
   }
 
   async forgotPasswordRequestOtp(email: string) {
+    await this.otpLimiterService.checkCooldown(email, 'forgot_password');
     const result = await this.db.docClient.send(new GetCommand({
       TableName: this.db.tableName,
       Key: { PK: `USER#${email}`, SK: 'METADATA' },
@@ -328,8 +315,12 @@ export class AuthService {
     await this.redisService.del(`login_fail:${email}`);
 
     // 5. Tạo phiên làm việc (Session)
-    const platform = deviceType === 'web' ? 'web' : 'mobile';
+    const platform = (deviceType?.toLowerCase() === 'mobile' || deviceType?.toLowerCase() === 'tablet') ? 'mobile' : 'web';
     const metadata = { deviceName, deviceType, platform };
+
+    // Hybrid Single-Session V4 - Đá thiết bị cùng loại (Đã gia cố bằng DynamoDB)
+    await this.deviceService.handleNewSession(email, deviceId, metadata);
+
     await this.sessionService.createSession(email, deviceId, metadata);
 
     // 6. Cập nhật DynamoDB (Metadata & Login At)
@@ -504,6 +495,7 @@ export class AuthService {
   }
 
   async resendOtp(email: string, type: 'register' | 'forgot_password' | 'login') {
+    await this.otpLimiterService.checkCooldown(email, type);
     const code = await this.otpService.createOtp(email, type as any);
     await this.emailService.sendOtp(email, code, type as any);
     return { message: 'Đã gửi lại mã OTP mới.' };
@@ -639,4 +631,204 @@ export class AuthService {
 
     return { message: 'Đăng nhập thành công trên trình duyệt.' };
   }
+
+  // ===== GOOGLE LOGIN LOGIC =====
+
+  async googleLogin(idToken: string, deviceId: string, deviceName?: string, deviceType?: string) {
+    try {
+      const webClientId = this.configService.get('GOOGLE_CLIENT_ID') || '1094444929007-avg6u84ak9i7n9ggnc543e1prb4otv9g.apps.googleusercontent.com';
+      const iosClientId = this.configService.get('IOS_GOOGLE_CLIENT_ID') || '1094444929007-94bne12jao91vd4rm1utet8aqn290f8d.apps.googleusercontent.com';
+      
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: [webClientId, iosClientId],
+      });
+      const payload = ticket.getPayload();
+      if (!payload) throw new BadRequestException('ID Token không hợp lệ.');
+
+      const { email, name, picture, sub: googleId } = payload;
+
+      const result = await this.db.docClient.send(new GetCommand({
+        TableName: this.db.tableName,
+        Key: { PK: `USER#${email}`, SK: 'METADATA' },
+      }));
+
+      const existingUser = result.Item as User;
+
+      if (existingUser) {
+        // Cập nhật googleId (nếu chưa có) và lastLoginAt cho User cũ
+        const shouldUpdateGoogleId = !existingUser.googleId;
+        const updateExpr = [];
+        const attrValues: any = { ':now': new Date().toISOString() };
+
+        if (shouldUpdateGoogleId) {
+          updateExpr.push('googleId = :gid');
+          attrValues[':gid'] = googleId;
+          existingUser.googleId = googleId;
+        }
+
+        updateExpr.push('lastLoginAt = :now');
+        updateExpr.push('updatedAt = :now');
+
+        await this.db.docClient.send(new UpdateCommand({
+          TableName: this.db.tableName,
+          Key: { PK: `USER#${email}`, SK: 'METADATA' },
+          UpdateExpression: `SET ${updateExpr.join(', ')}`,
+          ExpressionAttributeValues: attrValues,
+        }));
+
+        // Kiểm tra Smart Trusted Device
+        const deviceRecord = await this.deviceService.getDeviceStatus(email, deviceId);
+        if (!deviceRecord || deviceRecord.trusted === false) {
+          await this.otpLimiterService.checkCooldown(email, 'login');
+          const code = await this.otpService.createOtp(email, 'login' as any);
+          await this.emailService.sendOtp(email, code, 'login' as any);
+          return { 
+            requireOtp: true, 
+            type: 'REQUIRE_OTP',
+            email, 
+            message: 'Thiết bị mới. Vui lòng xác thực mã OTP gửi về Email.' 
+          };
+        }
+
+        // Login thành công
+        const platform = (deviceType?.toLowerCase() === 'mobile' || deviceType?.toLowerCase() === 'tablet') ? 'mobile' : 'web';
+        const metadata = { deviceName, deviceType: deviceType || platform, platform };
+
+        // Hybrid Single-Session V4 - Đá thiết bị cùng loại
+        await this.deviceService.handleNewSession(email, deviceId, metadata);
+
+        // Tạo Session mới trong Redis
+        await this.sessionService.createSession(email, deviceId, metadata);
+
+        // Lấy full profile từ UserService để đảm bảo trả về đủ field (address, phone, dob...)
+        const { profile } = await this.userService.getUserProfile(email);
+
+        const jwtPayload = { sub: email, email, deviceId };
+        return {
+          accessToken: this.jwtService.sign(jwtPayload),
+          user: profile,
+        };
+      }
+
+      // User chưa tồn tại - Cache Google data và yêu cầu hoàn thiện Profile
+      const pendingData = { email, name, picture, googleId };
+      await this.redisService.set(`GOOGLE_PENDING#${email}`, JSON.stringify(pendingData), 1800); // 30 mins
+
+      // Bắt buộc tạo Session ngay cả cho User chưa hoàn thiện Profile để tránh lỗi SESSION_INVALIDATED
+      const platform = deviceType === 'web' ? 'web' : 'mobile';
+      await this.sessionService.createSession(email, deviceId, { deviceName, deviceType, platform });
+      await this.deviceService.handleNewSession(email, deviceId, { deviceName, deviceType });
+
+      // Cấp token tạm thời với claim isPending
+      const tempPayload = { sub: email, email, deviceId, isPending: true };
+      const accessToken = this.jwtService.sign(tempPayload);
+
+      return {
+        isProfileComplete: false,
+        email,
+        name,
+        picture,
+        accessToken
+      };
+    } catch (err) {
+      console.error('Google login error:', err);
+      throw new BadRequestException('Xác thực với Google thất bại.');
+    }
+  }
+
+  async googleCompleteRequestOtp(email: string) {
+    // Check pending Google data
+    const pendingJson = await this.redisService.get(`GOOGLE_PENDING#${email}`);
+    if (!pendingJson) {
+      throw new BadRequestException('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại Google.');
+    }
+
+    await this.otpLimiterService.checkCooldown(email, 'google_complete');
+
+    const code = await this.otpService.createOtp(email, 'register');
+    await this.emailService.sendOtp(email, code, 'register');
+
+    return { message: 'Mã OTP đã được gửi về Gmail của bạn.' };
+  }
+
+  async googleCompleteConfirm(dto: RegisterRequestDto & { deviceId: string; deviceName?: string; deviceType?: string }) {
+    const { email, otp, password, fullName, gender, dataOfBirth, phone, deviceId, deviceName, deviceType } = dto;
+
+    // 1. Verify OTP
+    await this.otpService.verifyOtp(email, otp);
+
+    // 2. Lấy Google Data từ cache
+    const pendingJson = await this.redisService.get(`GOOGLE_PENDING#${email}`);
+    if (!pendingJson) {
+      throw new BadRequestException('Dữ liệu Google không tìm thấy hoặc đã hết hạn.');
+    }
+    const googleData = JSON.parse(pendingJson);
+
+    // 3. Validate dữ liệu bổ sung (Phone Regex defined here for server-side safety)
+    if (!phone || !/^0[0-9]{9}$/.test(phone)) {
+      throw new BadRequestException('Số điện thoại không hợp lệ (phải bắt đầu bằng 0 và có 10 chữ số).');
+    }
+    this.validatePassword(password);
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // 4. Upsert User vào DynamoDB
+    const newUser: User = {
+      id: `USER#${email}`,
+      email,
+      fullName: fullName || googleData.name || '',
+      gender: gender ?? true,
+      dataOfBirth: validateDobStrict(dataOfBirth),
+      phone,
+      avatarUrl: googleData.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName || 'User')}&background=00418f&color=fff`,
+      passwordHash,
+      googleId: googleData.googleId,
+      authProvider: 'GOOGLE',
+      bio: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: 'active',
+      isActive: true,
+      isVerified: true,
+      lastLoginAt: new Date().toISOString(),
+    };
+
+    await this.db.docClient.send(new PutCommand({
+      TableName: this.db.tableName,
+      Item: {
+        PK: newUser.id,
+        SK: 'METADATA',
+        ...newUser,
+      },
+    }));
+
+    // 5. Cleanup Cache
+    await this.redisService.del(`GOOGLE_PENDING#${email}`);
+    await this.redisService.del(`otp_limit:${email}`);
+
+    // 6. Tạo Session và JWT (Handoff)
+    const platform = (deviceType?.toLowerCase() === 'mobile' || deviceType?.toLowerCase() === 'tablet') ? 'mobile' : 'web';
+    const metadata = { deviceName, deviceType, platform };
+
+    // Hybrid Single-Session V4 - Đá thiết bị cùng loại
+    await this.deviceService.handleNewSession(email, deviceId, metadata);
+
+    await this.sessionService.createSession(email, deviceId, metadata);
+    await this.deviceService.trustDevice(email, deviceId);
+
+    const payload = { sub: email, email, deviceId };
+    return {
+      accessToken: this.jwtService.sign(payload),
+      user: {
+        email: newUser.email,
+        fullName: newUser.fullName,
+        avatarUrl: newUser.avatarUrl,
+        phone: newUser.phone,
+        gender: newUser.gender,
+        dataOfBirth: newUser.dataOfBirth,
+      },
+    };
+  }
 }
+

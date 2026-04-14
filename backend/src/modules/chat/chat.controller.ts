@@ -3,9 +3,10 @@ import { ChatService } from './chat.service';
 import { MessageService } from './message.service';
 import { FriendshipService } from './friendship.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ProfileCompleteGuard } from '../auth/guards/profile-complete.guard';
 
 @Controller('chat')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ProfileCompleteGuard)
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,

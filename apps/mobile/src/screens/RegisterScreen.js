@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Image
 } from 'react-native';
+import { useOtpCountdown } from '../hooks/useOtpCountdown';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Alert from '../utils/Alert';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,8 +31,7 @@ export default function RegisterScreen({ onNavigate }) {
   const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
   const [touchedFields, setTouchedFields] = useState({});
-  const [resendTimer, setResendTimer] = useState(0);
-  const [canResend, setCanResend] = useState(true);
+  const { countdown, startCountdown, syncWithServer } = useOtpCountdown(email);
 
   const getPasswordStrength = (pass) => {
     let score = 0;
@@ -63,8 +63,12 @@ export default function RegisterScreen({ onNavigate }) {
 
       const data = await response.json();
       if (response.ok) {
+        startCountdown();
         setStep(2);
       } else {
+        if (response.status === 429 && data.retryAfter) {
+          syncWithServer(data.retryAfter);
+        }
         Alert.alert('Lỗi', data.message);
       }
     } catch (error) {
@@ -75,7 +79,7 @@ export default function RegisterScreen({ onNavigate }) {
   };
 
   const handleResendOtp = async () => {
-    if (!canResend) return;
+    if (countdown > 0) return;
     setLoading(true);
     const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
     try {
@@ -85,21 +89,14 @@ export default function RegisterScreen({ onNavigate }) {
         body: JSON.stringify({ email, type: 'register' }),
       });
 
+      const data = await response.json();
       if (response.ok) {
-        setCanResend(false);
-        setResendTimer(60);
-        const timer = setInterval(() => {
-          setResendTimer((prev) => {
-            if (prev <= 1) {
-              clearInterval(timer);
-              setCanResend(true);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+        startCountdown();
+        Alert.alert('Thông báo', 'Đã gửi lại mã OTP mới.');
       } else {
-        const data = await response.json();
+        if (response.status === 429 && data.retryAfter) {
+          syncWithServer(data.retryAfter);
+        }
         Alert.alert('Lỗi', data.message || 'Không thể gửi lại mã OTP');
       }
     } catch (error) {
@@ -256,10 +253,11 @@ export default function RegisterScreen({ onNavigate }) {
                   {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
                   
                   <Button 
-                    title={loading ? "Đang gửi..." : "Nhận mã xác thực"} 
+                    title={loading ? "Đang gửi..." : (countdown > 0 ? `Nhận mã sau (${countdown}s)` : "Nhận mã xác thực")} 
                     onPress={handleRequestOtp} 
                     icon="arrow_forward"
-                    disabled={loading || !!emailError || !email}
+                    disabled={loading || !!emailError || !email || countdown > 0}
+                    style={countdown > 0 ? { opacity: 0.5 } : null}
                   />
                 </View>
               )}
@@ -282,15 +280,15 @@ export default function RegisterScreen({ onNavigate }) {
                   />
                   <TouchableOpacity 
                     onPress={handleResendOtp} 
-                    disabled={!canResend || loading}
-                    style={{ marginVertical: 12, alignItems: 'center' }}
+                    disabled={countdown > 0 || loading}
+                    style={{ marginVertical: 12, alignItems: 'center', opacity: countdown > 0 ? 0.5 : 1 }}
                   >
                     <Text style={{ 
-                      color: canResend ? Colors.primary : Colors.outline, 
+                      color: countdown > 0 ? Colors.outline : Colors.primary, 
                       fontWeight: '700',
-                      textDecorationLine: canResend ? 'underline' : 'none'
+                      textDecorationLine: countdown > 0 ? 'none' : 'underline'
                     }}>
-                      {resendTimer > 0 ? `Gửi lại mã (${resendTimer}s)` : 'Gửi lại mã OTP'}
+                      {countdown > 0 ? `Gửi lại mã (${countdown}s)` : 'Gửi lại mã OTP'}
                     </Text>
                   </TouchableOpacity>
                   <Button 

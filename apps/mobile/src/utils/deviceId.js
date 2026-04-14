@@ -1,23 +1,22 @@
-import * as SecureStore from 'expo-secure-store';
-import * as Crypto from 'expo-crypto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DEVICE_ID_KEY = 'app_device_id';
 
 /**
- * Gets a persistent device ID from SecureStore.
+ * Gets a persistent device ID from AsyncStorage.
  * If not exists, generates a new one and saves it.
  */
 export async function getDeviceId() {
   try {
-    let deviceId = await SecureStore.getItemAsync(DEVICE_ID_KEY);
+    let deviceId = await AsyncStorage.getItem(DEVICE_ID_KEY);
     if (!deviceId) {
-      deviceId = Crypto.randomUUID();
-      await SecureStore.setItemAsync(DEVICE_ID_KEY, deviceId);
+      // Simple UUID-like generator
+      deviceId = 'idx-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+      await AsyncStorage.setItem(DEVICE_ID_KEY, deviceId);
     }
     return deviceId;
   } catch (error) {
     console.error('[DEVICE_ID] Error getting/setting deviceId:', error);
-    // Fallback if SecureStore fails (e.g. in some web environments without secure context)
     return `fallback-${Math.random().toString(36).slice(2, 9)}`;
   }
 }

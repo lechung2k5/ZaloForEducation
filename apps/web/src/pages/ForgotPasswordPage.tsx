@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import { useOtpCountdown } from '../hooks/useOtpCountdown';
 
 type Step = 'email' | 'otp' | 'reset';
 
@@ -16,8 +17,7 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [resendTimer, setResendTimer] = useState(0);
-  const [canResend, setCanResend] = useState(true);
+  const { countdown, startCountdown, syncWithServer } = useOtpCountdown(email);
   
   const { requestForgotPassword, resetPassword, resendOtp } = useAuth();
   const navigate = useNavigate();
@@ -49,8 +49,12 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     try {
       await requestForgotPassword(email);
+      startCountdown();
       setStep('otp');
     } catch (err: any) {
+      if (err.response?.status === 429 && err.response?.data?.retryAfter) {
+        syncWithServer(err.response.data.retryAfter);
+      }
       setError(err.response?.data?.message || 'Không thể gửi mã OTP');
     } finally {
       setLoading(false);
@@ -58,24 +62,16 @@ export default function ForgotPasswordPage() {
   };
 
   const handleResendOtp = async () => {
-    if (!canResend) return;
+    if (countdown > 0) return;
     setLoading(true);
     setError('');
     try {
       await resendOtp(email, 'forgot_password');
-      setCanResend(false);
-      setResendTimer(60);
-      const timer = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            setCanResend(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      startCountdown();
     } catch (err: any) {
+      if (err.response?.status === 429 && err.response?.data?.retryAfter) {
+        syncWithServer(err.response.data.retryAfter);
+      }
       setError(err.response?.data?.message || 'Không thể gửi lại mã OTP');
     } finally {
       setLoading(false);
@@ -189,10 +185,10 @@ export default function ForgotPasswordPage() {
                 <button 
                   type="button"
                   onClick={handleResendOtp}
-                  disabled={!canResend || loading}
-                  className="text-sm font-semibold text-primary hover:underline disabled:opacity-50 disabled:no-underline"
+                  disabled={countdown > 0 || loading}
+                  className="text-sm font-semibold text-primary hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
                 >
-                  {resendTimer > 0 ? `Gửi lại mã (${resendTimer}s)` : 'Gửi lại mã OTP'}
+                  {countdown > 0 ? `Gửi lại mã (${countdown}s)` : 'Gửi lại mã OTP'}
                 </button>
                 <button onClick={() => setStep('email')} className="text-sm font-semibold text-outline hover:text-primary transition-colors duration-200">
                   Đổi email khác
@@ -268,12 +264,12 @@ export default function ForgotPasswordPage() {
               </div>
               <button 
                 type="submit" 
-                disabled={loading}
-                className="w-full signature-gradient text-white py-5 rounded-2xl font-bold text-lg shadow-[0px_10px_25px_rgba(0,65,143,0.2)] active:scale-[0.98] transition-all duration-300 relative overflow-hidden group disabled:opacity-50"
+                disabled={loading || countdown > 0}
+                className="w-full signature-gradient text-white py-5 rounded-2xl font-bold text-lg shadow-[0px_10px_25px_rgba(0,65,143,0.2)] active:scale-[0.98] transition-all duration-300 relative overflow-hidden group disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
               >
                 <span className="relative z-10 flex items-center justify-center gap-2">
-                  {loading ? 'Đang gửi...' : 'Gửi mã OTP'}
-                  {!loading && <span className="material-symbols-outlined text-xl group-hover:translate-x-1 duration-300">arrow_forward</span>}
+                  {loading ? 'Đang gửi...' : (countdown > 0 ? `Gửi lại sau (${countdown}s)` : 'Gửi mã OTP')}
+                  {!loading && countdown === 0 && <span className="material-symbols-outlined text-xl group-hover:translate-x-1 duration-300">arrow_forward</span>}
                 </span>
                 <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </button>

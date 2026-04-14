@@ -11,6 +11,7 @@ import { BlurView } from 'expo-blur';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import { Colors, Typography, Shadows } from '../constants/Theme';
+import { useOtpCountdown } from '../hooks/useOtpCountdown';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -21,8 +22,7 @@ export default function ForgotPasswordScreen({ onNavigate }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(0);
-  const [canResend, setCanResend] = useState(true);
+  const { countdown, startCountdown, syncWithServer } = useOtpCountdown(email);
   const [touchedFields, setTouchedFields] = useState({});
 
   const getPasswordStrength = (pass) => {
@@ -49,8 +49,12 @@ export default function ForgotPasswordScreen({ onNavigate }) {
       });
       const data = await res.json();
       if (res.ok) {
+        startCountdown();
         setStep(2);
       } else {
+        if (res.status === 429 && data.retryAfter) {
+          syncWithServer(data.retryAfter);
+        }
         Alert.alert('Lỗi', data.message);
       }
     } catch {
@@ -60,7 +64,7 @@ export default function ForgotPasswordScreen({ onNavigate }) {
     }
   };
   const handleResendOtp = async () => {
-    if (!canResend) return;
+    if (countdown > 0) return;
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/auth/resend-otp`, {
@@ -69,21 +73,14 @@ export default function ForgotPasswordScreen({ onNavigate }) {
         body: JSON.stringify({ email, type: 'forgot_password' }),
       });
 
+      const data = await res.json();
       if (res.ok) {
-        setCanResend(false);
-        setResendTimer(60);
-        const timer = setInterval(() => {
-          setResendTimer((prev) => {
-            if (prev <= 1) {
-              clearInterval(timer);
-              setCanResend(true);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+        startCountdown();
+        Alert.alert('Thông báo', 'Đã gửi lại mã OTP mới.');
       } else {
-        const data = await res.json();
+        if (res.status === 429 && data.retryAfter) {
+          syncWithServer(data.retryAfter);
+        }
         Alert.alert('Lỗi', data.message || 'Không thể gửi lại mã OTP');
       }
     } catch {
@@ -214,15 +211,15 @@ export default function ForgotPasswordScreen({ onNavigate }) {
                       
                       <TouchableOpacity 
                         onPress={handleResendOtp} 
-                        disabled={!canResend || loading}
+                        disabled={countdown > 0 || loading}
                         style={{ marginVertical: 12, alignItems: 'center' }}
                       >
                         <Text style={{ 
-                          color: canResend ? Colors.primary : Colors.outline, 
+                          color: countdown === 0 ? Colors.primary : Colors.outline, 
                           fontWeight: '700',
-                          textDecorationLine: canResend ? 'underline' : 'none'
+                          textDecorationLine: countdown === 0 ? 'underline' : 'none'
                         }}>
-                          {resendTimer > 0 ? `Gửi lại mã (${resendTimer}s)` : 'Gửi lại mã OTP'}
+                          {countdown > 0 ? `Gửi lại mã (${countdown}s)` : 'Gửi lại mã OTP'}
                         </Text>
                       </TouchableOpacity>
 

@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
+import GoogleOneTapPrompt from '../components/GoogleOneTapPrompt';
+import ProfileCompletionModal from '../components/ProfileCompletionModal';
+import { useOtpCountdown } from '../hooks/useOtpCountdown';
+
+
 
 const RegisterPage: React.FC = () => {
   const [step, setStep] = useState(1);
@@ -22,11 +28,14 @@ const RegisterPage: React.FC = () => {
   // Extra state for OTP inputs (combining 6 digits)
   const [otpArray, setOtpArray] = useState(['', '', '', '', '', '']);
 
-  const [resendTimer, setResendTimer] = useState(0);
-  const [canResend, setCanResend] = useState(true);
+  const { countdown, startCountdown, syncWithServer } = useOtpCountdown(email);
 
-  const { requestRegisterOtp, confirmRegister, resendOtp } = useAuth();
+  const { requestRegisterOtp, confirmRegister, resendOtp, googleLogin } = useAuth();
   const navigate = useNavigate();
+
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+
 
   const handleBlur = (field: string) => {
     setTouchedFields(prev => ({ ...prev, [field]: true }));
@@ -59,8 +68,12 @@ const RegisterPage: React.FC = () => {
     setError('');
     try {
       await requestRegisterOtp(email);
+      startCountdown();
       setStep(2);
     } catch (err: any) {
+      if (err.response?.status === 429 && err.response?.data?.retryAfter) {
+        syncWithServer(err.response.data.retryAfter);
+      }
       setError(err.response?.data?.message || 'Không thể gửi mã OTP.');
     } finally {
       setLoading(false);
@@ -92,24 +105,16 @@ const RegisterPage: React.FC = () => {
   };
 
   const handleResendOtp = async () => {
-    if (!canResend) return;
+    if (countdown > 0) return;
     setLoading(true);
     setError('');
     try {
       await resendOtp(email, 'register');
-      setCanResend(false);
-      setResendTimer(60);
-      const timer = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            setCanResend(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      startCountdown();
     } catch (err: any) {
+      if (err.response?.status === 429 && err.response?.data?.retryAfter) {
+        syncWithServer(err.response.data.retryAfter);
+      }
       setError(err.response?.data?.message || 'Không thể gửi lại mã OTP.');
     } finally {
       setLoading(false);
@@ -184,12 +189,52 @@ const RegisterPage: React.FC = () => {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    if (!credentialResponse.credential) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await googleLogin(credentialResponse.credential);
+      if (res.success) {
+        navigate('/chat');
+      } else if (res.isProfileComplete === false) {
+        setPendingEmail(res.email || '');
+        setIsProfileModalOpen(true);
+      } else if (res.requireOtp) {
+        // Should not happen for registration unless Google user email redirected to standard login OTP
+        navigate('/login', { state: { email: res.email } });
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Đăng nhập Google thất bại.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   if (step === 1) {
     return (
       <div className="bg-surface text-on-surface min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden w-full">
         {/* Background Elements */}
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary-container/20 rounded-full blur-[100px] pointer-events-none"></div>
+        
+        <GoogleOneTapPrompt 
+          onSuccess={(res) => {
+            if (res.isProfileComplete === false) {
+              setPendingEmail(res.email || '');
+              setIsProfileModalOpen(true);
+            }
+          }}
+          onError={(err) => console.log('One Tap Error:', err)}
+        />
+
+        <ProfileCompletionModal 
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          email={pendingEmail}
+        />
+
         
         {/* Main Container */}
         <div className="w-full max-w-xl z-10 animate-fade-in">
@@ -268,13 +313,36 @@ const RegisterPage: React.FC = () => {
               {/* Prominent CTA Button */}
               <button 
                 type="submit" 
-                disabled={loading}
-                className="w-full h-16 signature-gradient text-white rounded-xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 relative overflow-hidden group disabled:opacity-50"
+                disabled={loading || countdown > 0}
+                className="w-full h-16 signature-gradient text-white rounded-xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 relative overflow-hidden group disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
               >
-                <span>{loading ? 'Đang gửi...' : 'Nhận mã xác thực'}</span>
-                {!loading && <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>}
+                <span>{loading ? 'Đang gửi...' : (countdown > 0 ? `Nhận mã sau (${countdown}s)` : 'Nhận mã xác thực')}</span>
+                {!loading && countdown === 0 && <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>}
               </button>
+
+              <div className="relative my-8">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-outline-variant/10"></div>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-4 text-on-surface-variant font-bold tracking-widest">Hoặc đăng ký nhanh bằng</span>
+                </div>
+              </div>
+
+              <div className="flex justify-center w-full">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError('Đăng nhập Google thất bại.')}
+                  useOneTap={false}
+                  theme="outline"
+                  shape="pill"
+                  size="large"
+                  width="100%"
+                  text="signup_with"
+                />
+              </div>
             </form>
+
 
             <div className="mt-8 text-center">
               <p className="text-on-surface-variant font-medium">
@@ -394,10 +462,10 @@ const RegisterPage: React.FC = () => {
                 <button 
                   type="button"
                   onClick={handleResendOtp}
-                  disabled={!canResend || loading}
-                  className="text-sm font-semibold text-primary hover:underline disabled:opacity-50 disabled:no-underline"
+                  disabled={countdown > 0 || loading}
+                  className="text-sm font-semibold text-primary hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
                 >
-                  {resendTimer > 0 ? `Gửi lại mã (${resendTimer}s)` : 'Gửi lại mã OTP'}
+                  {countdown > 0 ? `Gửi lại mã (${countdown}s)` : 'Gửi lại mã OTP'}
                 </button>
                 <button onClick={() => setStep(1)} className="text-sm font-semibold text-outline hover:text-primary transition-colors duration-200">
                   Quay lại để sửa Email

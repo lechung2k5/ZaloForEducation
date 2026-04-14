@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { UserModule } from '../user/user.module';
 import { AuthService } from './auth.service';
 import { SessionService } from './session.service';
 import { AuthController } from './auth.controller';
@@ -6,13 +7,13 @@ import { OtpModule } from '../otp/otp.module';
 import { ChatModule } from '../chat/chat.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-
 import { DeviceService } from './device.service';
 
 @Module({
   imports: [
     OtpModule,
     forwardRef(() => ChatModule),
+    forwardRef(() => UserModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

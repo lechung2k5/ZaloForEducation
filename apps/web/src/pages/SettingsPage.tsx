@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const SETTINGS_KEY = 'mobile_settings';
@@ -81,6 +81,7 @@ const ChipSelector: React.FC<{ label: string; active: boolean; onClick: () => vo
 );
 
 const SettingsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user, requestChangePassword, confirmChangePassword } = useAuth();
   const [settings, setSettings] = useState<WebSettings>(DEFAULT_SETTINGS);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -114,9 +115,12 @@ const SettingsPage: React.FC = () => {
     <div className="min-h-screen bg-surface-container-lowest text-on-surface selection:bg-primary/10">
       <nav className="fixed top-0 w-full z-50 bg-white/70 backdrop-blur-2xl border-b border-outline-variant/10 px-8 py-5 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-6">
-          <Link to="/" className="w-11 h-11 flex items-center justify-center rounded-2xl bg-surface-container-highest/50 hover:bg-surface-container-highest transition-all hover:scale-105 active:scale-95 text-on-surface">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="w-11 h-11 flex items-center justify-center rounded-2xl bg-surface-container-highest/50 hover:bg-surface-container-highest transition-all hover:scale-105 active:scale-95 text-on-surface"
+          >
             <span className="material-symbols-outlined text-[24px]">arrow_back</span>
-          </Link>
+          </button>
           <div>
             <h1 className="text-2xl font-black tracking-tight text-primary leading-none">Cài đặt</h1>
             <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mt-1.5">Zalo Education Experience</p>

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
 const SessionsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { getSessions, logout, logoutAll, revokeSession, socket, deviceId, user } = useAuth();
   const [activeSessions, setActiveSessions] = useState<any[]>([]);
   const [loginHistory, setLoginHistory] = useState<any[]>([]);
@@ -103,9 +104,12 @@ const SessionsPage: React.FC = () => {
       {/* Navbar */}
       <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-outline-variant px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <Link to="/" className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-surface-container-low transition-colors text-on-surface-variant">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-surface-container-low transition-colors text-on-surface-variant hov-scale"
+          >
             <span className="material-symbols-outlined">arrow_back</span>
-          </Link>
+          </button>
           <h1 className="text-xl font-bold tracking-tight text-primary">Quản lý phiên đăng nhập</h1>
         </div>
         <div className="flex items-center gap-3">

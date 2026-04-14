@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './context/AuthContext';
+
 import SplashScreen from './components/SplashScreen';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -95,10 +97,13 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <GoogleOAuthProvider clientId="1094444929007-avg6u84ak9i7n9ggnc543e1prb4otv9g.apps.googleusercontent.com">
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </GoogleOAuthProvider>
     </Router>
+
   );
 }
 

@@ -17,11 +17,13 @@ import { Colors, Shadows, Typography } from '../constants/Theme';
 import { apiRequest } from '../utils/api';
 import Alert from '../utils/Alert';
 import { useAuth } from '../context/AuthContext';
+import { useOtpCountdown } from '../hooks/useOtpCountdown';
 
 export default function ChangePasswordScreen({ onNavigate, goBack }) {
     const { logout, user } = useAuth();
     const [step, setStep] = useState(1); // 1: Passwords, 2: OTP
     const [loading, setLoading] = useState(false);
+    const { countdown, startCountdown, syncWithServer } = useOtpCountdown(user?.email);
 
     // Form data
     const [currentPassword, setCurrentPassword] = useState('');
@@ -54,9 +56,13 @@ export default function ChangePasswordScreen({ onNavigate, goBack }) {
                 method: 'POST',
                 body: JSON.stringify({ currentPassword, newPassword })
             });
+            startCountdown();
             Alert.alert('Thành công', res.message || 'Mã OTP đã được gửi về email của bạn.');
             setStep(2);
         } catch (err) {
+            if (err.retryAfter) {
+              syncWithServer(err.retryAfter);
+            }
             Alert.alert('Lỗi', err.message || 'Không thể yêu cầu đổi mật khẩu.');
         } finally {
             setLoading(false);
@@ -82,6 +88,9 @@ export default function ChangePasswordScreen({ onNavigate, goBack }) {
                 [{ text: 'OK', onPress: () => logout() }]
             );
         } catch (err) {
+            if (err.retryAfter) {
+                syncWithServer(err.retryAfter);
+            }
             Alert.alert('Lỗi', err.message || 'Xác thực OTP thất bại.');
         } finally {
             setLoading(false);
@@ -197,16 +206,30 @@ export default function ChangePasswordScreen({ onNavigate, goBack }) {
                             </View>
 
                             <TouchableOpacity 
-                                style={[styles.submitButton, loading && styles.disabledButton]} 
-                                onPress={handleConfirm}
-                                disabled={loading}
+                                style={[styles.submitButton, (loading || (step === 1 && countdown > 0)) && styles.disabledButton]} 
+                                onPress={step === 1 ? handleRequest : handleConfirm}
+                                disabled={loading || (step === 1 && countdown > 0)}
                             >
                                 {loading ? (
                                     <ActivityIndicator color="#fff" />
                                 ) : (
-                                    <Text style={styles.submitText}>Xác nhận & Đổi mật khẩu</Text>
+                                    <Text style={styles.submitText}>
+                                        {step === 1 ? (countdown > 0 ? `Tiếp tục (${countdown}s)` : 'Tiếp tục') : 'Xác nhận & Đổi mật khẩu'}
+                                    </Text>
                                 )}
                             </TouchableOpacity>
+
+                            {step === 2 && (
+                                <TouchableOpacity 
+                                    style={styles.resendBtn} 
+                                    onPress={handleRequest}
+                                    disabled={countdown > 0 || loading}
+                                >
+                                    <Text style={[styles.resendText, (countdown > 0 || loading) && { color: Colors.outline, textDecorationLine: 'none' }]}>
+                                        {countdown > 0 ? `Gửi lại mã (${countdown}s)` : 'Gửi lại mã OTP'}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
 
                             <TouchableOpacity style={styles.resendBtn} onPress={() => setStep(1)}>
                                 <Text style={styles.resendText}>Quay lại nhập mật khẩu</Text>

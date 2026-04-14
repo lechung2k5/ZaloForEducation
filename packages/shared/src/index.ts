@@ -14,12 +14,16 @@ export interface User {
   bio?: string;
   passwordHash: string;
   currentDeviceId?: string;
+  googleId?: string;
+  authProvider?: 'LOCAL' | 'GOOGLE';
+  isVerified?: boolean;
   lastLoginAt: string;
   createdAt: string;
   updatedAt: string;
   status: 'active' | 'suspended';
   isActive: boolean;
 }
+
 
 export interface FileURL {
   fileName: string;

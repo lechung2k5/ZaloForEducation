@@ -3,6 +3,10 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { io } from 'socket.io-client';
+import { GoogleLogin } from '@react-oauth/google';
+import GoogleOneTapPrompt from '../components/GoogleOneTapPrompt';
+import ProfileCompletionModal from '../components/ProfileCompletionModal';
+
 
 const LoginPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'password' | 'qr'>('password');
@@ -19,8 +23,12 @@ const LoginPage: React.FC = () => {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrTimer, setQrTimer] = useState(120);
 
-  const { login, verifyLoginOtp } = useAuth();
+  const { login, verifyLoginOtp, googleLogin } = useAuth();
   const navigate = useNavigate();
+  
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+
   const qrSocketRef = useRef<any>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,6 +75,29 @@ const LoginPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    if (!credentialResponse.credential) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await googleLogin(credentialResponse.credential);
+      if (res.success) {
+        navigate('/chat');
+      } else if (res.isProfileComplete === false) {
+        setPendingEmail(res.email || '');
+        setIsProfileModalOpen(true);
+      } else if (res.requireOtp) {
+        setEmail(res.email || '');
+        setStep('otp');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Đăng nhập Google thất bại.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const fetchQrCode = useCallback(async () => {
     setQrLoading(true);
@@ -156,6 +187,23 @@ const LoginPage: React.FC = () => {
     <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-x-hidden bg-surface text-on-surface w-full font-sans">
       <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-secondary/10 rounded-full blur-[80px] pointer-events-none"></div>
+
+      <GoogleOneTapPrompt 
+        onSuccess={(res) => {
+          if (res.isProfileComplete === false) {
+            setPendingEmail(res.email || '');
+            setIsProfileModalOpen(true);
+          }
+        }}
+        onError={(err) => console.log('One Tap Error:', err)}
+      />
+
+      <ProfileCompletionModal 
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        email={pendingEmail}
+      />
+
 
       <div className="hidden lg:block fixed left-12 top-1/2 -translate-y-1/2 w-64 space-y-4 opacity-40">
         <div className="h-32 bg-primary/10 rounded-xl animate-float"></div>
@@ -330,7 +378,30 @@ const LoginPage: React.FC = () => {
                     </>
                   )}
                 </button>
+
+                <div className="relative my-8">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-outline-variant/10"></div>
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-4 text-on-surface-variant font-bold tracking-widest">Hoặc tiếp tục với</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-center w-full">
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => setError('Đăng nhập Google thất bại.')}
+                    useOneTap={false} // Handled by separate component
+                    theme="outline"
+                    shape="pill"
+                    size="large"
+                    width="100%"
+                    text="continue_with"
+                  />
+                </div>
               </form>
+
             </div>
           ) : (
             <div className="animate-slide-up flex flex-1 flex-col items-center justify-center py-4">

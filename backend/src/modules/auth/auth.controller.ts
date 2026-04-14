@@ -2,10 +2,21 @@ import { Controller, Post, Body, Get, UseGuards, Req, Param, Delete } from '@nes
 import { AuthService } from './auth.service';
 import { RegisterRequestDto, LoginRequestDto } from '@zalo-edu/shared';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { UserService } from '../user/user.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly userService: UserService
+  ) {}
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMe(@Req() req) {
+    const email = req.user.email;
+    return this.userService.getUserProfile(email);
+  }
 
   @Post('register/request-otp')
   async requestRegisterOtp(@Body() body: { email: string }) {
@@ -159,5 +170,22 @@ export class AuthController {
   async confirmChangePassword(@Req() req, @Body() body: { otp: string }) {
     const email = req.user.email;
     return this.authService.confirmChangePassword(email, body.otp);
+  }
+
+  // ===== GOOGLE LOGIN ENDPOINTS =====
+
+  @Post('google-login')
+  async googleLogin(@Body() body: { idToken: string; deviceId: string; deviceName?: string; deviceType?: string }) {
+    return this.authService.googleLogin(body.idToken, body.deviceId, body.deviceName, body.deviceType);
+  }
+
+  @Post('google-complete/request-otp')
+  async googleCompleteRequestOtp(@Body() body: { email: string }) {
+    return this.authService.googleCompleteRequestOtp(body.email);
+  }
+
+  @Post('google-complete/confirm')
+  async googleCompleteConfirm(@Body() dto: RegisterRequestDto & { deviceId: string; deviceName?: string; deviceType?: string }) {
+    return this.authService.googleCompleteConfirm(dto);
   }
 }
