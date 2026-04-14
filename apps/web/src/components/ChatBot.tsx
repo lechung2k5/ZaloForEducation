@@ -1,11 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 interface ChatMessage {
   id: string;
   type: 'user' | 'bot';
   content: string;
   timestamp: Date;
+  citations?: Array<{ sourceTitle: string; content: string }>;
 }
 
 const ChatBot: React.FC = () => {
@@ -14,7 +16,7 @@ const ChatBot: React.FC = () => {
     {
       id: '1',
       type: 'bot',
-      content: 'Xin chào! Tôi là trợ lý ảo của ZaloEdu. Tôi có thể giúp bạn với các câu hỏi về học tập, khoá học, và nhiều thứ khác. Bạn cần giúp gì?',
+      content: `Xin chào ${user?.fullName || user?.fullname || ''}! Tôi là trợ lý AI của ZaloEdu.\nBạn có thể hỏi kiến thức học tập, bài tập, hoặc hỏi theo tài liệu đã tải lên.`,
       timestamp: new Date(),
     },
   ]);
@@ -42,21 +44,40 @@ const ChatBot: React.FC = () => {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const query = inputText;
     setInputText('');
     setIsLoading(true);
 
-    // TODO: Integrate with backend chatbot API
-    // For now, simulate a bot response
-    setTimeout(() => {
+    try {
+      const response = await api.post('/api/ai/chat', { message: query });
+
+      const { answer } = response.data;
+
       const botMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        content: 'Cảm ơn bạn đã hỏi! Tính năng này đang được phát triển. Vui lòng quay lại sau.',
+        content: answer,
         timestamp: new Date(),
       };
+
       setMessages((prev) => [...prev, botMessage]);
+    } catch (error: any) {
+      const errorMsg =
+        error.response?.data?.message ||
+        error.message ||
+        'Có lỗi xảy ra. Vui lòng thử lại sau.';
+
+      const botMessage: ChatMessage = {
+        id: (Date.now() + 2).toString(),
+        type: 'bot',
+        content: `❌ Lỗi: ${errorMsg}`,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, botMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -68,8 +89,8 @@ const ChatBot: React.FC = () => {
             <span className="material-symbols-outlined text-white text-[20px]">smart_toy</span>
           </div>
           <div>
-            <h3 className="font-bold text-on-surface">ZaloEdu Bot</h3>
-            <p className="text-xs text-on-surface-variant">Trợ lý ảo</p>
+            <h3 className="font-bold text-on-surface">ZaloEdu AI</h3>
+            <p className="text-xs text-on-surface-variant">Trợ lý ảo RAG</p>
           </div>
         </div>
       </div>
@@ -77,21 +98,41 @@ const ChatBot: React.FC = () => {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto hide-scrollbar p-4 space-y-4">
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-xs p-3 rounded-[16px] ${
-                msg.type === 'user'
-                  ? 'bg-primary text-white rounded-br-none'
-                  : 'bg-white text-on-surface border border-outline-variant/20 rounded-bl-none'
-              }`}
-            >
-              <p className="text-[14px] leading-relaxed">{msg.content}</p>
-              <span className={`text-xs mt-1 block ${msg.type === 'user' ? 'text-white/70' : 'text-on-surface-variant'}`}>
-                {msg.timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-              </span>
+          <div key={msg.id}>
+            <div className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-xs p-3 rounded-[16px] ${
+                  msg.type === 'user'
+                    ? 'bg-primary text-white rounded-br-none'
+                    : 'bg-white text-on-surface border border-outline-variant/20 rounded-bl-none'
+                }`}
+              >
+                <p className="text-[14px] leading-relaxed">{msg.content}</p>
+                <span className={`text-xs mt-1 block ${msg.type === 'user' ? 'text-white/70' : 'text-on-surface-variant'}`}>
+                  {msg.timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
             </div>
+
+            {/* Citations */}
+            {msg.citations && msg.citations.length > 0 && (
+              <div className="flex justify-start mt-2">
+                <div className="max-w-xs text-xs text-on-surface-variant">
+                  <p className="font-semibold mb-1">📚 Nguồn tham chiếu:</p>
+                  <ul className="space-y-1">
+                    {msg.citations.map((citation, idx) => (
+                      <li key={idx} className="bg-surface-container-lowest p-2 rounded border-l-2 border-primary/40">
+                        <strong>{citation.sourceTitle}</strong>
+                        <p className="text-xs mt-1 line-clamp-2">{citation.content}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
           </div>
         ))}
+
         {isLoading && (
           <div className="flex justify-start">
             <div className="bg-white text-on-surface p-3 rounded-[16px] rounded-bl-none border border-outline-variant/20">

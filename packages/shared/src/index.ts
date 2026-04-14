@@ -20,6 +20,10 @@ export interface User {
   createdAt: string;
   updatedAt?: string;
   status: 'active' | 'suspended';
+  lockStatus?: 'active' | 'locked'; // 'active' = not locked, 'locked' = temporarily locked
+  lockedUntil?: number; // Timestamp (ms) when lock expires
+  lockReason?: string; // Reason for locking (e.g., "too many failed login attempts")
+  deletedAt?: string; // Soft delete timestamp (ISO string). If set, account is deleted
 }
 
 export interface FileURL {

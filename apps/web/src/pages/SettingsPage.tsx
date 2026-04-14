@@ -1,6 +1,8 @@
+import axios from 'axios';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getApiBaseUrl } from '../services/api';
 
 const SETTINGS_KEY = 'mobile_settings';
 
@@ -17,6 +19,8 @@ const DEFAULT_SETTINGS: WebSettings = {
   messageNotificationSound: true,
   autoDownloadMedia: true,
 };
+
+const API_BASE = getApiBaseUrl();
 
 const SettingsToggle: React.FC<{
   label: string;
@@ -44,7 +48,13 @@ const SettingsToggle: React.FC<{
 
 const SettingsPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [settings, setSettings] = useState<WebSettings>(DEFAULT_SETTINGS);
+  const [loadingLock, setLoadingLock] = useState(false);
+  const [loadingDelete, setLoadingDelete] = useState(false);
+  const [showLockOtpForm, setShowLockOtpForm] = useState(false);
+  const [lockOtp, setLockOtp] = useState('');
+  const [lockNotice, setLockNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const displayName = useMemo(() => user?.fullName || user?.fullname || 'Bạn', [user]);
   const displayAvatar = useMemo(
@@ -64,12 +74,117 @@ const SettingsPage: React.FC = () => {
     }
   }, []);
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+  };
+
+  const getAxiosErrorMessage = (error: unknown, fallback: string) => {
+    if (!axios.isAxiosError(error)) {
+      return fallback;
+    }
+    return error.response?.data?.message || fallback;
+  };
+
   const patchSettings = (patch: Partial<WebSettings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
       return next;
     });
+  };
+
+  const handleLockAccount = async () => {
+    setLockNotice(null);
+
+    setLoadingLock(true);
+    try {
+      await axios.post(
+        `${API_BASE}/auth/account/request-lock-otp`,
+        {},
+        { headers: getAuthHeaders() },
+      );
+      setShowLockOtpForm(true);
+      setLockOtp('');
+      setLockNotice({ type: 'success', text: 'Mã OTP xác nhận khóa tài khoản đã được gửi qua email.' });
+    } catch (error) {
+      console.error('Lock account error:', error);
+      setLockNotice({
+        type: 'error',
+        text: getAxiosErrorMessage(error, 'Lỗi khóa tài khoản'),
+      });
+    } finally {
+      setLoadingLock(false);
+    }
+  };
+
+  const handleConfirmLockAccount = async () => {
+    if (!lockOtp.trim()) {
+      setLockNotice({ type: 'error', text: 'Vui lòng nhập mã OTP.' });
+      return;
+    }
+
+    setLockNotice(null);
+    setLoadingLock(true);
+    try {
+      const response = await axios.post(
+        `${API_BASE}/auth/account/confirm-lock-otp`,
+        { otp: lockOtp.trim(), reason: 'Yêu cầu từ người dùng' },
+        { headers: getAuthHeaders() },
+      );
+
+      setLockNotice({ type: 'success', text: response.data.message || 'Khóa tài khoản thành công.' });
+      setShowLockOtpForm(false);
+      setLockOtp('');
+
+      setTimeout(() => {
+        localStorage.removeItem('token');
+        navigate('/login');
+      }, 1000);
+    } catch (error) {
+      console.error('Confirm lock account error:', error);
+      setLockNotice({
+        type: 'error',
+        text: getAxiosErrorMessage(error, 'Xác nhận OTP thất bại'),
+      });
+    } finally {
+      setLoadingLock(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('⚠️ CẢNH BÁO: Hành động này sẽ XÓA tài khoản của bạn!\n\nNhập "XÓA CÓ" để xác nhận:')) {
+      return;
+    }
+
+    const confirmation = window.prompt('Nhập "XÓA CÓ" để xác nhận xóa tài khoản:');
+    if (confirmation !== 'XÓA CÓ') {
+      alert('Xóa tài khoản đã hủy.');
+      return;
+    }
+
+    setLoadingDelete(true);
+    try {
+      const response = await axios.delete(
+        `${API_BASE}/auth/account/delete`,
+        { headers: getAuthHeaders() },
+      );
+
+      alert(response.data.message);
+      // Redirect to login after deletion
+      setTimeout(() => {
+        localStorage.removeItem('token');
+        navigate('/login');
+      }, 1000);
+    } catch (error) {
+      console.error('Delete account error:', error);
+      alert(getAxiosErrorMessage(error, 'Lỗi xóa tài khoản'));
+    } finally {
+      setLoadingDelete(false);
+    }
   };
 
   return (
@@ -136,6 +251,67 @@ const SettingsPage: React.FC = () => {
           >
             Mở quản lý phiên
           </Link>
+        </section>
+
+        <section className="mt-10 rounded-3xl border border-orange-200 bg-orange-50 p-6">
+          <h3 className="text-lg font-bold text-on-surface">Duy trì bảo mật tài khoản</h3>
+          <p className="text-sm text-on-surface-variant mt-1 mb-4">Khóa/mở khóa tài khoản qua xác nhận OTP email hoặc xóa tài khoản vĩnh viễn.</p>
+          
+          <div className="space-y-3">
+            <button
+              onClick={handleLockAccount}
+              disabled={loadingLock}
+              className="w-full sm:w-auto inline-flex items-center justify-center rounded-2xl bg-orange-500 text-white px-5 py-3 font-semibold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loadingLock ? 'Đang xử lý...' : 'Khóa tài khoản (OTP email)'}
+            </button>
+
+            {lockNotice && (
+              <div className={`max-w-md rounded-xl px-3 py-2 text-sm font-medium ${lockNotice.type === 'success' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                {lockNotice.text}
+              </div>
+            )}
+
+            {showLockOtpForm && (
+              <div className="w-full max-w-md rounded-2xl border border-orange-200 bg-white p-4">
+                <p className="text-sm text-on-surface-variant mb-3">Nhập mã OTP đã gửi qua email để xác nhận khóa tài khoản.</p>
+                <input
+                  type="text"
+                  value={lockOtp}
+                  onChange={(event) => setLockOtp(event.target.value)}
+                  placeholder="Nhập mã OTP"
+                  className="w-full rounded-xl border border-outline-variant px-3 py-2.5 text-sm text-on-surface mb-3"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleConfirmLockAccount}
+                    disabled={loadingLock}
+                    className="inline-flex items-center justify-center rounded-xl bg-orange-600 text-white px-4 py-2.5 text-sm font-semibold hover:bg-orange-700 disabled:opacity-50"
+                  >
+                    {loadingLock ? 'Đang xác nhận...' : 'Xác nhận OTP'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowLockOtpForm(false);
+                      setLockOtp('');
+                    }}
+                    disabled={loadingLock}
+                    className="inline-flex items-center justify-center rounded-xl bg-slate-200 text-slate-800 px-4 py-2.5 text-sm font-semibold hover:bg-slate-300 disabled:opacity-50"
+                  >
+                    Hủy
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleDeleteAccount}
+              disabled={loadingDelete}
+              className="w-full sm:w-auto ml-0 sm:ml-3 inline-flex items-center justify-center rounded-2xl bg-red-500 text-white px-5 py-3 font-semibold hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loadingDelete ? 'Đang xử lý...' : 'Xóa tài khoản'}
+            </button>
+          </div>
         </section>
       </main>
     </div>

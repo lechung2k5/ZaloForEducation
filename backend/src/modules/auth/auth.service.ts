@@ -1,5 +1,5 @@
 import { GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { LoginRequestDto, RegisterRequestDto, User } from '@zalo-edu/shared';
 import * as bcrypt from 'bcrypt';
@@ -59,6 +59,9 @@ export class AuthService {
       createdAt: new Date().toISOString(),
       lastLoginAt: new Date().toISOString(),
       status: 'active',
+      lockStatus: 'active',
+      lockedUntil: undefined,
+      deletedAt: undefined,
     };
 
     await this.db.docClient.send(new PutCommand({
@@ -82,6 +85,20 @@ export class AuthService {
     const user = result.Item as User;
     if (!user) {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác.');
+    }
+
+    // Check if account is deleted
+    if (user.deletedAt) {
+      throw new UnauthorizedException('Tài khoản này đã bị xóa.');
+    }
+
+    // Check if account is locked
+    if (user.lockStatus === 'locked') {
+      return {
+        locked: true,
+        email: user.email,
+        message: 'Tài khoản đang bị khóa. Vui lòng xác nhận OTP qua email để mở khóa.',
+      };
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
@@ -291,5 +308,225 @@ export class AuthService {
       '<h1>Cấu hình Email thành công!</h1><p>Bạn nhận được thư này tức là hệ thống SMTP đã hoạt động tốt.</p>'
     );
     return { message: 'Đã gửi email test thành công.' };
+  }
+
+  // ===== ACCOUNT LOCK/UNLOCK =====
+
+  /**
+   * Lock an account until user confirms unlock OTP.
+   */
+  async lockAccount(email: string, reason: string = 'Yêu cầu từ người dùng') {
+    const user = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+
+    if (!user.Item) {
+      throw new NotFoundException('Không tìm thấy tài khoản người dùng.');
+    }
+
+    await this.db.docClient.send(new UpdateCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+      UpdateExpression: 'SET lockStatus = :lockStatus, lockReason = :reason REMOVE lockedUntil',
+      ExpressionAttributeValues: {
+        ':lockStatus': 'locked',
+        ':reason': reason,
+      },
+    }));
+
+    // Logout all sessions
+    await this.logoutAll(email);
+
+    console.log(`[AUTH] Account locked for ${email}`);
+
+    return {
+      message: `Tài khoản đã được khóa thành công do ${reason}.`,
+    };
+  }
+
+  async requestLockOtp(email: string) {
+    const user = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+
+    if (!user.Item) {
+      throw new NotFoundException('Không tìm thấy tài khoản người dùng.');
+    }
+
+    const userRecord = user.Item as User;
+    if (userRecord.lockStatus === 'locked') {
+      throw new BadRequestException('Tài khoản hiện đang bị khóa.');
+    }
+
+    const code = await this.otpService.createOtp(email, 'lock_account');
+    const emailSent = await this.emailService.sendOtp(email, code, 'lock_account');
+
+    if (!emailSent) {
+      throw new BadRequestException('Không thể gửi email xác nhận lúc này. Vui lòng thử lại sau.');
+    }
+
+    return { message: 'Mã OTP khóa tài khoản đã được gửi về email của bạn.' };
+  }
+
+  async confirmLockOtp(email: string, otp: string, reason: string = 'Yêu cầu từ người dùng') {
+    const user = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+
+    if (!user.Item) {
+      throw new NotFoundException('Không tìm thấy tài khoản người dùng.');
+    }
+
+    const userRecord = user.Item as User;
+    if (userRecord.lockStatus === 'locked') {
+      throw new BadRequestException('Tài khoản hiện đang bị khóa.');
+    }
+
+    await this.otpService.verifyOtp(email, otp);
+    return this.lockAccount(email, reason);
+  }
+
+  /**
+   * Unlock an account
+   * @param email User email
+   */
+  async unlockAccount(email: string) {
+    const user = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+
+    if (!user.Item) {
+      throw new NotFoundException('Không tìm thấy tài khoản người dùng.');
+    }
+
+    await this.db.docClient.send(new UpdateCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+      UpdateExpression: 'SET lockStatus = :lockStatus REMOVE lockedUntil, lockReason',
+      ExpressionAttributeValues: {
+        ':lockStatus': 'active',
+      },
+    }));
+
+    console.log(`[AUTH] Account unlocked for ${email}`);
+
+    return { message: 'Tài khoản đã được mở khóa thành công.' };
+  }
+
+  /**
+   * Delete account (soft delete)
+   * @param email User email
+   */
+  async deleteAccount(email: string) {
+    const user = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+
+    if (!user.Item) {
+      throw new NotFoundException('Không tìm thấy tài khoản người dùng.');
+    }
+
+    // Soft delete: set deletedAt timestamp
+    await this.db.docClient.send(new UpdateCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+      UpdateExpression: 'SET deletedAt = :deletedAt, lockStatus = :lockStatus',
+      ExpressionAttributeValues: {
+        ':deletedAt': new Date().toISOString(),
+        ':lockStatus': 'locked',
+      },
+    }));
+
+    // Logout all sessions
+    await this.logoutAll(email);
+
+    console.log(`[AUTH] Account deleted (soft delete) for ${email}`);
+
+    return { message: 'Tài khoản đã bị xóa. Tất cả phiên đăng nhập đã được hủy.' };
+  }
+
+  // ===== UNLOCK ACCOUNT WITH OTP =====
+
+  /**
+   * Request OTP to unlock a locked account
+   * @param email User email
+   */
+  async requestUnlockOtp(email: string) {
+    const user = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+
+    if (!user.Item) {
+      throw new NotFoundException('Không tìm thấy tài khoản người dùng.');
+    }
+
+    const userRecord = user.Item as User;
+
+    // Check if account is actually locked
+    if (userRecord.lockStatus !== 'locked') {
+      throw new BadRequestException('Tài khoản không bị khóa.');
+    }
+
+    // Create OTP for account unlock
+    const code = await this.otpService.createOtp(email, 'unlock_account');
+
+    // Send OTP via email
+    const emailSent = await this.emailService.sendOtp(email, code, 'unlock_account');
+
+    if (!emailSent) {
+      throw new BadRequestException('Không thể gửi email xác nhận lúc này. Vui lòng thử lại sau.');
+    }
+
+    console.log(`[AUTH] Unlock OTP sent to ${email}`);
+
+    return {
+      message: 'Mã OTP xác nhận đã được gửi về email của bạn. Vui lòng kiểm tra hộp thư.',
+      email: email,
+    };
+  }
+
+  /**
+   * Confirm unlock with OTP
+   * @param email User email
+   * @param otp OTP code
+   */
+  async confirmUnlockOtp(email: string, otp: string) {
+    const user = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+
+    if (!user.Item) {
+      throw new NotFoundException('Không tìm thấy tài khoản người dùng.');
+    }
+
+    const userRecord = user.Item as User;
+
+    // Check if account is actually locked
+    if (userRecord.lockStatus !== 'locked') {
+      throw new BadRequestException('Tài khoản không bị khóa.');
+    }
+
+    try {
+      await this.otpService.verifyOtp(email, otp);
+    } catch (error) {
+      throw new BadRequestException('Mã OTP không chính xác hoặc đã hết hạn.');
+    }
+
+    // Unlock the account
+    await this.unlockAccount(email);
+
+    console.log(`[AUTH] Account unlocked for ${email} via OTP`);
+
+    return {
+      message: 'Tài khoản đã được mở khóa thành công! Bạn có thể đăng nhập lại ngay bây giờ.',
+      email: email,
+    };
   }
 }

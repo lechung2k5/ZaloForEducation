@@ -2,17 +2,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { Colors, Shadows, Typography } from '../constants/Theme';
 import Alert from '../utils/Alert';
@@ -20,7 +20,6 @@ import { getApiBaseUrl } from '../utils/api';
 
 const API_URL = getApiBaseUrl();
 const COVER_URL = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80';
-const POSTS_STORAGE_KEY = 'mobile_profile_posts';
 
 const EMPTY_PROFILE = {
   fullName: '',
@@ -28,7 +27,7 @@ const EMPTY_PROFILE = {
   phone: '',
   address: '',
   bio: '',
-  currentStatus: '',
+  currentFeeling: '',
   dataOfBirth: '',
   gender: true,
   avatarUrl: '',
@@ -47,12 +46,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
   const [quickMode, setQuickMode] = useState(null);
   const [quickSaving, setQuickSaving] = useState(false);
   const [bioDraft, setBioDraft] = useState('');
-  const [statusDraft, setStatusDraft] = useState('');
-  const [infoExpanded, setInfoExpanded] = useState(false);
-  const [showPostComposer, setShowPostComposer] = useState(false);
-  const [postDraft, setPostDraft] = useState('');
-  const [postAttachment, setPostAttachment] = useState(null);
-  const [posts, setPosts] = useState([]);
+  const [feelingDraft, setFeelingDraft] = useState('');
 
   const storage = useMemo(() => AsyncStorage.default || AsyncStorage, []);
 
@@ -72,7 +66,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
     const fullName = source.fullName || source.fullname || '';
     const avatarUrl = source.avatarUrl || source.urlAvatar || '';
     const backgroundUrl = source.backgroundUrl || source.urlBackground || '';
-    const currentStatus = source.currentStatus || source.statusMessage || '';
+    const currentFeeling = source.currentFeeling || source.feelingMessage || source.currentStatus || source.statusMessage || '';
 
     return {
       ...EMPTY_PROFILE,
@@ -83,8 +77,10 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
       urlAvatar: avatarUrl,
       backgroundUrl,
       urlBackground: backgroundUrl,
-      currentStatus,
-      statusMessage: currentStatus,
+      currentFeeling,
+      feelingMessage: currentFeeling,
+      currentStatus: currentFeeling,
+      statusMessage: currentFeeling,
       gender: typeof source.gender === 'boolean' ? source.gender : true,
     };
   };
@@ -101,8 +97,46 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
       urlAvatar: nextProfile.avatarUrl || nextProfile.urlAvatar || currentUser.avatarUrl || currentUser.urlAvatar || '',
       backgroundUrl: nextProfile.backgroundUrl || nextProfile.urlBackground || currentUser.backgroundUrl || currentUser.urlBackground || '',
       urlBackground: nextProfile.backgroundUrl || nextProfile.urlBackground || currentUser.backgroundUrl || currentUser.urlBackground || '',
-      currentStatus: nextProfile.currentStatus || nextProfile.statusMessage || currentUser.currentStatus || currentUser.statusMessage || '',
-      statusMessage: nextProfile.currentStatus || nextProfile.statusMessage || currentUser.currentStatus || currentUser.statusMessage || '',
+      currentFeeling:
+        nextProfile.currentFeeling ||
+        nextProfile.feelingMessage ||
+        nextProfile.currentStatus ||
+        nextProfile.statusMessage ||
+        currentUser.currentFeeling ||
+        currentUser.feelingMessage ||
+        currentUser.currentStatus ||
+        currentUser.statusMessage ||
+        '',
+      feelingMessage:
+        nextProfile.currentFeeling ||
+        nextProfile.feelingMessage ||
+        nextProfile.currentStatus ||
+        nextProfile.statusMessage ||
+        currentUser.currentFeeling ||
+        currentUser.feelingMessage ||
+        currentUser.currentStatus ||
+        currentUser.statusMessage ||
+        '',
+      currentStatus:
+        nextProfile.currentFeeling ||
+        nextProfile.feelingMessage ||
+        nextProfile.currentStatus ||
+        nextProfile.statusMessage ||
+        currentUser.currentFeeling ||
+        currentUser.feelingMessage ||
+        currentUser.currentStatus ||
+        currentUser.statusMessage ||
+        '',
+      statusMessage:
+        nextProfile.currentFeeling ||
+        nextProfile.feelingMessage ||
+        nextProfile.currentStatus ||
+        nextProfile.statusMessage ||
+        currentUser.currentFeeling ||
+        currentUser.feelingMessage ||
+        currentUser.currentStatus ||
+        currentUser.statusMessage ||
+        '',
     };
 
     await storage.setItem('user', JSON.stringify(mergedUser));
@@ -172,23 +206,6 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
     fetchProfile();
   }, []);
 
-  useEffect(() => {
-    const loadPosts = async () => {
-      try {
-        const raw = await storage.getItem(POSTS_STORAGE_KEY);
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          setPosts(parsed);
-        }
-      } catch (error) {
-        console.error('Load profile posts error', error);
-      }
-    };
-
-    loadPosts();
-  }, []);
-
   const handleChange = (field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
   };
@@ -209,14 +226,14 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
   };
 
   const openQuickStatusEditor = () => {
-    setStatusDraft(profile.currentStatus || '');
+    setFeelingDraft(profile.currentFeeling || profile.currentStatus || '');
     setQuickMode('status');
   };
 
   const closeQuickEditor = () => {
     setQuickMode(null);
     setBioDraft('');
-    setStatusDraft('');
+    setFeelingDraft('');
   };
 
   const saveQuickBio = async () => {
@@ -257,74 +274,16 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
   const saveQuickStatus = async () => {
     setQuickSaving(true);
     try {
-      const nextProfile = normalizeProfile({ ...profile, currentStatus: statusDraft.trim() });
+      const nextProfile = normalizeProfile({ ...profile, currentFeeling: feelingDraft.trim() });
       setProfile(nextProfile);
       setDraft(nextProfile);
       await persistUser(nextProfile);
       closeQuickEditor();
-      Alert.alert('Thành công', 'Đã cập nhật trạng thái.');
+      Alert.alert('Thành công', 'Đã cập nhật feeling.');
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể cập nhật trạng thái.');
+      Alert.alert('Lỗi', 'Không thể cập nhật feeling.');
     } finally {
       setQuickSaving(false);
-    }
-  };
-
-  const handleCreatePost = async () => {
-    const content = postDraft.trim();
-    if (!content && !postAttachment) {
-      Alert.alert('Thiếu nội dung', 'Vui lòng nhập nội dung hoặc đính kèm ảnh/video trước khi đăng bài.');
-      return;
-    }
-
-    try {
-      const nextPost = {
-        id: `${Date.now()}`,
-        content,
-        createdAt: new Date().toISOString(),
-        authorName: displayName,
-        authorAvatar: avatarUrl || '',
-        attachment: postAttachment ? { ...postAttachment } : null,
-      };
-      const nextPosts = [nextPost, ...posts];
-      setPosts(nextPosts);
-      await storage.setItem(POSTS_STORAGE_KEY, JSON.stringify(nextPosts));
-      setPostDraft('');
-      setPostAttachment(null);
-      setShowPostComposer(false);
-      Alert.alert('Thành công', 'Đã đăng bài.');
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể đăng bài lúc này.');
-    }
-  };
-
-  const pickAttachment = async (mediaKind) => {
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Lỗi', 'Vui lòng cấp quyền truy cập thư viện ảnh.');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: mediaKind === 'video' ? ImagePicker.MediaTypeOptions.Videos : ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: mediaKind === 'image',
-        quality: 0.85,
-      });
-
-      if (result.canceled || !result.assets?.length) {
-        return;
-      }
-
-      const asset = result.assets[0];
-      setPostAttachment({
-        type: mediaKind,
-        uri: asset.uri,
-        name: asset.fileName || `${mediaKind}-${Date.now()}`,
-      });
-      setShowPostComposer(true);
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể chọn tệp đính kèm.');
     }
   };
 
@@ -671,7 +630,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
                     </TouchableOpacity>
                   </View>
                   <TouchableOpacity style={styles.statusBubble} onPress={openQuickStatusEditor} activeOpacity={0.85}>
-                    <Text style={styles.statusBubbleText}>{profile.currentStatus || 'Current status'}</Text>
+                    <Text style={styles.statusBubbleText}>{profile.currentFeeling || profile.currentStatus || 'Current feeling'}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -714,12 +673,12 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
 
               {quickMode === 'status' && (
                 <View style={styles.quickEditorCard}>
-                  <Text style={styles.quickEditorTitle}>Cập nhật Current status</Text>
+                  <Text style={styles.quickEditorTitle}>Cập nhật Current feeling</Text>
                   <TextInput
                     style={styles.quickEditorInput}
-                    value={statusDraft}
-                    onChangeText={setStatusDraft}
-                    placeholder="Nhập trạng thái hiện tại"
+                    value={feelingDraft}
+                    onChangeText={setFeelingDraft}
+                    placeholder="Nhập feeling hiện tại"
                     placeholderTextColor={Colors.outline}
                     maxLength={60}
                   />
@@ -732,7 +691,7 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
                       onPress={saveQuickStatus}
                       disabled={quickSaving}
                     >
-                      <Text style={styles.quickEditorSaveText}>{quickSaving ? 'Đang lưu...' : 'Lưu status'}</Text>
+                      <Text style={styles.quickEditorSaveText}>{quickSaving ? 'Đang lưu...' : 'Lưu feeling'}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -746,146 +705,45 @@ export default function ProfileScreen({ onNavigate, onLogout }) {
               </ScrollView>
 
               <View style={styles.infoSection}>
-                <TouchableOpacity style={styles.infoHeader} onPress={() => setInfoExpanded((prev) => !prev)} activeOpacity={0.82}>
+                <View style={styles.infoHeader}>
                   <Text style={styles.infoTitle}>Thông tin cá nhân</Text>
-                  <Text style={styles.infoChevron}>{infoExpanded ? 'expand_less' : 'expand_more'}</Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Họ tên</Text>
+                  <Text style={styles.infoValue}>{displayName}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Email</Text>
+                  <Text style={styles.infoValue}>{profile.email || 'Chưa cập nhật'}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Giới tính</Text>
+                  <Text style={styles.infoValue}>{profile.gender ? 'Nam' : 'Nữ'}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Ngày sinh</Text>
+                  <Text style={styles.infoValue}>{formatBirthDate(profile.dataOfBirth)}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Điện thoại</Text>
+                  <Text style={styles.infoValue}>{profile.phone || 'Chưa cập nhật'}</Text>
+                </View>
+                <View style={styles.infoColumn}>
+                  <Text style={styles.infoLabel}>Địa chỉ</Text>
+                  <Text style={styles.infoValue}>{profile.address || 'Chưa cập nhật'}</Text>
+                </View>
+                <View style={styles.infoColumn}>
+                  <Text style={styles.infoLabel}>Giới thiệu</Text>
+                  <Text style={styles.infoValue}>{profile.bio || 'Chưa cập nhật'}</Text>
+                </View>
+
+                <Text style={styles.privacyNote}>Chỉ bạn bè có lưu số của bạn trong danh bạ máy xem được số này</Text>
+
+                <TouchableOpacity style={styles.updateInlineButton} onPress={startEditing}>
+                  <Text style={styles.updateInlineIcon}>edit</Text>
+                  <Text style={styles.updateInlineText}>Cập nhật</Text>
                 </TouchableOpacity>
-
-                {!infoExpanded && <Text style={styles.infoCollapsedHint}>Nhấn để mở rộng và xem chi tiết</Text>}
-
-                {infoExpanded && (
-                  <>
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Giới tính</Text>
-                      <Text style={styles.infoValue}>{profile.gender ? 'Nam' : 'Nữ'}</Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Ngày sinh</Text>
-                      <Text style={styles.infoValue}>{formatBirthDate(profile.dataOfBirth)}</Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Điện thoại</Text>
-                      <Text style={styles.infoValue}>{profile.phone || 'Chưa cập nhật'}</Text>
-                    </View>
-
-                    <Text style={styles.privacyNote}>Chỉ bạn bè có lưu số của bạn trong danh bạ máy xem được số này</Text>
-
-                    <TouchableOpacity style={styles.updateInlineButton} onPress={startEditing}>
-                      <Text style={styles.updateInlineIcon}>edit</Text>
-                      <Text style={styles.updateInlineText}>Cập nhật</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-
-              <View style={styles.postSection}>
-                <TouchableOpacity style={styles.postButton} onPress={() => setShowPostComposer((prev) => !prev)} activeOpacity={0.88}>
-                  <Text style={styles.postButtonIcon}>edit_square</Text>
-                  <Text style={styles.postButtonText}>Đăng bài</Text>
-                </TouchableOpacity>
-
-                {showPostComposer && (
-                  <View style={styles.postComposerCard}>
-                    <View style={styles.postComposerAuthorRow}>
-                      {avatarUrl ? (
-                        <Image source={{ uri: avatarUrl }} style={styles.postComposerAvatar} />
-                      ) : (
-                        <View style={styles.postComposerAvatarFallback}>
-                          <Text style={styles.postComposerAvatarInitial}>{displayName ? displayName[0].toUpperCase() : 'U'}</Text>
-                        </View>
-                      )}
-                      <View style={styles.postComposerAuthorInfo}>
-                        <Text style={styles.postComposerAuthorName}>{displayName}</Text>
-                        <Text style={styles.postComposerAuthorEmail}>{profile.email || ''}</Text>
-                      </View>
-                    </View>
-                    <TextInput
-                      style={styles.postComposerInput}
-                      value={postDraft}
-                      onChangeText={setPostDraft}
-                      placeholder="Bạn đang nghĩ gì?"
-                      placeholderTextColor={Colors.outline}
-                      multiline
-                      maxLength={500}
-                      textAlignVertical="top"
-                    />
-                    {postAttachment && (
-                      <View style={styles.postAttachmentPreview}>
-                        {postAttachment.type === 'image' ? (
-                          <Image source={{ uri: postAttachment.uri }} style={styles.postAttachmentImage} />
-                        ) : (
-                          <View style={styles.postAttachmentVideoCard}>
-                            <Text style={styles.postAttachmentVideoIcon}>play_circle</Text>
-                            <Text style={styles.postAttachmentVideoText}>{postAttachment.name || 'Video đính kèm'}</Text>
-                          </View>
-                        )}
-                        <TouchableOpacity style={styles.postAttachmentRemoveButton} onPress={() => setPostAttachment(null)}>
-                          <Text style={styles.postAttachmentRemoveIcon}>close</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                    <View style={styles.postComposerToolbar}>
-                      <TouchableOpacity style={styles.postComposerAttachButton} onPress={() => pickAttachment('image')}>
-                        <Text style={styles.postComposerAttachIcon}>image</Text>
-                        <Text style={styles.postComposerAttachText}>Ảnh</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.postComposerAttachButton} onPress={() => pickAttachment('video')}>
-                        <Text style={styles.postComposerAttachIcon}>movie</Text>
-                        <Text style={styles.postComposerAttachText}>Video</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <View style={styles.postComposerActions}>
-                      <TouchableOpacity
-                        style={styles.postComposerCancel}
-                        onPress={() => {
-                          setShowPostComposer(false);
-                          setPostDraft('');
-                          setPostAttachment(null);
-                        }}
-                      >
-                        <Text style={styles.postComposerCancelText}>Hủy</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.postComposerSubmit} onPress={handleCreatePost}>
-                        <Text style={styles.postComposerSubmitText}>Đăng</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-
-                {posts.length > 0 && (
-                  <View style={styles.postList}>
-                    {posts.map((post) => (
-                      <View key={post.id} style={styles.postCard}>
-                        <View style={styles.postCardAuthorRow}>
-                          {post.authorAvatar ? (
-                            <Image source={{ uri: post.authorAvatar }} style={styles.postCardAvatar} />
-                          ) : (
-                            <View style={styles.postCardAvatarFallback}>
-                              <Text style={styles.postCardAvatarInitial}>{post.authorName ? post.authorName[0].toUpperCase() : 'U'}</Text>
-                            </View>
-                          )}
-                          <View style={styles.postCardAuthorInfo}>
-                            <Text style={styles.postCardAuthorName}>{post.authorName || 'Người dùng'}</Text>
-                            <Text style={styles.postDate}>{new Date(post.createdAt).toLocaleString('vi-VN')}</Text>
-                          </View>
-                        </View>
-                        <Text style={styles.postContent}>{post.content}</Text>
-                        {post.attachment && (
-                          <View style={styles.postCardAttachment}>
-                            {post.attachment.type === 'image' ? (
-                              <Image source={{ uri: post.attachment.uri }} style={styles.postCardAttachmentImage} />
-                            ) : (
-                              <View style={styles.postCardVideoCard}>
-                                <Text style={styles.postCardVideoIcon}>play_circle</Text>
-                                <Text style={styles.postCardVideoText}>{post.attachment.name || 'Video đính kèm'}</Text>
-                              </View>
-                            )}
-                          </View>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                )}
               </View>
               </View>
             </View>
@@ -1497,6 +1355,9 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 12,
+  },
+  infoColumn: {
     marginTop: 12,
   },
   infoLabel: {

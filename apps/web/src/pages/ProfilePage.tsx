@@ -16,21 +16,6 @@ type ProfileState = {
   backgroundUrl: string;
 };
 
-type ProfilePost = {
-  id: string;
-  content: string;
-  createdAt: string;
-  authorName?: string;
-  authorAvatar?: string;
-  attachment?: ProfileAttachment | null;
-};
-
-type ProfileAttachment = {
-  type: 'image' | 'video';
-  uri: string;
-  name?: string;
-};
-
 const COVER_IMAGE = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1600&q=80';
 
 const ProfilePage: React.FC = () => {
@@ -50,11 +35,6 @@ const ProfilePage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [infoExpanded, setInfoExpanded] = useState(false);
-  const [showPostComposer, setShowPostComposer] = useState(false);
-  const [postDraft, setPostDraft] = useState('');
-  const [postAttachment, setPostAttachment] = useState<ProfileAttachment | null>(null);
-  const [posts, setPosts] = useState<ProfilePost[]>([]);
   const [draft, setDraft] = useState<ProfileState>({
     fullName: '',
     email: '',
@@ -68,7 +48,6 @@ const ProfilePage: React.FC = () => {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
-  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   const normalizeProfile = (data: any): ProfileState => ({
     fullName: data?.fullName || data?.fullname || '',
@@ -284,22 +263,6 @@ const ProfilePage: React.FC = () => {
   const displayName = profile.fullName || user?.fullName || user?.fullname || 'Người dùng';
   const displayInitial = displayName.charAt(0).toUpperCase();
   const dateParts = toDateParts(draft.dataOfBirth);
-  const postsStorageKey = `web_profile_posts_${user?.email || 'default'}`;
-
-  useEffect(() => {
-    const raw = localStorage.getItem(postsStorageKey);
-    if (!raw) {
-      setPosts([]);
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw);
-      setPosts(Array.isArray(parsed) ? parsed : []);
-    } catch (error) {
-      console.error('Load web profile posts error', error);
-      setPosts([]);
-    }
-  }, [postsStorageKey]);
 
   const handleDayChange = (value: string) => {
     const day = value.replace(/\D/g, '').slice(0, 2);
@@ -316,72 +279,6 @@ const ProfilePage: React.FC = () => {
     handleChange('dataOfBirth', buildDate(dateParts.day, dateParts.month, year));
   };
 
-  const handleCreatePost = async () => {
-    const content = postDraft.trim();
-    if (!content && !postAttachment) {
-      await Swal.fire({
-        icon: 'warning',
-        title: 'Thiếu nội dung',
-        text: 'Vui lòng nhập nội dung hoặc đính kèm ảnh/video trước khi đăng bài.',
-        confirmButtonColor: '#00418f',
-      });
-      return;
-    }
-
-    const nextPost: ProfilePost = {
-      id: `${Date.now()}`,
-      content,
-      createdAt: new Date().toISOString(),
-      authorName: displayName,
-      authorAvatar: displayAvatar || '',
-      attachment: postAttachment ? { ...postAttachment } : null,
-    };
-    const nextPosts = [nextPost, ...posts];
-    setPosts(nextPosts);
-    localStorage.setItem(postsStorageKey, JSON.stringify(nextPosts));
-    setPostDraft('');
-    setPostAttachment(null);
-    setShowPostComposer(false);
-  };
-
-  const handleAttachmentButtonClick = () => {
-    attachmentInputRef.current?.click();
-  };
-
-  const handleAttachmentChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    const isVideo = file.type.startsWith('video/');
-    const isImage = file.type.startsWith('image/');
-    if (!isImage && !isVideo) {
-      await Swal.fire({
-        icon: 'warning',
-        title: 'File không hợp lệ',
-        text: 'Chỉ hỗ trợ ảnh hoặc video.',
-        confirmButtonColor: '#00418f',
-      });
-      event.target.value = '';
-      return;
-    }
-
-    const reader = new FileReader();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('Không thể đọc file đính kèm.'));
-      reader.readAsDataURL(file);
-    });
-
-    setPostAttachment({
-      type: isVideo ? 'video' : 'image',
-      uri: dataUrl,
-      name: file.name || (isVideo ? 'video' : 'image'),
-    });
-    setShowPostComposer(true);
-    event.target.value = '';
-  };
 
   return (
     <div className="min-h-screen bg-[#e8edf4]">
@@ -494,149 +391,46 @@ const ProfilePage: React.FC = () => {
             </div>
 
             <div className="px-5 py-5 bg-[#f8f9fb]">
-              <button
-                type="button"
-                onClick={() => setInfoExpanded((prev) => !prev)}
-                className="w-full flex items-center justify-between rounded-xl border border-slate-300 bg-white px-4 py-3"
-              >
-                <h3 className="text-lg font-bold text-slate-800">Thông tin cá nhân</h3>
-                <span className="material-symbols-outlined text-slate-700">{infoExpanded ? 'expand_less' : 'expand_more'}</span>
-              </button>
-
-              {!infoExpanded && <p className="text-sm text-slate-500 mt-2">Nhấn để mở rộng và xem chi tiết</p>}
-
-              {infoExpanded && (
-                <>
-                  <div className="space-y-3 mb-4 mt-4">
-                    <div className="flex items-center">
-                      <span className="w-28 text-base text-slate-500">Giới tính</span>
-                      <span className="text-base text-slate-800">{profile.gender ? 'Nam' : 'Nữ'}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <span className="w-28 text-base text-slate-500">Ngày sinh</span>
-                      <span className="text-base text-slate-800">{formatBirthDate(profile.dataOfBirth)}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <span className="w-28 text-base text-slate-500">Điện thoại</span>
-                      <span className="text-base text-slate-800">{profile.phone || 'Chưa cập nhật'}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="w-28 text-base text-slate-500 mb-1">Địa chỉ</span>
-                      <span className="text-base text-slate-800">{profile.address || 'Chưa cập nhật'}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="w-28 text-base text-slate-500 mb-1">Giới thiệu</span>
-                      <span className="text-base text-slate-800">{profile.bio || 'Chưa cập nhật'}</span>
-                    </div>
+              <div className="rounded-xl border border-slate-300 bg-white px-4 py-4">
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Thông tin cá nhân</h3>
+                <div className="space-y-3 mb-4">
+                  <div className="flex items-center">
+                    <span className="w-28 text-base text-slate-500">Họ tên</span>
+                    <span className="text-base text-slate-800">{displayName}</span>
                   </div>
-
-                  <p className="text-sm leading-6 text-slate-500 mb-4">Chỉ bạn bè có lưu số của bạn trong danh bạ máy xem được số này</p>
-
-                  <button onClick={handleStartEdit} className="w-full pt-3 border-t border-slate-300 flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined text-xl text-slate-800">edit</span>
-                    <span className="text-lg font-bold text-slate-800">Cập nhật</span>
-                  </button>
-                </>
-              )}
-
-              <div className="mt-5 rounded-2xl border border-slate-300 bg-white p-4">
-                <button
-                  onClick={() => setShowPostComposer((prev) => !prev)}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-[#0b72ff] px-5 py-2.5 text-base font-bold text-white shadow-[0_8px_20px_rgba(11,114,255,0.3)]"
-                >
-                  <span className="material-symbols-outlined text-[20px]">edit_square</span>
-                  <span>Đăng bài</span>
-                </button>
-
-                {showPostComposer && (
-                  <div className="mt-3">
-                    <div className="flex items-center gap-3 mb-3">
-                      {displayAvatar ? (
-                        <img src={displayAvatar} alt={displayName} className="w-11 h-11 rounded-full object-cover border border-slate-300" />
-                      ) : (
-                        <div className="w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center font-bold">{displayInitial}</div>
-                      )}
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">{displayName}</p>
-                        <p className="text-xs text-slate-500">{profile.email || user?.email}</p>
-                      </div>
-                    </div>
-                    <textarea
-                      value={postDraft}
-                      onChange={(event) => setPostDraft(event.target.value)}
-                      rows={4}
-                      placeholder="Bạn đang nghĩ gì?"
-                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 resize-none"
-                    />
-                    <input ref={attachmentInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleAttachmentChange} />
-                    {postAttachment && (
-                      <div className="mt-3 rounded-xl border border-slate-300 bg-slate-50 p-3 relative overflow-hidden">
-                        <button
-                          type="button"
-                          onClick={() => setPostAttachment(null)}
-                          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-white border border-slate-300 text-slate-600 inline-flex items-center justify-center"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">close</span>
-                        </button>
-                        {postAttachment.type === 'image' ? (
-                          <img src={postAttachment.uri} alt={postAttachment.name || 'attachment'} className="w-full max-h-56 object-cover rounded-lg" />
-                        ) : (
-                          <video src={postAttachment.uri} controls className="w-full max-h-56 rounded-lg bg-black" />
-                        )}
-                        <p className="text-xs text-slate-500 mt-2 truncate">{postAttachment.name}</p>
-                      </div>
-                    )}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button type="button" onClick={handleAttachmentButtonClick} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
-                        <span className="material-symbols-outlined text-[18px]">attach_file</span>
-                        Ảnh / Video
-                      </button>
-                      {postAttachment && (
-                        <button type="button" onClick={() => setPostAttachment(null)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
-                          <span className="material-symbols-outlined text-[18px]">delete</span>
-                          Bỏ đính kèm
-                        </button>
-                      )}
-                    </div>
-                    <div className="mt-3 flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowPostComposer(false);
-                          setPostDraft('');
-                        }}
-                        className="px-4 py-2 rounded-lg bg-slate-200 text-sm font-semibold text-slate-800"
-                      >
-                        Hủy
-                      </button>
-                      <button type="button" onClick={handleCreatePost} className="px-4 py-2 rounded-lg bg-blue-500 text-sm font-semibold text-white">
-                        Đăng
-                      </button>
-                    </div>
+                  <div className="flex items-center">
+                    <span className="w-28 text-base text-slate-500">Email</span>
+                    <span className="text-base text-slate-800 break-all">{profile.email || user?.email || 'Chưa cập nhật'}</span>
                   </div>
-                )}
-              </div>
-
-              {posts.length > 0 && (
-                <div className="mt-4 space-y-3">
-                  {posts.map((post) => (
-                    <article key={post.id} className="rounded-2xl border border-slate-300 bg-white p-4">
-                      <div className="flex items-center gap-3 mb-3">
-                        {post.authorAvatar ? (
-                          <img src={post.authorAvatar} alt={post.authorName || 'Người dùng'} className="w-11 h-11 rounded-full object-cover border border-slate-300" />
-                        ) : (
-                          <div className="w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center font-bold">{(post.authorName || 'U').charAt(0).toUpperCase()}</div>
-                        )}
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">{post.authorName || 'Người dùng'}</p>
-                          <p className="text-xs text-slate-500">{new Date(post.createdAt).toLocaleString('vi-VN')}</p>
-                        </div>
-                      </div>
-                      <p className="text-sm text-slate-800 leading-6 whitespace-pre-wrap">{post.content}</p>
-                    </article>
-                  ))}
+                  <div className="flex items-center">
+                    <span className="w-28 text-base text-slate-500">Giới tính</span>
+                    <span className="text-base text-slate-800">{profile.gender ? 'Nam' : 'Nữ'}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-28 text-base text-slate-500">Ngày sinh</span>
+                    <span className="text-base text-slate-800">{formatBirthDate(profile.dataOfBirth)}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="w-28 text-base text-slate-500">Điện thoại</span>
+                    <span className="text-base text-slate-800">{profile.phone || 'Chưa cập nhật'}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="w-28 text-base text-slate-500 mb-1">Địa chỉ</span>
+                    <span className="text-base text-slate-800">{profile.address || 'Chưa cập nhật'}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="w-28 text-base text-slate-500 mb-1">Giới thiệu</span>
+                    <span className="text-base text-slate-800 whitespace-pre-wrap">{profile.bio || 'Chưa cập nhật'}</span>
+                  </div>
                 </div>
-              )}
+
+                <p className="text-sm leading-6 text-slate-500 mb-4">Chỉ bạn bè có lưu số của bạn trong danh bạ máy xem được số này</p>
+
+                <button onClick={handleStartEdit} className="w-full pt-3 border-t border-slate-300 flex items-center justify-center gap-2">
+                  <span className="material-symbols-outlined text-xl text-slate-800">edit</span>
+                  <span className="text-lg font-bold text-slate-800">Cập nhật</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

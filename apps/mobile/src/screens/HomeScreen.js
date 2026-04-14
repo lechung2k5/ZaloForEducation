@@ -34,38 +34,6 @@ const MOCK_FRIENDS = [
 
 const ME_PRIMARY_ITEMS = [
   {
-    id: 'zcloud',
-    icon: 'cloud',
-    title: 'zCloud',
-    subtitle: 'Data storage space on the cloud',
-    color: '#0a5bb7',
-    onPress: () => {},
-  },
-  {
-    id: 'zstyle',
-    icon: 'auto_awesome',
-    title: 'zStyle - Stand out on Zalo',
-    subtitle: 'Background and music library on Zalo',
-    color: '#0a5bb7',
-    onPress: () => {},
-  },
-  {
-    id: 'documents',
-    icon: 'folder_open',
-    title: 'My Documents',
-    subtitle: 'Keep important messages',
-    color: '#0a5bb7',
-    onPress: () => {},
-  },
-  {
-    id: 'device-data',
-    icon: 'pie_chart',
-    title: 'Data on device',
-    subtitle: 'Manage your Zalo data',
-    color: '#0a5bb7',
-    onPress: () => {},
-  },
-  {
     id: 'wallet',
     icon: 'wallet',
     title: 'QR Wallet',
@@ -106,11 +74,11 @@ const STATUS_OPTIONS = [
 export default function HomeScreen({ onNavigate, onLogout, initialTab = 'messages' }) {
   const SETTINGS_KEY = 'mobile_settings';
   const [activeTab, setActiveTab] = useState(initialTab); // 'messages', 'friends', 'ai', 'profile'
-  const [user, setUser] = useState({ fullName: 'Người dùng', email: '', currentStatus: '', statusExpiresAt: null });
+  const [user, setUser] = useState({ fullName: 'Người dùng', email: '', currentFeeling: '', feelingExpiresAt: null });
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
   const displayName = user.fullName || user.fullname || 'Người dùng';
   const avatarUrl = user.avatarUrl || user.urlAvatar || '';
-  const currentStatus = user.currentStatus || user.statusMessage || '';
+  const currentFeeling = user.currentFeeling || user.feelingMessage || user.currentStatus || user.statusMessage || '';
   const shouldShowOnlineDot = showOnlineStatus;
 
   const persistUser = async (nextUser) => {
@@ -119,9 +87,12 @@ export default function HomeScreen({ onNavigate, onLogout, initialTab = 'message
     setUser(nextUser);
   };
 
-  const clearExpiredStatus = async (baseUser) => {
+  const clearExpiredFeeling = async (baseUser) => {
     const nextUser = {
       ...baseUser,
+      currentFeeling: '',
+      feelingMessage: '',
+      feelingExpiresAt: null,
       currentStatus: '',
       statusMessage: '',
       statusExpiresAt: null,
@@ -148,20 +119,27 @@ export default function HomeScreen({ onNavigate, onLogout, initialTab = 'message
 
       if (data) {
         const parsed = JSON.parse(data);
-        const statusExpiresAt = parsed.statusExpiresAt ? Number(parsed.statusExpiresAt) : null;
+        const feelingExpiresAt = parsed.feelingExpiresAt
+          ? Number(parsed.feelingExpiresAt)
+          : parsed.statusExpiresAt
+            ? Number(parsed.statusExpiresAt)
+            : null;
         const nextUser = {
           ...parsed,
           fullName: parsed.fullName || parsed.fullname || 'Người dùng',
           fullname: parsed.fullName || parsed.fullname || 'Người dùng',
           avatarUrl: parsed.avatarUrl || parsed.urlAvatar || '',
           urlAvatar: parsed.avatarUrl || parsed.urlAvatar || '',
-          currentStatus: parsed.currentStatus || parsed.statusMessage || '',
-          statusMessage: parsed.currentStatus || parsed.statusMessage || '',
-          statusExpiresAt,
+          currentFeeling: parsed.currentFeeling || parsed.feelingMessage || parsed.currentStatus || parsed.statusMessage || '',
+          feelingMessage: parsed.currentFeeling || parsed.feelingMessage || parsed.currentStatus || parsed.statusMessage || '',
+          feelingExpiresAt,
+          currentStatus: parsed.currentFeeling || parsed.feelingMessage || parsed.currentStatus || parsed.statusMessage || '',
+          statusMessage: parsed.currentFeeling || parsed.feelingMessage || parsed.currentStatus || parsed.statusMessage || '',
+          statusExpiresAt: feelingExpiresAt,
         };
 
-        if (statusExpiresAt && Date.now() >= statusExpiresAt) {
-          await clearExpiredStatus(nextUser);
+        if (feelingExpiresAt && Date.now() >= feelingExpiresAt) {
+          await clearExpiredFeeling(nextUser);
           return;
         }
 
@@ -172,22 +150,22 @@ export default function HomeScreen({ onNavigate, onLogout, initialTab = 'message
   }, []);
 
   useEffect(() => {
-    if (!user.statusExpiresAt) {
+    if (!user.feelingExpiresAt && !user.statusExpiresAt) {
       return undefined;
     }
 
-    const ttl = Number(user.statusExpiresAt) - Date.now();
+    const ttl = Number(user.feelingExpiresAt || user.statusExpiresAt) - Date.now();
     if (ttl <= 0) {
-      clearExpiredStatus(user);
+      clearExpiredFeeling(user);
       return undefined;
     }
 
     const timer = setTimeout(() => {
-      clearExpiredStatus(user);
+      clearExpiredFeeling(user);
     }, ttl);
 
     return () => clearTimeout(timer);
-  }, [user.statusExpiresAt]);
+  }, [user.feelingExpiresAt, user.statusExpiresAt]);
 
   const openStatusPicker = () => {
     onNavigate('status-picker');
@@ -321,7 +299,7 @@ export default function HomeScreen({ onNavigate, onLogout, initialTab = 'message
             activeOpacity={0.85}
           >
             <Text style={styles.meStatusText} numberOfLines={1}>
-              {currentStatus || 'Set status'}
+              {currentFeeling || 'Set feeling'}
             </Text>
             <View style={styles.meStatusBubbleTail} />
           </TouchableOpacity>

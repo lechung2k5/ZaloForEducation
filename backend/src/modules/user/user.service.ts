@@ -261,4 +261,53 @@ export class UserService {
 
     return { message: 'Background updated', ...await this.getUserProfile(email), backgroundUrl: imageUrl };
   }
+
+  async deleteAccount(email: string) {
+    const user = await this.getUserRecord(email);
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy tài khoản người dùng.');
+    }
+
+    // Soft delete: set deletedAt timestamp and lock the account
+    await this.db.docClient.send(new UpdateCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+      UpdateExpression: 'SET deletedAt = :deletedAt, lockStatus = :lockStatus, updatedAt = :updatedAt',
+      ExpressionAttributeValues: {
+        ':deletedAt': new Date().toISOString(),
+        ':lockStatus': 'locked',
+        ':updatedAt': new Date().toISOString(),
+      },
+    }));
+
+    console.log(`[UserService.deleteAccount] Account deleted (soft delete) for ${email}`);
+
+    return { message: 'Tài khoản đã bị xóa thành công. Tất cả dữ liệu liên quan sẽ được xóa sau 30 ngày.' };
+  }
+
+  async reactivateAccount(email: string) {
+    const user = await this.getUserRecord(email);
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy tài khoản người dùng.');
+    }
+
+    if (!user.deletedAt) {
+      throw new BadRequestException('Tài khoản này không bị xóa, không cần kích hoạt lại.');
+    }
+
+    // Reactivate: remove deletedAt and unlock
+    await this.db.docClient.send(new UpdateCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+      UpdateExpression: 'REMOVE deletedAt SET lockStatus = :lockStatus, updatedAt = :updatedAt',
+      ExpressionAttributeValues: {
+        ':lockStatus': 'active',
+        ':updatedAt': new Date().toISOString(),
+      },
+    }));
+
+    console.log(`[UserService.reactivateAccount] Account reactivated for ${email}`);
+
+    return { message: 'Tài khoản đã được khôi phục thành công.' };
+  }
 }

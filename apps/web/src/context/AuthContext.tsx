@@ -21,7 +21,7 @@ type ResetPasswordData = Record<string, unknown>;
 interface AuthContextType {
   user: AppUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ locked?: true; email?: string; message?: string } | void>;
   requestRegisterOtp: (email: string) => Promise<void>;
   confirmRegister: (data: RegisterConfirmData) => Promise<void>;
   resendOtp: (email: string, type: 'register' | 'forgot_password') => Promise<void>;
@@ -209,7 +209,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       deviceName,
       deviceType
     });
+
+    if (res.data?.locked) {
+      return res.data;
+    }
+
     const { accessToken, user: userData } = res.data;
+
+    if (!accessToken || !userData) {
+      throw new Error('Phản hồi đăng nhập không hợp lệ.');
+    }
     
     localStorage.setItem('token', accessToken);
     persistUser(userData);

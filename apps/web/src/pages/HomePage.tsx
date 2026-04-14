@@ -7,7 +7,7 @@ import api from '../services/api';
 const SETTINGS_KEY = 'mobile_settings';
 const EXPIRE_IN_MS = 24 * 60 * 60 * 1000;
 
-const STATUS_GROUPS = [
+const FEELING_GROUPS = [
   {
     title: 'Feelings',
     items: [
@@ -51,7 +51,7 @@ const HomePage: React.FC = () => {
   // STATE MANAGEMENT giống cấu trúc Zalo
   const [activeTab, setActiveTab] = useState<'chat' | 'contacts' | 'notifications' | 'cloud' | 'chatbot'>('chat');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [statusPickerOpen, setStatusPickerOpen] = useState(false);
+  const [feelingPickerOpen, setFeelingPickerOpen] = useState(false);
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
   const [selectedChat, setSelectedChat] = useState<any | null>(null);
   const [conversations, setConversations] = useState<any[]>([]);
@@ -60,26 +60,35 @@ const HomePage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const displayName = useMemo(() => user?.fullName || user?.fullname || 'Bạn', [user]);
   const displayAvatar = useMemo(() => user?.avatarUrl || user?.urlAvatar || 'https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png', [user]);
-  const currentStatus = useMemo(() => String(user?.currentStatus || user?.statusMessage || ''), [user]);
+  const currentFeeling = useMemo(
+    () => String(user?.currentFeeling || user?.feelingMessage || user?.currentStatus || user?.statusMessage || ''),
+    [user]
+  );
 
-  const clearStatus = () => {
+  const clearFeeling = () => {
     if (!user) return;
     updateUser({
+      currentFeeling: '',
+      feelingMessage: '',
+      feelingExpiresAt: null,
       currentStatus: '',
       statusMessage: '',
       statusExpiresAt: null,
     });
-    setStatusPickerOpen(false);
+    setFeelingPickerOpen(false);
   };
 
-  const updateStatus = (label: string) => {
+  const updateFeeling = (label: string) => {
     if (!user) return;
     updateUser({
+      currentFeeling: label,
+      feelingMessage: label,
+      feelingExpiresAt: label ? Date.now() + EXPIRE_IN_MS : null,
       currentStatus: label,
       statusMessage: label,
       statusExpiresAt: label ? Date.now() + EXPIRE_IN_MS : null,
     });
-    setStatusPickerOpen(false);
+    setFeelingPickerOpen(false);
   };
 
   useEffect(() => {
@@ -92,21 +101,21 @@ const HomePage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const expiresAt = Number(user?.statusExpiresAt || 0);
+    const expiresAt = Number(user?.feelingExpiresAt || user?.statusExpiresAt || 0);
     if (!expiresAt) return;
 
     const ttl = expiresAt - Date.now();
     if (ttl <= 0) {
-      clearStatus();
+      clearFeeling();
       return;
     }
 
     const timer = window.setTimeout(() => {
-      clearStatus();
+      clearFeeling();
     }, ttl);
 
     return () => window.clearTimeout(timer);
-  }, [user?.statusExpiresAt]);
+  }, [user?.feelingExpiresAt, user?.statusExpiresAt]);
 
   // FETCH CONVERSATIONS ON LOAD
   useEffect(() => {
@@ -232,10 +241,10 @@ const HomePage: React.FC = () => {
                 <p className="text-sm text-on-surface-variant mt-1 truncate">{user?.email}</p>
                 <button
                   type="button"
-                  onClick={() => setStatusPickerOpen(true)}
+                  onClick={() => setFeelingPickerOpen(true)}
                   className="mt-3 inline-flex items-center rounded-xl border border-[#d6e2f4] bg-[#f7fbff] px-3 py-1.5 text-xs font-semibold text-[#3e5a7b]"
                 >
-                  {currentStatus || 'Set status'}
+                  {currentFeeling || 'Set feeling'}
                 </button>
               </div>
               <div className="py-2 space-y-1">
@@ -589,25 +598,25 @@ const HomePage: React.FC = () => {
           </aside>
         </>
       )}
-      {statusPickerOpen && (
+      {feelingPickerOpen && (
         <div className="fixed inset-0 z-[100] bg-black/35 backdrop-blur-[2px] flex items-start justify-center p-6">
           <div className="w-full max-w-3xl rounded-[28px] overflow-hidden shadow-[0_28px_70px_rgba(15,23,42,0.35)]">
             <div className="bg-gradient-to-b from-[#496e9a] to-[#9f7480] max-h-[88vh] overflow-y-auto p-6">
               <div className="flex items-center gap-3 mb-5">
                 <button
                   type="button"
-                  onClick={() => setStatusPickerOpen(false)}
+                  onClick={() => setFeelingPickerOpen(false)}
                   className="w-9 h-9 rounded-full hover:bg-white/10 text-white flex items-center justify-center"
                 >
                   <span className="material-symbols-outlined">close</span>
                 </button>
                 <div>
-                  <h3 className="text-white text-3xl font-extrabold leading-tight">Add status</h3>
+                  <h3 className="text-white text-3xl font-extrabold leading-tight">Add feeling</h3>
                   <p className="text-white/90 text-sm font-medium">Visible for 24 hours</p>
                 </div>
               </div>
 
-              {STATUS_GROUPS.map((group) => (
+              {FEELING_GROUPS.map((group) => (
                 <section key={group.title} className="mb-5 last:mb-2">
                   <h4 className="text-white text-xl font-bold mb-3">{group.title}</h4>
                   <div className="rounded-2xl bg-black/15 p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -615,7 +624,7 @@ const HomePage: React.FC = () => {
                       <button
                         key={`${group.title}-${item.label}`}
                         type="button"
-                        onClick={() => updateStatus(item.label)}
+                        onClick={() => updateFeeling(item.label)}
                         className="rounded-xl px-2 py-3 text-white hover:bg-white/10 transition-colors"
                       >
                         <span className="material-symbols-outlined text-[30px] block mb-1">{item.icon}</span>
@@ -628,10 +637,10 @@ const HomePage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={clearStatus}
+                onClick={clearFeeling}
                 className="w-full mt-3 rounded-xl border border-white/45 py-2.5 text-white font-semibold hover:bg-white/10 transition-colors"
               >
-                Clear current status
+                Clear current feeling
               </button>
             </div>
           </div>

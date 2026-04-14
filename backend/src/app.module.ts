@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { OtpModule } from './modules/otp/otp.module';
+import { AIRagModule } from './modules/ai-rag/ai-rag.module';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
 
 @Module({
@@ -18,7 +19,8 @@ import { InfrastructureModule } from './infrastructure/infrastructure.module';
     AuthModule, 
     UserModule, 
     ChatModule, 
-    OtpModule
+    OtpModule,
+    AIRagModule
   ],
   controllers: [],
   providers: [],

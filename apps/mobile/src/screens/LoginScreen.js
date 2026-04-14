@@ -2,14 +2,16 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import Button from '../components/Button';
 import Input from '../components/Input';
@@ -26,6 +28,9 @@ export default function LoginScreen({ onNavigate }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [deviceId, setDeviceId] = useState('');
+  const [lockedAccount, setLockedAccount] = useState(null);
+  const [unlockOtp, setUnlockOtp] = useState('');
+  const [unlockLoading, setUnlockLoading] = useState(false);
 
   useEffect(() => {
     async function initDeviceId() {
@@ -55,6 +60,13 @@ export default function LoginScreen({ onNavigate }) {
       });
 
       const data = await response.json();
+
+      if (data?.locked === true) {
+        setLockedAccount({
+          email: data.email || email,
+        });
+        return;
+      }
       
       if (response.ok) {
         // Handle potentially wrapped AsyncStorage default export on Web
@@ -76,6 +88,81 @@ export default function LoginScreen({ onNavigate }) {
       Alert.alert('Lỗi', 'Lỗi kết nối server: ' + error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRequestUnlock = async () => {
+    if (!lockedAccount?.email) {
+      Alert.alert('Lỗi', 'Không tìm thấy email tài khoản bị khóa.');
+      return;
+    }
+
+    setUnlockLoading(true);
+    const apiUrl = getApiBaseUrl();
+
+    try {
+      const response = await fetch(`${apiUrl}/auth/account/request-unlock-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: lockedAccount.email }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert('Thành công', data.message || 'Mã OTP mở khóa đã được gửi.');
+      } else {
+        Alert.alert('Thất bại', data.message || 'Không thể gửi mã OTP mở khóa.');
+      }
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể gửi mã OTP: ' + error.message);
+    } finally {
+      setUnlockLoading(false);
+    }
+  };
+
+  const handleConfirmUnlock = async () => {
+    if (!lockedAccount?.email) {
+      Alert.alert('Lỗi', 'Không tìm thấy email tài khoản bị khóa.');
+      return;
+    }
+
+    if (!unlockOtp.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập mã OTP mở khóa.');
+      return;
+    }
+
+    setUnlockLoading(true);
+    const apiUrl = getApiBaseUrl();
+
+    try {
+      const response = await fetch(`${apiUrl}/auth/account/confirm-unlock-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: lockedAccount.email,
+          otp: unlockOtp.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert('Thành công', data.message || 'Tài khoản đã được mở khóa.');
+        setLockedAccount(null);
+        setUnlockOtp('');
+        await handleLogin();
+      } else {
+        Alert.alert('Thất bại', data.message || 'Mã OTP không hợp lệ hoặc đã hết hạn.');
+      }
+    } catch (error) {
+      Alert.alert('Lỗi', 'Không thể xác nhận mở khóa: ' + error.message);
+    } finally {
+      setUnlockLoading(false);
     }
   };
 
@@ -168,6 +255,61 @@ export default function LoginScreen({ onNavigate }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        transparent
+        animationType="fade"
+        visible={Boolean(lockedAccount)}
+        onRequestClose={() => {
+          setLockedAccount(null);
+          setUnlockOtp('');
+        }}
+      >
+        <View style={styles.lockOverlay}>
+          <View style={styles.lockCard}>
+            <Text style={styles.lockTitle}>Tài khoản bị khóa tạm thời</Text>
+            <Text style={styles.lockSubtitle}>
+              Tài khoản của bạn đang bị khóa. Vui lòng xác nhận OTP qua email để mở khóa.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.lockButton, styles.lockButtonPrimary, unlockLoading && styles.lockButtonDisabled]}
+              onPress={handleRequestUnlock}
+              disabled={unlockLoading}
+            >
+              <Text style={styles.lockButtonPrimaryText}>{unlockLoading ? 'Đang gửi...' : 'Yêu cầu mã OTP'}</Text>
+            </TouchableOpacity>
+
+            <TextInput
+              style={styles.lockInput}
+              placeholder="Nhập mã OTP"
+              value={unlockOtp}
+              onChangeText={setUnlockOtp}
+              keyboardType="number-pad"
+              editable={!unlockLoading}
+            />
+
+            <TouchableOpacity
+              style={[styles.lockButton, styles.lockButtonSecondary, unlockLoading && styles.lockButtonDisabled]}
+              onPress={handleConfirmUnlock}
+              disabled={unlockLoading}
+            >
+              <Text style={styles.lockButtonSecondaryText}>{unlockLoading ? 'Đang xác nhận...' : 'Xác nhận mở khóa'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.lockCloseButton}
+              onPress={() => {
+                setLockedAccount(null);
+                setUnlockOtp('');
+              }}
+              disabled={unlockLoading}
+            >
+              <Text style={styles.lockCloseText}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -195,4 +337,73 @@ const styles = StyleSheet.create({
   footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 24 },
   footerText: { ...Typography.body, fontSize: 14, color: Colors.onSurfaceVariant },
   footerLink: { ...Typography.label, fontSize: 14, color: Colors.primary },
+  lockOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  lockCard: {
+    width: '100%',
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    padding: 20,
+    ...Shadows.medium,
+  },
+  lockTitle: {
+    ...Typography.heading,
+    fontSize: 20,
+    color: Colors.onSurface,
+    marginBottom: 8,
+  },
+  lockSubtitle: {
+    ...Typography.body,
+    fontSize: 14,
+    color: Colors.onSurfaceVariant,
+    marginBottom: 16,
+  },
+  lockInput: {
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+    color: Colors.onSurface,
+  },
+  lockButton: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  lockButtonPrimary: {
+    backgroundColor: Colors.primary,
+  },
+  lockButtonSecondary: {
+    backgroundColor: Colors.secondaryContainer,
+  },
+  lockButtonPrimaryText: {
+    ...Typography.label,
+    color: '#ffffff',
+    fontSize: 14,
+  },
+  lockButtonSecondaryText: {
+    ...Typography.label,
+    color: Colors.onSecondaryContainer,
+    fontSize: 14,
+  },
+  lockButtonDisabled: {
+    opacity: 0.6,
+  },
+  lockCloseButton: {
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  lockCloseText: {
+    ...Typography.label,
+    color: Colors.onSurfaceVariant,
+    fontSize: 14,
+  },
 });

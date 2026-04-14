@@ -7,11 +7,13 @@ import {
     StatusBar,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View
 } from 'react-native';
 import { Colors, Shadows, Typography } from '../constants/Theme';
 import Alert from '../utils/Alert';
+import { getApiBaseUrl } from '../utils/api';
 
 const SETTINGS_KEY = 'mobile_settings';
 
@@ -29,6 +31,7 @@ const DEFAULT_SETTINGS = {
 };
 
 const SECTION_SPACING = 14;
+const API_BASE = getApiBaseUrl();
 
 function SettingRow({ icon, title, subtitle, rightElement, onPress, divider = false }) {
   return (
@@ -38,9 +41,11 @@ function SettingRow({ icon, title, subtitle, rightElement, onPress, divider = fa
       disabled={!onPress}
       style={[styles.row, divider && styles.rowDivider]}
     >
-      <View style={styles.rowIconBox}>
-        <Text style={styles.rowIcon}>{icon}</Text>
-      </View>
+      {!!icon && (
+        <View style={styles.rowIconBox}>
+          <Text style={styles.rowIcon}>{icon}</Text>
+        </View>
+      )}
       <View style={styles.rowBody}>
         <Text style={styles.rowTitle}>{title}</Text>
         {!!subtitle && <Text style={styles.rowSubtitle}>{subtitle}</Text>}
@@ -87,7 +92,14 @@ function PillToggle({ value, onValueChange }) {
 export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout }) {
   const storage = useMemo(() => AsyncStorage.default || AsyncStorage, []);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const [loading, setLoading] = useState(true);
+  const [lockingAccount, setLockingAccount] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [showLockOtpForm, setShowLockOtpForm] = useState(false);
+  const [lockOtp, setLockOtp] = useState('');
+  const [lockNotice, setLockNotice] = useState({ type: null, text: '' });
+  const [showDeleteConfirmForm, setShowDeleteConfirmForm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteNotice, setDeleteNotice] = useState({ type: null, text: '' });
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -98,8 +110,6 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
         }
       } catch (error) {
         console.error('Load settings error', error);
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -149,6 +159,108 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
 
   const handleLanguageChange = async (value) => {
     await updateSetting('language', value);
+  };
+
+  const handleLockAccount = async () => {
+    setLockNotice({ type: null, text: '' });
+    setLockingAccount(true);
+    try {
+      const token = await storage.getItem('token');
+      const requestOtpResponse = await fetch(`${API_BASE}/auth/account/request-lock-otp`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const requestOtpData = await requestOtpResponse.json();
+      if (!requestOtpResponse.ok) {
+        setLockNotice({ type: 'error', text: requestOtpData.message || 'Không thể gửi mã OTP xác nhận khóa tài khoản' });
+        return;
+      }
+
+      setShowLockOtpForm(true);
+      setLockOtp('');
+      setLockNotice({ type: 'success', text: requestOtpData.message || 'Mã OTP đã được gửi qua email.' });
+    } catch (error) {
+      setLockNotice({ type: 'error', text: 'Lỗi kết nối, vui lòng thử lại' });
+    } finally {
+      setLockingAccount(false);
+    }
+  };
+
+  const handleConfirmLockAccount = async () => {
+    if (!lockOtp.trim()) {
+      setLockNotice({ type: 'error', text: 'Vui lòng nhập mã OTP.' });
+      return;
+    }
+
+    setLockingAccount(true);
+    try {
+      const token = await storage.getItem('token');
+      const confirmResponse = await fetch(`${API_BASE}/auth/account/confirm-lock-otp`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ otp: lockOtp.trim(), reason: 'Yêu cầu từ người dùng' }),
+      });
+
+      const confirmData = await confirmResponse.json();
+      if (confirmResponse.ok) {
+        setLockNotice({ type: 'success', text: confirmData.message || 'Khóa tài khoản thành công.' });
+        setShowLockOtpForm(false);
+        setLockOtp('');
+        await storage.removeItem('token');
+        onLogout();
+      } else {
+        setLockNotice({ type: 'error', text: confirmData.message || 'Không thể khóa tài khoản' });
+      }
+    } catch (error) {
+      setLockNotice({ type: 'error', text: 'Lỗi kết nối, vui lòng thử lại' });
+    } finally {
+      setLockingAccount(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    setDeleteNotice({ type: 'error', text: 'Nhập XÓA CÓ để xác nhận xóa tài khoản vĩnh viễn.' });
+    setShowDeleteConfirmForm(true);
+    setDeleteConfirmText('');
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    if (deleteConfirmText.trim() !== 'XÓA CÓ') {
+      setDeleteNotice({ type: 'error', text: 'Vui lòng nhập đúng XÓA CÓ để xác nhận.' });
+      return;
+    }
+
+    setDeletingAccount(true);
+    try {
+      const token = await storage.getItem('token');
+      const response = await fetch(`${API_BASE}/auth/account/delete`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        Alert.alert('Thành công', data.message);
+        await storage.removeItem('token');
+        onLogout();
+      } else {
+        setDeleteNotice({ type: 'error', text: data.message || 'Không thể xóa tài khoản' });
+      }
+    } catch (error) {
+      setDeleteNotice({ type: 'error', text: 'Lỗi kết nối, vui lòng thử lại' });
+    } finally {
+      setDeletingAccount(false);
+    }
   };
 
   const toggleSwitch = async (key) => {
@@ -358,6 +470,101 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
           />
         </Section>
 
+        <Section title="Bảo mật tài khoản" subtitle="Quản lý bảo mật và xóa tài khoản">
+          <SettingRow
+            icon={null}
+            title="Khóa tài khoản (OTP email)"
+            subtitle="Yêu cầu mã xác nhận email trước khi khóa"
+            rightElement={<Text style={styles.chevronWarning}>chevron_right</Text>}
+            onPress={handleLockAccount}
+            divider
+          />
+
+          {!!lockNotice.text && (
+            <View style={[styles.otpNotice, lockNotice.type === 'success' ? styles.otpNoticeSuccess : styles.otpNoticeError]}>
+              <Text style={[styles.otpNoticeText, lockNotice.type === 'success' ? styles.otpNoticeTextSuccess : styles.otpNoticeTextError]}>{lockNotice.text}</Text>
+            </View>
+          )}
+
+          {showLockOtpForm && (
+            <View style={styles.otpFormWrap}>
+              <Text style={styles.otpFormLabel}>Nhập mã OTP đã gửi qua email</Text>
+              <TextInput
+                style={styles.otpInput}
+                value={lockOtp}
+                onChangeText={setLockOtp}
+                keyboardType="number-pad"
+                placeholder="Nhập mã OTP"
+                placeholderTextColor={Colors.outline}
+                editable={!lockingAccount}
+              />
+              <View style={styles.otpActions}>
+                <TouchableOpacity style={[styles.otpBtnPrimary, lockingAccount && styles.otpBtnDisabled]} onPress={handleConfirmLockAccount} disabled={lockingAccount}>
+                  <Text style={styles.otpBtnPrimaryText}>{lockingAccount ? 'Đang xác nhận...' : 'Xác nhận OTP'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.otpBtnSecondary, lockingAccount && styles.otpBtnDisabled]}
+                  onPress={() => {
+                    setShowLockOtpForm(false);
+                    setLockOtp('');
+                  }}
+                  disabled={lockingAccount}
+                >
+                  <Text style={styles.otpBtnSecondaryText}>Hủy</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          <SettingRow
+            icon={null}
+            title="Xóa tài khoản"
+            subtitle="Xóa tài khoản vĩnh viễn"
+            rightElement={<Text style={styles.chevronDanger}>chevron_right</Text>}
+            onPress={() => {
+              setShowDeleteConfirmForm(true);
+              setDeleteConfirmText('');
+              setDeleteNotice({ type: 'error', text: 'Nhập XÓA CÓ để xác nhận xóa tài khoản vĩnh viễn.' });
+            }}
+          />
+
+          {!!deleteNotice.text && (
+            <View style={[styles.otpNotice, deleteNotice.type === 'success' ? styles.otpNoticeSuccess : styles.otpNoticeError]}>
+              <Text style={[styles.otpNoticeText, deleteNotice.type === 'success' ? styles.otpNoticeTextSuccess : styles.otpNoticeTextError]}>{deleteNotice.text}</Text>
+            </View>
+          )}
+
+          {showDeleteConfirmForm && (
+            <View style={styles.otpFormWrap}>
+              <Text style={styles.otpFormLabel}>Nhập XÓA CÓ để xác nhận xóa tài khoản</Text>
+              <TextInput
+                style={styles.otpInput}
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                placeholder='Nhập XÓA CÓ'
+                placeholderTextColor={Colors.outline}
+                editable={!deletingAccount}
+              />
+              <View style={styles.otpActions}>
+                <TouchableOpacity style={[styles.otpBtnPrimary, deletingAccount && styles.otpBtnDisabled]} onPress={handleConfirmDeleteAccount} disabled={deletingAccount}>
+                  <Text style={styles.otpBtnPrimaryText}>{deletingAccount ? 'Đang xóa...' : 'Xác nhận xóa'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.otpBtnSecondary, deletingAccount && styles.otpBtnDisabled]}
+                  onPress={() => {
+                    setShowDeleteConfirmForm(false);
+                    setDeleteConfirmText('');
+                    setDeleteNotice({ type: null, text: '' });
+                  }}
+                  disabled={deletingAccount}
+                >
+                  <Text style={styles.otpBtnSecondaryText}>Hủy</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </Section>
+
         <View style={styles.footerNote}>
           <Text style={styles.footerNoteText}>
             Settings được lưu cục bộ trên thiết bị để phù hợp với luồng mobile hiện tại.
@@ -529,6 +736,95 @@ const styles = StyleSheet.create({
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
     color: Colors.error,
+  },
+  chevronWarning: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 24,
+    color: '#d97706',
+  },
+  otpFormWrap: {
+    marginTop: 10,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    backgroundColor: '#fff7ed',
+    borderRadius: 14,
+    padding: 12,
+    marginHorizontal: 16,
+  },
+  otpNotice: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  otpNoticeSuccess: {
+    backgroundColor: '#dcfce7',
+  },
+  otpNoticeError: {
+    backgroundColor: '#fee2e2',
+  },
+  otpNoticeText: {
+    ...Typography.body,
+    fontSize: 13,
+  },
+  otpNoticeTextSuccess: {
+    color: '#166534',
+  },
+  otpNoticeTextError: {
+    color: '#991b1b',
+  },
+  otpFormLabel: {
+    ...Typography.body,
+    fontSize: 13,
+    color: '#7c2d12',
+    marginBottom: 8,
+  },
+  otpInput: {
+    borderWidth: 1,
+    borderColor: '#fbbf24',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: Colors.onSurface,
+    ...Typography.body,
+    fontSize: 14,
+  },
+  otpActions: {
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  otpBtnPrimary: {
+    flex: 1,
+    borderRadius: 10,
+    backgroundColor: '#ea580c',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  otpBtnPrimaryText: {
+    ...Typography.label,
+    color: '#fff',
+    fontSize: 13,
+  },
+  otpBtnSecondary: {
+    borderRadius: 10,
+    backgroundColor: '#e5e7eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  otpBtnSecondaryText: {
+    ...Typography.label,
+    color: '#1f2937',
+    fontSize: 13,
+  },
+  otpBtnDisabled: {
+    opacity: 0.55,
   },
   optionLabel: {
     ...Typography.body,

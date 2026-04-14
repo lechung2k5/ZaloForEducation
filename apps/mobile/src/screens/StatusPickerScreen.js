@@ -2,71 +2,74 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import {
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Typography } from '../constants/Theme';
 
 const EXPIRE_IN_MS = 24 * 60 * 60 * 1000;
 
-const STATUS_GROUPS = [
+const FEELING_GROUPS = [
   {
     title: 'Feelings',
     items: [
-      { icon: 'wb_sunny', label: 'Hopeful' },
-      { icon: 'local_fire_department', label: 'Fighting' },
-      { icon: 'sentiment_very_satisfied', label: 'Happy' },
-      { icon: 'local_florist', label: 'Lucky' },
-      { icon: 'favorite', label: 'In Love' },
-      { icon: 'sentiment_surprised', label: 'Surprised' },
-      { icon: 'sentiment_dissatisfied', label: 'Sad' },
-      { icon: 'mood_bad', label: 'Low mood' },
-      { icon: 'mood', label: 'Angry' },
-      { icon: 'bedtime', label: 'Sleepy' },
-      { icon: 'battery_1_bar', label: 'Low battery' },
-      { icon: 'sync_problem', label: 'Lag...lag' },
+      { icon: '☀️', label: 'Hopeful' },
+      { icon: '🔥', label: 'Fighting' },
+      { icon: '😀', label: 'Happy' },
+      { icon: '🍀', label: 'Lucky' },
+      { icon: '❤️', label: 'In Love' },
+      { icon: '😮', label: 'Surprised' },
+      { icon: '😞', label: 'Sad' },
+      { icon: '😒', label: 'Low mood' },
+      { icon: '😠', label: 'Angry' },
+      { icon: '😴', label: 'Sleepy' },
+      { icon: '🔋', label: 'Low battery' },
+      { icon: '⏳', label: 'Lag...lag' },
     ],
   },
   {
     title: 'Study & Work',
     items: [
-      { icon: 'laptop_chromebook', label: 'Hardworking' },
-      { icon: 'menu_book', label: 'Reading' },
-      { icon: 'do_not_disturb_on', label: 'Do not disturb!' },
-      { icon: 'psychology', label: 'Thinking' },
-      { icon: 'sick', label: 'Stuck' },
-      { icon: 'event_busy', label: 'Day off' },
-      { icon: 'mood', label: 'Exhausted' },
+      { icon: '💻', label: 'Hardworking' },
+      { icon: '📖', label: 'Reading' },
+      { icon: '🚫', label: 'Do not disturb!' },
+      { icon: '🤔', label: 'Thinking' },
+      { icon: '😵', label: 'Stuck' },
+      { icon: '📅', label: 'Day off' },
+      { icon: '😫', label: 'Exhausted' },
     ],
   },
   {
     title: 'Activities',
     items: [
-      { icon: 'directions_run', label: 'Runnnn!' },
-      { icon: 'medication', label: 'Sick' },
-      { icon: 'self_improvement', label: 'Pray' },
-      { icon: 'restaurant', label: 'Eating' },
-      { icon: 'coffee', label: 'Coffee time' },
-      { icon: 'sports_esports', label: 'Gaming' },
-      { icon: 'music_note', label: 'Listening to music' },
-      { icon: 'movie', label: 'Watching movie' },
+      { icon: '🏃', label: 'Runnnn!' },
+      { icon: '🤒', label: 'Sick' },
+      { icon: '🙏', label: 'Pray' },
+      { icon: '🍽️', label: 'Eating' },
+      { icon: '☕', label: 'Coffee time' },
+      { icon: '🎮', label: 'Gaming' },
+      { icon: '🎵', label: 'Listening to music' },
+      { icon: '🎬', label: 'Watching movie' },
     ],
   },
 ];
 
 export default function StatusPickerScreen({ onNavigate }) {
-  const applyStatus = async (label) => {
+  const applyFeeling = async (label) => {
     const storage = AsyncStorage.default || AsyncStorage;
     const raw = await storage.getItem('user');
     const current = raw ? JSON.parse(raw) : {};
 
     const nextUser = {
       ...current,
+      currentFeeling: label,
+      feelingMessage: label,
+      feelingExpiresAt: Date.now() + EXPIRE_IN_MS,
       currentStatus: label,
       statusMessage: label,
       statusExpiresAt: Date.now() + EXPIRE_IN_MS,
@@ -76,13 +79,16 @@ export default function StatusPickerScreen({ onNavigate }) {
     onNavigate('home-me');
   };
 
-  const clearStatus = async () => {
+  const clearFeeling = async () => {
     const storage = AsyncStorage.default || AsyncStorage;
     const raw = await storage.getItem('user');
     const current = raw ? JSON.parse(raw) : {};
 
     const nextUser = {
       ...current,
+      currentFeeling: '',
+      feelingMessage: '',
+      feelingExpiresAt: null,
       currentStatus: '',
       statusMessage: '',
       statusExpiresAt: null,
@@ -98,16 +104,16 @@ export default function StatusPickerScreen({ onNavigate }) {
       <LinearGradient colors={['#496e9a', '#9f7480']} style={styles.gradient}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.closeButton} onPress={() => onNavigate('home-me')}>
-            <Text style={styles.closeIcon}>close</Text>
+            <Text style={styles.closeIcon}>✕</Text>
           </TouchableOpacity>
           <View>
-            <Text style={styles.headerTitle}>Add status</Text>
+            <Text style={styles.headerTitle}>Add feeling</Text>
             <Text style={styles.headerSubtitle}>Visible for 24 hours</Text>
           </View>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {STATUS_GROUPS.map((group) => (
+          {FEELING_GROUPS.map((group) => (
             <View key={group.title} style={styles.sectionWrap}>
               <Text style={styles.sectionTitle}>{group.title}</Text>
               <View style={styles.gridCard}>
@@ -115,7 +121,7 @@ export default function StatusPickerScreen({ onNavigate }) {
                   <TouchableOpacity
                     key={`${group.title}-${item.label}`}
                     style={styles.statusItem}
-                    onPress={() => applyStatus(item.label)}
+                    onPress={() => applyFeeling(item.label)}
                     activeOpacity={0.85}
                   >
                     <Text style={styles.statusIcon}>{item.icon}</Text>
@@ -126,8 +132,8 @@ export default function StatusPickerScreen({ onNavigate }) {
             </View>
           ))}
 
-          <TouchableOpacity style={styles.clearButton} onPress={clearStatus}>
-            <Text style={styles.clearButtonText}>Clear current status</Text>
+          <TouchableOpacity style={styles.clearButton} onPress={clearFeeling}>
+            <Text style={styles.clearButtonText}>Clear current feeling</Text>
           </TouchableOpacity>
         </ScrollView>
       </LinearGradient>
@@ -157,7 +163,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   closeIcon: {
-    fontFamily: 'Material Symbols Outlined',
     fontSize: 28,
     color: '#fff',
   },
@@ -200,7 +205,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   statusIcon: {
-    fontFamily: 'Material Symbols Outlined',
     fontSize: 36,
     color: '#fff',
     marginBottom: 6,

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -8,6 +9,9 @@ const LoginPage: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [lockedAccount, setLockedAccount] = useState<{ email: string } | null>(null);
+  const [unlockOtp, setUnlockOtp] = useState('');
+  const [unlockLoading, setUnlockLoading] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -18,12 +22,70 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
+      const res = await login(email, password);
+      if (res?.locked) {
+        setLockedAccount({
+          email: res.email || email,
+        });
+        setUnlockOtp('');
+        return;
+      }
       navigate('/');
     } catch (err: any) {
+      const locked = err?.response?.data;
+      if (locked?.locked) {
+        setLockedAccount({
+          email: locked.email || email,
+        });
+        setUnlockOtp('');
+        return;
+      }
       setError(err.response?.data?.message || 'Email hoặc mật khẩu không chính xác.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRequestUnlock = async () => {
+    if (!lockedAccount?.email) return;
+
+    setError('');
+    setUnlockLoading(true);
+    try {
+      await api.post('/auth/account/request-unlock-otp', { email: lockedAccount.email });
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Không thể gửi OTP mở khóa. Vui lòng thử lại.');
+    } finally {
+      setUnlockLoading(false);
+    }
+  };
+
+  const handleConfirmUnlock = async () => {
+    if (!lockedAccount?.email || !unlockOtp.trim()) return;
+
+    setError('');
+    setUnlockLoading(true);
+    try {
+      await api.post('/auth/account/confirm-unlock-otp', {
+        email: lockedAccount.email,
+        otp: unlockOtp.trim(),
+      });
+
+      setLockedAccount(null);
+      setUnlockOtp('');
+
+      await login(lockedAccount.email, password);
+      navigate('/');
+    } catch (err: any) {
+      const locked = err?.response?.data;
+      if (locked?.locked) {
+        setLockedAccount({
+          email: locked.email || lockedAccount.email,
+        });
+      }
+      setError(err?.response?.data?.message || 'Xác nhận OTP thất bại. Vui lòng thử lại.');
+    } finally {
+      setUnlockLoading(false);
     }
   };
 
@@ -172,6 +234,48 @@ const LoginPage: React.FC = () => {
           </nav>
         </footer>
       </main>
+
+      {lockedAccount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md bg-surface rounded-3xl p-6 md:p-8 shadow-2xl border border-outline-variant/20">
+            <h3 className="text-xl font-bold text-on-surface mb-3">Tài khoản đang bị khóa</h3>
+            <p className="text-on-surface-variant text-sm mb-2">
+              Tài khoản của bạn tạm thời bị khóa. Vui lòng xác nhận OTP để mở khóa.
+            </p>
+            <p className="text-sm font-semibold text-primary mb-5">
+              Vui lòng bấm gửi OTP và xác nhận để mở khóa tài khoản.
+            </p>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleRequestUnlock}
+                disabled={unlockLoading}
+                className="w-full bg-secondary/20 text-on-surface font-semibold py-3 rounded-2xl hover:bg-secondary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {unlockLoading ? 'Đang gửi OTP...' : 'Request OTP'}
+              </button>
+
+              <input
+                type="text"
+                value={unlockOtp}
+                onChange={(e) => setUnlockOtp(e.target.value)}
+                placeholder="Nhập mã OTP mở khóa"
+                className="w-full bg-surface-container-highest border-none rounded-2xl py-3 px-4 text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/40 outline-none"
+              />
+
+              <button
+                type="button"
+                onClick={handleConfirmUnlock}
+                disabled={unlockLoading || !unlockOtp.trim()}
+                className="w-full signature-gradient text-white font-bold py-3 rounded-2xl hover:opacity-95 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {unlockLoading ? 'Đang xác nhận...' : 'Confirm & Login'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

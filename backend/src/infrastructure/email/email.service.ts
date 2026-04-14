@@ -34,9 +34,23 @@ export class EmailService {
     }
   }
 
-  async sendOtp(to: string, code: string, type: 'register' | 'forgot_password') {
-    const subject = type === 'register' ? 'Mã xác thực đăng ký ZaloEdu' : 'Mã đặt lại mật khẩu ZaloEdu';
-    const title = type === 'register' ? 'Xác thực đăng ký' : 'Đặt lại mật khẩu';
+  async sendOtp(to: string, code: string, type: 'register' | 'forgot_password' | 'unlock_account' | 'lock_account') {
+    const subjectMap = {
+      register: 'Mã xác thực đăng ký ZaloEdu',
+      forgot_password: 'Mã đặt lại mật khẩu ZaloEdu',
+      unlock_account: 'Mã xác nhận mở khóa tài khoản ZaloEdu',
+      lock_account: 'Mã xác nhận khóa tài khoản ZaloEdu',
+    } as const;
+
+    const titleMap = {
+      register: 'Xác thực đăng ký',
+      forgot_password: 'Đặt lại mật khẩu',
+      unlock_account: 'Xác nhận mở khóa tài khoản',
+      lock_account: 'Xác nhận khóa tài khoản',
+    } as const;
+
+    const subject = subjectMap[type];
+    const title = titleMap[type];
     
     const html = `
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">

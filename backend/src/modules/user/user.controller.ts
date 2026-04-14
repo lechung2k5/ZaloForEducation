@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Put, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserService } from './user.service';
@@ -49,5 +49,17 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   async updateBackground(@Req() req, @Body() body: any) {
     return this.userService.updateBackground(req.user.email, body.imageUrl);
+  }
+
+  @Delete('account')
+  @UseGuards(JwtAuthGuard)
+  async deleteAccount(@Req() req) {
+    return this.userService.deleteAccount(req.user.email);
+  }
+
+  @Post('account/reactivate')
+  @UseGuards(JwtAuthGuard)
+  async reactivateAccount(@Req() req) {
+    return this.userService.reactivateAccount(req.user.email);
   }
 }

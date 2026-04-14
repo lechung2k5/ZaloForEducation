@@ -1,6 +1,6 @@
-import { Controller, Post, Body, Get, UseGuards, Req, Param, Delete } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { LoginRequestDto, RegisterRequestDto } from '@zalo-edu/shared';
 import { AuthService } from './auth.service';
-import { RegisterRequestDto, LoginRequestDto } from '@zalo-edu/shared';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
@@ -109,5 +109,48 @@ export class AuthController {
   @Post('test-email')
   async testEmail(@Body() body: { email: string }) {
     return this.authService.testEmail(body.email);
+  }
+
+  // ===== ACCOUNT LOCK/UNLOCK =====
+
+  @Post('account/request-lock-otp')
+  @UseGuards(JwtAuthGuard)
+  async requestLockOtp(@Req() req) {
+    const email = req.user.email;
+    return this.authService.requestLockOtp(email);
+  }
+
+  @Post('account/confirm-lock-otp')
+  @UseGuards(JwtAuthGuard)
+  async confirmLockOtp(@Req() req, @Body() body: { otp: string; reason?: string }) {
+    const email = req.user.email;
+    const reason = body?.reason || 'Yêu cầu từ người dùng';
+    return this.authService.confirmLockOtp(email, body.otp, reason);
+  }
+
+  @Post('account/unlock')
+  @UseGuards(JwtAuthGuard)
+  async unlockAccount(@Req() req) {
+    const email = req.user.email;
+    return this.authService.unlockAccount(email);
+  }
+
+  @Delete('account/delete')
+  @UseGuards(JwtAuthGuard)
+  async deleteAccount(@Req() req) {
+    const email = req.user.email;
+    return this.authService.deleteAccount(email);
+  }
+
+  // ===== UNLOCK ACCOUNT WITH OTP =====
+
+  @Post('account/request-unlock-otp')
+  async requestUnlockOtp(@Body() body: { email: string }) {
+    return this.authService.requestUnlockOtp(body.email);
+  }
+
+  @Post('account/confirm-unlock-otp')
+  async confirmUnlockOtp(@Body() body: { email: string; otp: string }) {
+    return this.authService.confirmUnlockOtp(body.email, body.otp);
   }
 }
