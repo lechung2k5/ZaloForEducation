@@ -6,7 +6,6 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -14,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Shadows, Typography } from '../constants/Theme';
 import Alert from '../utils/Alert';
 import { getApiBaseUrl } from '../utils/api';

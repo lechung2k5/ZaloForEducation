@@ -9,6 +9,7 @@ import {
 import * as Font from 'expo-font';
 import React, { useEffect, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -162,31 +163,41 @@ export default function App() {
     }
   };
 
+  const renderScreen = () => {
+    switch (screen) {
+      case 'register':
+        return <RegisterScreen onNavigate={navigate} />;
+      case 'forgot':
+        return <ForgotPasswordScreen onNavigate={navigate} />;
+      case 'reset-password':
+        return <ResetPasswordScreen onNavigate={navigate} />;
+      case 'sessions':
+        return <SessionsScreen onNavigate={navigate} />;
+      case 'settings':
+        return <SettingsScreen onNavigate={navigate} returnTo={settingsReturnTo} onLogout={handleLogout} />;
+      case 'profile':
+        return <ProfileScreen onNavigate={navigate} onLogout={handleLogout} />;
+      case 'profile-more':
+        return <ProfileMoreScreen onNavigate={navigate} />;
+      case 'status-picker':
+        return <StatusPickerScreen onNavigate={navigate} />;
+      case 'home':
+        return <HomeScreen onNavigate={navigate} onLogout={handleLogout} initialTab={homeInitialTab} />;
+      case 'login':
+      default:
+        return <LoginScreen onNavigate={navigate} />;
+    }
+  };
+
   if (!fontsLoaded) {
-    return <View style={{ flex: 1, backgroundColor: '#f7f9fb', alignItems: 'center', justifyContent: 'center' }}><Text>Đang tải tài nguyên giao diện...</Text></View>;
+    return (
+      <SafeAreaProvider>
+        <View style={{ flex: 1, backgroundColor: '#f7f9fb', alignItems: 'center', justifyContent: 'center' }}>
+          <Text>Đang tải tài nguyên giao diện...</Text>
+        </View>
+      </SafeAreaProvider>
+    );
   }
 
-  switch (screen) {
-    case 'register':
-      return <RegisterScreen onNavigate={navigate} />;
-    case 'forgot':
-      return <ForgotPasswordScreen onNavigate={navigate} />;
-    case 'reset-password':
-      return <ResetPasswordScreen onNavigate={navigate} />;
-    case 'sessions':
-      return <SessionsScreen onNavigate={navigate} />;
-    case 'settings':
-      return <SettingsScreen onNavigate={navigate} returnTo={settingsReturnTo} onLogout={handleLogout} />;
-    case 'profile':
-      return <ProfileScreen onNavigate={navigate} onLogout={handleLogout} />;
-    case 'profile-more':
-      return <ProfileMoreScreen onNavigate={navigate} />;
-    case 'status-picker':
-      return <StatusPickerScreen onNavigate={navigate} />;
-    case 'home':
-      return <HomeScreen onNavigate={navigate} onLogout={handleLogout} initialTab={homeInitialTab} />;
-    case 'login':
-    default:
-      return <LoginScreen onNavigate={navigate} />;
-  }
+  return <SafeAreaProvider>{renderScreen()}</SafeAreaProvider>;
 }

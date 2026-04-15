@@ -3,12 +3,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
     KeyboardAvoidingView, Platform,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text, TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import { Colors, Shadows, Typography } from '../constants/Theme';
