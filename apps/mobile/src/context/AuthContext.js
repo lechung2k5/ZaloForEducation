@@ -192,6 +192,50 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }) => {
     }
   };
 
+  // ===== KHÓA TÀI KHOẢN =====
+
+  const requestLockAccount = async (currentPassword) => {
+    await apiRequest('/auth/lock-account/request', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword }),
+    });
+  };
+
+  const confirmLockAccount = async (otp) => {
+    await apiRequest('/auth/lock-account/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ otp }),
+    });
+    // Backend đã kick tất cả sessions — dọn dẹp local
+    await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('user');
+    setUser(null);
+    setToken(null);
+    SocketService.disconnect();
+  };
+
+  // ===== XÓA TÀI KHOẢN =====
+
+  const requestDeleteAccount = async (currentPassword) => {
+    await apiRequest('/auth/delete-account/request', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword }),
+    });
+  };
+
+  const confirmDeleteAccount = async (otp) => {
+    await apiRequest('/auth/delete-account/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ otp }),
+    });
+    // Backend đã kick tất cả sessions — dọn dẹp local
+    await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('user');
+    setUser(null);
+    setToken(null);
+    SocketService.disconnect();
+  };
+
   const updateUser = async (userData) => {
     if (!userData) return;
     setUser(prevUser => {
@@ -221,10 +265,12 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, token, loading, login, logout, updateUser, 
+    <AuthContext.Provider value={{
+      user, token, loading, login, logout, updateUser,
       profileVersion, handleForceLogout, deviceId, checkSessionStatus,
-      pendingGoogleUser, loginGoogle, completeGoogleProfile
+      pendingGoogleUser, loginGoogle, completeGoogleProfile,
+      requestLockAccount, confirmLockAccount,
+      requestDeleteAccount, confirmDeleteAccount,
     }}>
       {children}
     </AuthContext.Provider>

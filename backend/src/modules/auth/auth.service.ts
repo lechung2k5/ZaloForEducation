@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, UnauthorizedException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
 import * as bcrypt from 'bcrypt';
@@ -8,7 +8,7 @@ import { OtpLimiterService } from '../otp/otp-limiter.service';
 import { EmailService } from '../../infrastructure/email/email.service';
 import { SessionService } from './session.service';
 import { ChatGateway } from '../chat/chat.gateway';
-import { PutCommand, GetCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, GetCommand, UpdateCommand, QueryCommand, DeleteCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { RegisterRequestDto, LoginRequestDto, User } from '@zalo-edu/shared';
 import { RedisService } from '../../infrastructure/redis.service';
 import { validateDobStrict } from '../../infrastructure/utils/date.util';
@@ -132,6 +132,16 @@ export class AuthService {
     const user = result.Item as User;
     if (!user) {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác.');
+    }
+
+    // Guard: Tài khoản đã bị xóa logic
+    if (user.isDeleted) {
+      throw new UnauthorizedException('Tài khoản này không tồn tại.');
+    }
+
+    // Guard: Tài khoản đã bị khóa
+    if (user.status === 'LOCKED') {
+      throw new ForbiddenException('Tài khoản của bạn hiện đang bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
@@ -387,20 +397,96 @@ export class AuthService {
   }
 
   async logoutAll(email: string) {
-    const activeDeviceIds = await this.sessionService.getSessions(email);
-    for (const deviceId of activeDeviceIds) {
-      const session = await this.sessionService.getSession(email, deviceId);
-      await this.sessionService.removeSession(email, deviceId);
-      await this.deviceService.markAsLoggedOut(email, deviceId, {
-        deviceName: session?.deviceName,
-        deviceType: session?.deviceType,
-        reason: 'SESSION_REPLACED',
-      });
+    // Outsource toàn bộ sang DeviceService để xử lý tập trung (Redis + DB + Socket)
+    await this.deviceService.revokeAllSessions(email);
+    return { message: 'Đã đăng xuất khỏi tất cả các thiết bị.' };
+  }
+
+  // ===== KHÓA TÀI KHOẢN =====
+
+  async requestLockAccount(email: string, currentPassword: string) {
+    // 1. Lấy user
+    const result = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+    const user = result.Item as User;
+    if (!user) throw new BadRequestException('Người dùng không tồn tại.');
+
+    // 2. Kiểm tra mật khẩu hiện tại
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Mật khẩu không chính xác.');
     }
 
-    this.chatGateway.notifyForceLogout(email, 'all', 'Tất cả các phiên đăng nhập đã bị đăng xuất định kỳ hoặc bởi người dùng.');
-    this.chatGateway.notifySessionsUpdate(email);
-    return { message: 'Đã đăng xuất khỏi tất cả các thiết bị.' };
+    // 3. Giới hạn 30s giữa các lần gửi OTP
+    await this.otpLimiterService.checkCooldown(email, 'lock_account');
+
+    // 4. Tạo và gửi OTP
+    const code = await this.otpService.createOtp(email, 'lock_account' as any);
+    await this.emailService.sendOtp(email, code, 'lock_account' as any);
+
+    return { message: 'Mã OTP xác nhận khóa tài khoản đã được gửi về email của bạn.' };
+  }
+
+  async confirmLockAccount(email: string, otp: string) {
+    // 1. Xác thực OTP
+    await this.otpService.verifyOtp(email, otp);
+
+    // 2. Cập nhật trạng thái LOCKED trong DynamoDB
+    await this.db.docClient.send(new UpdateCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+      UpdateExpression: 'SET #status = :status, isActive = :inactive, lockedAt = :now, updatedAt = :now',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':status': 'LOCKED',
+        ':inactive': false,
+        ':now': new Date().toISOString(),
+      },
+    }));
+
+    // 3. Vô hiệu hóa TẤT CẢ sessions (Web + Mobile) — Call DeviceService
+    await this.deviceService.revokeAllSessions(email);
+
+    return { message: 'Tài khoản của bạn đã bị khóa thành công. Mọi phiên đăng nhập đã bị vô hiệu hoá.' };
+  }
+
+  // ===== XÓA TÀI KHOẢN =====
+
+  async requestDeleteAccount(email: string, currentPassword: string) {
+    // 1. Lấy user
+    const result = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+    const user = result.Item as User;
+    if (!user) throw new BadRequestException('Người dùng không tồn tại.');
+
+    // 2. Kiểm tra mật khẩu hiện tại
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Mật khẩu không chính xác.');
+    }
+
+    // 3. Giới hạn 30s giữa các lần gửi OTP
+    await this.otpLimiterService.checkCooldown(email, 'delete_account');
+
+    // 4. Tạo và gửi OTP
+    const code = await this.otpService.createOtp(email, 'delete_account' as any);
+    await this.emailService.sendOtp(email, code, 'delete_account' as any);
+
+    return { message: 'Mã OTP xác nhận xóa tài khoản đã được gửi về email của bạn.' };
+  }
+
+  async confirmDeleteAccount(email: string, otp: string) {
+    // 1. Xác thực OTP
+    await this.otpService.verifyOtp(email, otp);
+
+    // 2. Chốt hạ: Dọn dẹp dữ liệu triệt để (Deep Cleanup)
+    await this.cleanupUserData(email);
+
+    return { message: 'Tài khoản của bạn đã được xóa thành công. Cảm ơn bạn đã sử dụng dịch vụ.' };
   }
 
   async requestChangePassword(email: string, currentPassword: string, newPassword: string) {
@@ -647,6 +733,9 @@ export class AuthService {
       if (!payload) throw new BadRequestException('ID Token không hợp lệ.');
 
       const { email, name, picture, sub: googleId } = payload;
+      
+      // Đảm bảo có deviceId để tránh lỗi Redis (TypeError)
+      const deviceIdToUse = deviceId || `google-${Date.now()}`;
 
       const result = await this.db.docClient.send(new GetCommand({
         TableName: this.db.tableName,
@@ -656,6 +745,14 @@ export class AuthService {
       const existingUser = result.Item as User;
 
       if (existingUser) {
+        // Chặn Google Login nếu tài khoản bị Xóa hoặc Khóa
+        if (existingUser.isDeleted) {
+          throw new UnauthorizedException('Tài khoản này không tồn tại.');
+        }
+        if (existingUser.status === 'LOCKED') {
+          throw new ForbiddenException('Tài khoản của bạn hiện đang bị khóa. Vui lòng liên hệ quản trị viên.');
+        }
+
         // Cập nhật googleId (nếu chưa có) và lastLoginAt cho User cũ
         const shouldUpdateGoogleId = !existingUser.googleId;
         const updateExpr = [];
@@ -678,7 +775,7 @@ export class AuthService {
         }));
 
         // Kiểm tra Smart Trusted Device
-        const deviceRecord = await this.deviceService.getDeviceStatus(email, deviceId);
+        const deviceRecord = await this.deviceService.getDeviceStatus(email, deviceIdToUse);
         if (!deviceRecord || deviceRecord.trusted === false) {
           await this.otpLimiterService.checkCooldown(email, 'login');
           const code = await this.otpService.createOtp(email, 'login' as any);
@@ -696,15 +793,15 @@ export class AuthService {
         const metadata = { deviceName, deviceType: deviceType || platform, platform };
 
         // Hybrid Single-Session V4 - Đá thiết bị cùng loại
-        await this.deviceService.handleNewSession(email, deviceId, metadata);
+        await this.deviceService.handleNewSession(email, deviceIdToUse, metadata);
 
         // Tạo Session mới trong Redis
-        await this.sessionService.createSession(email, deviceId, metadata);
+        await this.sessionService.createSession(email, deviceIdToUse, metadata);
 
         // Lấy full profile từ UserService để đảm bảo trả về đủ field (address, phone, dob...)
         const { profile } = await this.userService.getUserProfile(email);
 
-        const jwtPayload = { sub: email, email, deviceId };
+        const jwtPayload = { sub: email, email, deviceId: deviceIdToUse };
         return {
           accessToken: this.jwtService.sign(jwtPayload),
           user: profile,
@@ -717,11 +814,11 @@ export class AuthService {
 
       // Bắt buộc tạo Session ngay cả cho User chưa hoàn thiện Profile để tránh lỗi SESSION_INVALIDATED
       const platform = deviceType === 'web' ? 'web' : 'mobile';
-      await this.sessionService.createSession(email, deviceId, { deviceName, deviceType, platform });
-      await this.deviceService.handleNewSession(email, deviceId, { deviceName, deviceType });
+      await this.sessionService.createSession(email, deviceIdToUse, { deviceName, deviceType, platform });
+      await this.deviceService.handleNewSession(email, deviceIdToUse, { deviceName, deviceType });
 
       // Cấp token tạm thời với claim isPending
-      const tempPayload = { sub: email, email, deviceId, isPending: true };
+      const tempPayload = { sub: email, email, deviceId: deviceIdToUse, isPending: true };
       const accessToken = this.jwtService.sign(tempPayload);
 
       return {
@@ -829,6 +926,139 @@ export class AuthService {
         dataOfBirth: newUser.dataOfBirth,
       },
     };
+  }
+
+  // ===== LUỒNG XÓA TÀI KHOẢN KHI ĐANG BỊ KHÓA (LOCKED DELETION) =====
+
+  async requestDeleteLockedAccount(email: string, currentPassword: string) {
+    // 1. Lấy thông tin User
+    const result = await this.db.docClient.send(new GetCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+    const user = result.Item as User;
+    if (!user) throw new BadRequestException('Tài khoản không tồn tại.');
+
+    // 2. Kiểm tra mật khẩu (để đảm bảo chính chủ yêu cầu)
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Mật khẩu không chính xác.');
+    }
+
+    // 3. OTP Limiter
+    await this.otpLimiterService.checkCooldown(email, 'delete_account' as any);
+
+    // 4. Gửi OTP (Dùng chung type delete_account)
+    const code = await this.otpService.createOtp(email, 'delete_account' as any);
+    await this.emailService.sendOtp(email, code, 'delete_account' as any);
+
+    return { message: 'Mã OTP xác nhận xóa tài khoản đã được gửi về email của bạn.' };
+  }
+
+  async confirmDeleteLockedAccount(email: string, otp: string) {
+    // 1. Xác thực OTP
+    await this.otpService.verifyOtp(email, otp);
+
+    // 2. Chốt hạ: Dọn dẹp dữ liệu triệt để
+    await this.cleanupUserData(email);
+
+    return { message: 'Tài khoản của bạn đã được xóa vĩnh viễn thành công.' };
+  }
+
+  // ===== CORE CLEANUP LOGIC (DEEP DELETION) =====
+
+  private async cleanupUserData(email: string) {
+    console.log(`[AUTH] Starting Deep Cleanup for ${email}`);
+
+    // 1. Vô hiệu hóa sessions (Redis)
+    await this.deviceService.revokeAllSessions(email);
+
+    // 2. Truy quét toàn bộ bản ghi của người dùng (PK = USER#email)
+    const result = await this.db.docClient.send(new QueryCommand({
+      TableName: this.db.tableName,
+      KeyConditionExpression: 'PK = :pk',
+      ExpressionAttributeValues: { ':pk': `USER#${email}` }
+    }));
+
+    const items = result.Items || [];
+    const deleteRequests = [];
+
+    for (const item of items) {
+      const sk = item.SK as string;
+
+      // --- XỬ LÝ THEO LOẠI BẢN GHI ---
+
+      // A. BẢN GHI BẠN BÈ (Reciprocal cleanup)
+      if (sk.startsWith('FRIEND#')) {
+        const friendEmail = sk.replace('FRIEND#', '');
+        // Xóa bản ghi ở phía người bạn kia
+        try {
+          await this.db.docClient.send(new DeleteCommand({
+            TableName: this.db.tableName,
+            Key: { PK: `USER#${friendEmail}`, SK: `FRIEND#${email}` }
+          }));
+        } catch (e) {
+          console.warn(`[CLEANUP] Could not remove reciprocal friendship for ${friendEmail}`, e);
+        }
+      }
+
+      // B. BẢN GHI HỘI THOẠI (Group & Direct)
+      if (sk.startsWith('CONV#')) {
+        const convId = sk;
+        // Lấy Metadata của hội thoại để sửa members
+        try {
+          const convRes = await this.db.docClient.send(new GetCommand({
+            TableName: this.db.tableName,
+            Key: { PK: convId, SK: 'METADATA' }
+          }));
+          const conv = convRes.Item;
+          if (conv && conv.type === 'group') {
+            const newMembers = (conv.members || []).filter(m => m !== email);
+            await this.db.docClient.send(new UpdateCommand({
+              TableName: this.db.tableName,
+              Key: { PK: convId, SK: 'METADATA' },
+              UpdateExpression: 'SET #members = :members, updatedAt = :now',
+              ExpressionAttributeNames: { '#members': 'members' },
+              ExpressionAttributeValues: { ':members': newMembers, ':now': new Date().toISOString() }
+            }));
+          } else if (conv && conv.type === 'direct') {
+            // Xóa mapping mapping hội thoại ở phía người partner
+            const partner = (conv.members || []).find(m => m !== email);
+            if (partner) {
+              await this.db.docClient.send(new DeleteCommand({
+                TableName: this.db.tableName,
+                Key: { PK: `USER#${partner}`, SK: convId }
+              }));
+            }
+          }
+        } catch (e) {
+          console.warn(`[CLEANUP] Could not cleanup conversation ${convId}`, e);
+        }
+      }
+
+      // CHUẨN BỊ XÓA (Trừ METADATA - để làm "tombstone")
+      if (sk !== 'METADATA') {
+        deleteRequests.push({
+          DeleteRequest: { Key: { PK: `USER#${email}`, SK: sk } }
+        });
+      }
+    }
+
+    // 3. Thực hiện xóa Batch (tối đa 25 items/request trong DynamoDB BatchWrite)
+    while (deleteRequests.length > 0) {
+      const chunk = deleteRequests.splice(0, 25);
+      await this.db.docClient.send(new BatchWriteCommand({
+        RequestItems: { [this.db.tableName]: chunk }
+      }));
+    }
+
+    // 4. RESET METADATA - Chuyển sang XÓA CỨNG (Hard Delete) theo yêu cầu
+    await this.db.docClient.send(new DeleteCommand({
+      TableName: this.db.tableName,
+      Key: { PK: `USER#${email}`, SK: 'METADATA' },
+    }));
+
+    console.log(`[AUTH] Deep Cleanup completed for ${email}`);
   }
 }
 

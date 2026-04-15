@@ -19,6 +19,10 @@ interface AuthContextType {
   logoutAll: () => Promise<void>;
   requestChangePassword: (data: { currentPassword: string; newPassword: string }) => Promise<void>;
   confirmChangePassword: (otp: string) => Promise<void>;
+  requestLockAccount: (currentPassword: string) => Promise<void>;
+  confirmLockAccount: (otp: string) => Promise<void>;
+  requestDeleteAccount: (currentPassword: string) => Promise<void>;
+  confirmDeleteAccount: (otp: string) => Promise<void>;
   verifyLoginOtp: (otp: string, email: string) => Promise<any>;
   googleLogin: (idToken: string) => Promise<{ isProfileComplete?: boolean; requireOtp?: boolean; email?: string; success?: boolean }>;
   requestGoogleCompletionOtp: (email: string) => Promise<void>;
@@ -320,6 +324,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logoutLocal();
   };
 
+  // ===== KHÓA TÀI KHOẢN =====
+
+  const requestLockAccount = async (currentPassword: string) => {
+    await api.post('/auth/lock-account/request', { currentPassword });
+  };
+
+  const confirmLockAccount = async (otp: string) => {
+    await api.post('/auth/lock-account/confirm', { otp });
+    alert('Tài khoản của bạn đã được khóa thành công. Hẹn gặp lại!');
+    logoutLocal();
+  };
+
+  // ===== XÓA TÀI KHOẢN =====
+
+  const requestDeleteAccount = async (currentPassword: string) => {
+    await api.post('/auth/delete-account/request', { currentPassword });
+  };
+
+  const confirmDeleteAccount = async (otp: string) => {
+    await api.post('/auth/delete-account/confirm', { otp });
+    alert('Tài khoản của bạn đã được xóa hoàn toàn. Cảm ơn bạn đã đồng hành cùng Zalo Education!');
+    logoutLocal();
+  };
+
   const googleLogin = async (idToken: string) => {
     const { deviceName, deviceType } = getDeviceInfo();
     const currentDeviceId = deviceId || await Promise.resolve(getDeviceId());
@@ -387,7 +415,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user, loading, login, requestRegisterOtp, confirmRegister,
       resendOtp, requestForgotPassword, resetPassword, getSessions,
       revokeSession, logout, logoutAll, socket, deviceId, refreshUser,
-      requestChangePassword, confirmChangePassword, verifyLoginOtp,
+      requestChangePassword, confirmChangePassword,
+      requestLockAccount, confirmLockAccount,
+      requestDeleteAccount, confirmDeleteAccount,
+      verifyLoginOtp,
       googleLogin, requestGoogleCompletionOtp, completeGoogleProfile,
       pendingGoogleUser, setPendingGoogleUser
     }}>

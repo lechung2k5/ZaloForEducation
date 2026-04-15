@@ -20,8 +20,11 @@ export interface User {
   lastLoginAt: string;
   createdAt: string;
   updatedAt: string;
-  status: 'active' | 'suspended';
+  status: 'active' | 'suspended' | 'LOCKED' | 'DELETED';
   isActive: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string;
+  lockedAt?: string;
 }
 
 

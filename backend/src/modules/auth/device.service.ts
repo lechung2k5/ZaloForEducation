@@ -147,8 +147,10 @@ export class DeviceService {
     const allDevices = result.Items || [];
 
     for (const oldDevice of allDevices) {
-      const oldDeviceId = oldDevice.deviceId;
-      if (oldDeviceId === deviceId) continue;
+      // Sửa lỗi: Nếu thuộc tính deviceId bị thiếu, trích xuất từ SK (DEVICE#...)
+      const oldDeviceId = oldDevice.deviceId || (oldDevice.SK as string)?.replace('DEVICE#', '');
+      
+      if (!oldDeviceId || oldDeviceId === deviceId) continue;
 
       // Chỉ xét các thiết bị đang ACTIVE
       if (oldDevice.status !== 'ACTIVE') continue;
@@ -186,7 +188,7 @@ export class DeviceService {
     await this.db.docClient.send(new UpdateCommand({
       TableName: this.db.tableName,
       Key: { PK: `USER#${email}`, SK: `DEVICE#${deviceId}` },
-      UpdateExpression: 'SET #status = :s, lastLoginAt = :now, updatedAt = :now, deviceName = :dName, deviceType = :dType, platform = :p, lastLogoutReason = :null',
+      UpdateExpression: 'SET #status = :s, lastLoginAt = :now, updatedAt = :now, deviceName = :dName, deviceType = :dType, platform = :p, lastLogoutReason = :null, deviceId = :did',
       ExpressionAttributeNames: { '#status': 'status' },
       ExpressionAttributeValues: {
         ':s': 'ACTIVE',
@@ -195,9 +197,38 @@ export class DeviceService {
         ':dType': rawNewType,
         ':p': newCategory.toLowerCase(),
         ':null': null,
+        ':did': deviceId,
       },
     }));
+  }
 
+  /**
+   * Vô hiệu hóa TẤT CẢ các phiên đăng nhập của người dùng (dùng khi Khóa/Xóa tài khoản hoặc Đổi mật khẩu).
+   */
+  async revokeAllSessions(email: string) {
+    this.logger.warn(`[DeviceService] Revoking ALL sessions for ${email}`);
+    
+    // 1. Lấy danh sách session active từ Redis
+    const activeDeviceIds = await this.sessionService.getSessions(email);
+    
+    for (const deviceId of activeDeviceIds) {
+      const session = await this.sessionService.getSession(email, deviceId);
+      
+      // 2. Mark là LOGGED_OUT trong DynamoDB
+      await this.markAsLoggedOut(email, deviceId, {
+        deviceName: session?.deviceName,
+        deviceType: session?.deviceType,
+        reason: 'SESSION_REPLACED'
+      });
+
+      // 3. Remove khỏi Redis
+      await this.sessionService.removeSession(email, deviceId);
+    }
+
+    // 4. Bắn Socket thông báo toàn hệ thống
+    this.chatGateway.notifyForceLogout(email, 'all', 'Tài khoản của bạn đã được cập nhật trạng thái bảo mật mới. Tất cả các thiết bị đã bị đăng xuất.');
+    this.chatGateway.notifySessionsUpdate(email);
+    
     return { success: true };
   }
 }

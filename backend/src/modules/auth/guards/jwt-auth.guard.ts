@@ -9,6 +9,8 @@ import { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { SessionService } from '../session.service';
 import { DeviceService } from '../device.service';
+import { DynamoDBService } from '../../../infrastructure/dynamodb.service';
+import { GetCommand } from '@aws-sdk/lib-dynamodb';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -17,6 +19,7 @@ export class JwtAuthGuard implements CanActivate {
     private configService: ConfigService,
     private sessionService: SessionService,
     private deviceService: DeviceService,
+    private db: DynamoDBService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -47,6 +50,22 @@ export class JwtAuthGuard implements CanActivate {
         if (!dbDevice || dbDevice.status !== 'ACTIVE') {
           console.warn(`[AUTH] DB session invalidated (status: ${dbDevice?.status}) for ${payload.email}`);
           throw new UnauthorizedException('SESSION_INVALIDATED');
+        }
+
+        // 3. Kiểm tra trạng thái USER (LOCKED/DELETED) - "Chặn đường về"
+        const userRes = await this.db.docClient.send(new GetCommand({
+          TableName: this.db.tableName,
+          Key: { PK: `USER#${payload.email}`, SK: 'METADATA' }
+        }));
+        const user = userRes.Item;
+        if (!user) {
+          throw new UnauthorizedException('Tài khoản không tồn tại.');
+        }
+        if (user.status === 'LOCKED') {
+          throw new UnauthorizedException('Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.');
+        }
+        if (user.isDeleted === true) {
+          throw new UnauthorizedException('Tài khoản này đã bị xóa. Vui lòng liên hệ hỗ trợ nếu có nhầm lẫn.');
         }
       }
 

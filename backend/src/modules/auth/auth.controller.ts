@@ -137,6 +137,46 @@ export class AuthController {
     return this.authService.logout(email, deviceId);
   }
 
+  // ===== KHÓA TÀI KHOẢN =====
+
+  @Post('lock-account/request')
+  @UseGuards(JwtAuthGuard)
+  async requestLockAccount(@Req() req, @Body() body: { currentPassword: string }) {
+    return this.authService.requestLockAccount(req.user.email, body.currentPassword);
+  }
+
+  @Post('lock-account/confirm')
+  @UseGuards(JwtAuthGuard)
+  async confirmLockAccount(@Req() req, @Body() body: { otp: string }) {
+    return this.authService.confirmLockAccount(req.user.email, body.otp);
+  }
+
+  // ===== XÓA TÀI KHOẢN =====
+
+  @Post('delete-account/request')
+  @UseGuards(JwtAuthGuard)
+  async requestDeleteAccount(@Req() req, @Body() body: { currentPassword: string }) {
+    return this.authService.requestDeleteAccount(req.user.email, body.currentPassword);
+  }
+
+  @Post('delete-account/confirm')
+  @UseGuards(JwtAuthGuard)
+  async confirmDeleteAccount(@Req() req, @Body() body: { otp: string }) {
+    return this.authService.confirmDeleteAccount(req.user.email, body.otp);
+  }
+
+  // ===== XÓA TÀI KHOẢN KHI ĐANG BỊ KHÓA (PUBLIC FLOW) =====
+
+  @Post('locked/delete-request')
+  async requestDeleteLockedAccount(@Body() body: { email: string; currentPassword: string }) {
+    return this.authService.requestDeleteLockedAccount(body.email, body.currentPassword);
+  }
+
+  @Post('locked/delete-confirm')
+  async confirmDeleteLockedAccount(@Body() body: { email: string; otp: string }) {
+    return this.authService.confirmDeleteLockedAccount(body.email, body.otp);
+  }
+
   @Post('test-email')
   async testEmail(@Body() body: { email: string }) {
     return this.authService.testEmail(body.email);

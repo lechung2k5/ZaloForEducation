@@ -82,9 +82,11 @@ const ChipSelector: React.FC<{ label: string; active: boolean; onClick: () => vo
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, requestChangePassword, confirmChangePassword } = useAuth();
+  const { user, requestChangePassword, confirmChangePassword, requestLockAccount, confirmLockAccount, requestDeleteAccount, confirmDeleteAccount } = useAuth();
   const [settings, setSettings] = useState<WebSettings>(DEFAULT_SETTINGS);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isLockAccountOpen, setIsLockAccountOpen] = useState(false);
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
 
   const displayName = useMemo(() => user?.fullName || user?.fullname || 'Bạn', [user]);
   const displayAvatar = useMemo(
@@ -250,6 +252,43 @@ const SettingsPage: React.FC = () => {
               </div>
             </div>
           </Section>
+
+          {/* Section: Quản lý tài khoản */}
+          <section className="mt-12">
+            <div className="mb-6 px-1">
+              <h3 className="text-xl font-extrabold tracking-tight text-error">Quản lý tài khoản</h3>
+              <p className="text-[13px] text-on-surface-variant mt-1.5 font-medium">Các thao tác không thể hoàn tác. Vui lòng cân nhắc kỹ trước khi thực hiện.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                id="btn-lock-account"
+                onClick={() => setIsLockAccountOpen(true)}
+                className="group rounded-3xl border border-orange-200 bg-orange-50 p-5 flex items-center gap-5 transition-all hover:shadow-[0_8px_30px_rgb(234,88,12,0.1)] hover:border-orange-400 text-left"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-orange-100 flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                  <span className="material-symbols-outlined text-orange-600 text-[24px]">lock_person</span>
+                </div>
+                <div>
+                  <p className="text-[15px] font-extrabold text-orange-800 leading-tight">Khóa tài khoản</p>
+                  <p className="text-[13px] text-orange-600 mt-1.5 leading-relaxed">Tạm dừng truy cập. Tài khoản có thể được mở khóa sau.</p>
+                </div>
+              </button>
+
+              <button
+                id="btn-delete-account"
+                onClick={() => setIsDeleteAccountOpen(true)}
+                className="group rounded-3xl border border-red-200 bg-red-50 p-5 flex items-center gap-5 transition-all hover:shadow-[0_8px_30px_rgb(239,68,68,0.1)] hover:border-red-400 text-left"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center group-hover:bg-red-200 transition-colors">
+                  <span className="material-symbols-outlined text-red-600 text-[24px]">delete_forever</span>
+                </div>
+                <div>
+                  <p className="text-[15px] font-extrabold text-red-800 leading-tight">Xóa tài khoản</p>
+                  <p className="text-[13px] text-red-600 mt-1.5 leading-relaxed">Xóa vĩnh viễn tài khoản và toàn bộ dữ liệu liên quan.</p>
+                </div>
+              </button>
+            </div>
+          </section>
         </div>
 
         <footer className="mt-20 pt-10 border-t border-outline-variant/10 text-center">
@@ -261,12 +300,32 @@ const SettingsPage: React.FC = () => {
       </main>
 
       {/* Change Password Modal */}
-      <ChangePasswordModal 
-        isOpen={isChangePasswordOpen} 
-        onClose={() => setIsChangePasswordOpen(false)} 
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
         requestChangePassword={requestChangePassword}
         confirmChangePassword={confirmChangePassword}
         email={user?.email || ''}
+      />
+
+      {/* Lock Account Modal */}
+      <AccountActionModal
+        isOpen={isLockAccountOpen}
+        onClose={() => setIsLockAccountOpen(false)}
+        email={user?.email || ''}
+        mode="lock"
+        onRequestOtp={requestLockAccount}
+        onConfirmOtp={confirmLockAccount}
+      />
+
+      {/* Delete Account Modal */}
+      <AccountActionModal
+        isOpen={isDeleteAccountOpen}
+        onClose={() => setIsDeleteAccountOpen(false)}
+        email={user?.email || ''}
+        mode="delete"
+        onRequestOtp={requestDeleteAccount}
+        onConfirmOtp={confirmDeleteAccount}
       />
     </div>
   );
@@ -455,3 +514,162 @@ const ChangePasswordModal: React.FC<{
 };
 
 export default SettingsPage;
+
+// ─── AccountActionModal ────────────────────────────────────────────────────────
+const AccountActionModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  email: string;
+  mode: 'lock' | 'delete';
+  onRequestOtp: (currentPassword: string) => Promise<void>;
+  onConfirmOtp: (otp: string) => Promise<void>;
+}> = ({ isOpen, onClose, email, mode, onRequestOtp, onConfirmOtp }) => {
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [otp, setOtp] = useState('');
+
+  if (!isOpen) return null;
+
+  const isLock = mode === 'lock';
+  const accentClass = isLock ? 'text-orange-600' : 'text-red-600';
+  const bgClass = isLock ? 'bg-orange-50 border-orange-200' : 'bg-red-50 border-red-200';
+  const btnClass = isLock
+    ? 'bg-orange-500 hover:bg-orange-600 shadow-orange-200'
+    : 'bg-red-500 hover:bg-red-600 shadow-red-200';
+
+  const title = isLock ? 'Khóa tài khoản' : 'Xóa tài khoản';
+  const icon = isLock ? 'lock_person' : 'delete_forever';
+  const confirmLabel = isLock ? 'Xác nhận khóa tài khoản' : 'Xác nhận xóa tài khoản';
+  const warningMsg = isLock
+    ? 'Tài khoản sẽ bị tạm khóa. Tất cả phiên đăng nhập sẽ bị vô hiệu hóa ngay lập tức.'
+    : 'Hành động này KHÔNG THỂ hoàn tác. Toàn bộ dữ liệu tài khoản sẽ bị xóa vĩnh viễn.';
+
+  const handleRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await onRequestOtp(currentPassword);
+      setStep(2);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Có lỗi xảy ra, vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otp.length < 6) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await onConfirmOtp(otp);
+      // onConfirmOtp sẽ tự gọi logoutLocal() → redirect về /login
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Mã OTP không chính xác.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    setStep(1);
+    setCurrentPassword('');
+    setOtp('');
+    setError(null);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-0">
+      <div className="absolute inset-0 bg-on-surface/40 backdrop-blur-md animate-in fade-in duration-300" onClick={handleClose} />
+      <div className="relative w-full max-w-[500px] bg-white rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-10 duration-500">
+        <div className="absolute top-6 right-6 z-10">
+          <button onClick={handleClose} className="w-10 h-10 rounded-full bg-surface-container-highest/30 flex items-center justify-center hover:bg-surface-container-highest transition-colors active:scale-95">
+            <span className="material-symbols-outlined text-[20px] text-on-surface-variant">close</span>
+          </button>
+        </div>
+
+        <div className="p-8 sm:p-12">
+          <div className="mb-8 text-center">
+            <div className={`inline-flex w-16 h-16 rounded-[24px] items-center justify-center mb-6 border ${bgClass}`}>
+              <span className={`material-symbols-outlined text-[32px] ${accentClass}`}>{icon}</span>
+            </div>
+            <h3 className="text-2xl font-black text-on-surface">{title}</h3>
+            <p className="text-sm text-on-surface-variant font-medium mt-2 leading-relaxed">
+              {step === 1 ? warningMsg : `Mã xác thực đã được gửi tới email: ${email}`}
+            </p>
+          </div>
+
+          {error && (
+            <div className="mb-6 p-4 rounded-2xl bg-error/5 border border-error/10 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+              <span className="material-symbols-outlined text-error text-[20px]">error</span>
+              <p className="text-[13px] font-bold text-error leading-tight">{error}</p>
+            </div>
+          )}
+
+          {step === 1 ? (
+            <form onSubmit={handleRequestOtp} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[13px] font-extrabold text-on-surface ml-1">Mật khẩu hiện tại</label>
+                <div className="relative group">
+                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">lock</span>
+                  <input
+                    type="password"
+                    required
+                    autoFocus
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full h-14 bg-surface-container-highest/20 border-2 border-outline-variant/10 rounded-2xl pl-12 pr-4 text-sm font-bold focus:border-primary focus:bg-white outline-none transition-all"
+                    placeholder="Xác nhận danh tính của bạn"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={loading || !currentPassword}
+                className={`w-full h-14 text-white rounded-2xl font-black text-sm shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center disabled:opacity-50 disabled:scale-100 ${btnClass}`}
+              >
+                {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'Gửi mã xác thực'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleConfirmOtp} className="space-y-8">
+              <div className="flex justify-center">
+                <input
+                  type="text"
+                  maxLength={6}
+                  autoFocus
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  className="w-full max-w-[280px] h-20 bg-surface-container-highest/30 border-2 border-outline-variant/10 rounded-[28px] text-center text-4xl font-black tracking-[12px] text-primary focus:border-primary focus:bg-white outline-none transition-all placeholder:text-outline/30"
+                  placeholder="000000"
+                />
+              </div>
+              <div className="space-y-4">
+                <button
+                  type="submit"
+                  disabled={loading || otp.length < 6}
+                  className={`w-full h-14 text-white rounded-2xl font-black text-sm shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center disabled:opacity-50 disabled:scale-100 ${btnClass}`}
+                >
+                  {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : confirmLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="w-full h-12 bg-transparent text-primary rounded-2xl font-extrabold text-[13px] hover:bg-primary/5 transition-all"
+                >
+                  Quay lại bước trước
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

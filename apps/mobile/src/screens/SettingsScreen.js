@@ -2,15 +2,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+    Keyboard,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
     SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
+    TouchableWithoutFeedback,
     View
 } from 'react-native';
 import { Colors, Shadows, Typography } from '../constants/Theme';
+import { useAuth } from '../context/AuthContext';
 import Alert from '../utils/Alert';
 
 const SETTINGS_KEY = 'mobile_settings';
@@ -86,8 +93,11 @@ function PillToggle({ value, onValueChange }) {
 
 export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout }) {
   const storage = useMemo(() => AsyncStorage.default || AsyncStorage, []);
+  const { requestLockAccount, confirmLockAccount, requestDeleteAccount, confirmDeleteAccount } = useAuth();
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
+  const [lockModalVisible, setLockModalVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -212,6 +222,21 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
                 onValueChange={() => toggleSwitch('lockApp')}
               />
             }
+          />
+          <SettingRow
+            icon="lock_person"
+            title="Khóa tài khoản"
+            subtitle="Tạm dừng truy cập, có thể mở khóa sau"
+            rightElement={<Text style={styles.chevronDanger}>chevron_right</Text>}
+            onPress={() => setLockModalVisible(true)}
+            divider
+          />
+          <SettingRow
+            icon="delete_forever"
+            title="Xóa tài khoản"
+            subtitle="Xóa vĩnh viễn toàn bộ dữ liệu"
+            rightElement={<Text style={styles.chevronDanger}>chevron_right</Text>}
+            onPress={() => setDeleteModalVisible(true)}
           />
         </Section>
 
@@ -364,6 +389,34 @@ export default function SettingsScreen({ onNavigate, returnTo = 'home', onLogout
           </Text>
         </View>
       </ScrollView>
+
+      {/* Lock Account Modal */}
+      <AccountActionModal
+        visible={lockModalVisible}
+        onClose={() => setLockModalVisible(false)}
+        mode="lock"
+        onRequestOtp={requestLockAccount}
+        onConfirmOtp={(otp) => {
+          return confirmLockAccount(otp).then(() => {
+            setLockModalVisible(false);
+            if (onLogout) onLogout();
+          });
+        }}
+      />
+
+      {/* Delete Account Modal */}
+      <AccountActionModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        mode="delete"
+        onRequestOtp={requestDeleteAccount}
+        onConfirmOtp={(otp) => {
+          return confirmDeleteAccount(otp).then(() => {
+            setDeleteModalVisible(false);
+            if (onLogout) onLogout();
+          });
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -608,5 +661,287 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 18,
+  },
+});
+
+// ─── AccountActionModal ────────────────────────────────────────────────────────
+function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp }) {
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [otp, setOtp] = useState('');
+
+  const isLock = mode === 'lock';
+  const accentColor = isLock ? '#ea580c' : '#dc2626';
+  const title = isLock ? 'Khóa tài khoản' : 'Xóa tài khoản';
+  const icon = isLock ? 'lock_person' : 'delete_forever';
+  const confirmLabel = isLock ? 'Xác nhận khóa tài khoản' : 'Xác nhận xóa tài khoản';
+  const warningMsg = isLock
+    ? 'Tài khoản sẽ bị tạm khóa. Tất cả phiên đăng nhập sẽ bị vô hiệu hóa ngay lập tức.'
+    : 'Hành động này KHÔNG THỂ hoàn tác. Toàn bộ dữ liệu tài khoản sẽ bị xóa vĩnh viễn.';
+
+  const handleClose = () => {
+    setStep(1);
+    setCurrentPassword('');
+    setOtp('');
+    setError(null);
+    onClose();
+  };
+
+  const handleRequestOtp = async () => {
+    if (!currentPassword) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await onRequestOtp(currentPassword);
+      setStep(2);
+    } catch (err) {
+      setError(err?.message || 'Có lỗi xảy ra, vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmOtp = async () => {
+    if (otp.length < 6) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await onConfirmOtp(otp);
+    } catch (err) {
+      setError(err?.message || 'Mã OTP không chính xác.');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+      <View style={modalStyles.overlay}>
+        <TouchableWithoutFeedback onPress={handleClose}>
+          <View style={modalStyles.backdrop} />
+        </TouchableWithoutFeedback>
+        
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={modalStyles.keyboardView}
+        >
+          <View style={modalStyles.sheet}>
+            {/* Header */}
+            <View style={[modalStyles.iconBox, { backgroundColor: isLock ? '#fff7ed' : '#fef2f2', borderColor: isLock ? '#fed7aa' : '#fecaca' }]}>
+              <Text style={[modalStyles.icon, { color: accentColor }]}>{icon}</Text>
+            </View>
+            <Text style={modalStyles.title}>{title}</Text>
+            <Text style={modalStyles.subtitle}>{step === 1 ? warningMsg : 'Nhập mã OTP đã được gửi về email của bạn.'}</Text>
+
+            {!!error && (
+              <View style={modalStyles.errorBox}>
+                <Text style={modalStyles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            {step === 1 ? (
+              <View style={modalStyles.form}>
+                <Text style={modalStyles.label}>Mật khẩu hiện tại</Text>
+                <TextInput
+                  style={modalStyles.input}
+                  secureTextEntry
+                  placeholder="Xác nhận danh tính"
+                  placeholderTextColor="#9ca3af"
+                  value={currentPassword}
+                  onChangeText={setCurrentPassword}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[modalStyles.btn, { backgroundColor: accentColor, opacity: loading || !currentPassword ? 0.5 : 1 }]}
+                  onPress={handleRequestOtp}
+                  disabled={loading || !currentPassword}
+                  activeOpacity={0.85}
+                >
+                  <Text style={modalStyles.btnText}>{loading ? 'Đang gửi...' : 'Tiếp tục'}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={modalStyles.form}>
+                <TextInput
+                  style={modalStyles.otpInput}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  placeholder="000000"
+                  placeholderTextColor="#d1d5db"
+                  value={otp}
+                  onChangeText={setOtp}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[modalStyles.btn, { backgroundColor: accentColor, opacity: loading || otp.length < 6 ? 0.5 : 1 }]}
+                  onPress={handleConfirmOtp}
+                  disabled={loading || otp.length < 6}
+                  activeOpacity={0.85}
+                >
+                  <Text style={modalStyles.btnText}>{loading ? 'Đang xử lý...' : confirmLabel}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={modalStyles.backBtn} onPress={() => setStep(1)}>
+                  <Text style={modalStyles.backBtnText}>Quay lại</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <TouchableOpacity style={modalStyles.cancelBtn} onPress={handleClose}>
+              <Text style={modalStyles.cancelText}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  keyboardView: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheet: {
+    width: '88%',
+    maxWidth: 340,
+    backgroundColor: '#fff',
+    borderRadius: 32,
+    padding: 24,
+    alignItems: 'center',
+    ...Shadows.strong,
+    elevation: 10,
+  },
+  form: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  iconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    ...Shadows.soft,
+  },
+  icon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 34,
+  },
+  title: {
+    ...Typography.heading,
+    fontSize: 22,
+    color: Colors.onSurface,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  subtitle: {
+    ...Typography.body,
+    fontSize: 14,
+    color: Colors.onSurfaceVariant,
+    textAlign: 'center',
+    lineHeight: 21,
+    marginBottom: 24,
+    paddingHorizontal: 10,
+  },
+  errorBox: {
+    width: '100%',
+    backgroundColor: '#fef2f2',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#fee2e2',
+  },
+  errorText: {
+    ...Typography.body,
+    fontSize: 13,
+    color: '#dc2626',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  label: {
+    ...Typography.heading,
+    fontSize: 13,
+    color: Colors.onSurfaceVariant,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+    marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  input: {
+    width: '100%',
+    height: 56,
+    borderWidth: 1.5,
+    borderColor: '#e5e7eb',
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    fontSize: 16,
+    color: Colors.onSurface,
+    marginBottom: 20,
+    backgroundColor: '#fff',
+  },
+  otpInput: {
+    width: '100%',
+    height: 80,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderRadius: 24,
+    textAlign: 'center',
+    fontSize: 36,
+    letterSpacing: 12,
+    color: Colors.primary,
+    marginBottom: 24,
+    backgroundColor: '#f8fbff',
+    fontWeight: 'bold',
+  },
+  btn: {
+    width: '100%',
+    height: 56,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    ...Shadows.soft,
+  },
+  btnText: {
+    ...Typography.heading,
+    color: '#fff',
+    fontSize: 16,
+    letterSpacing: 0.5,
+  },
+  backBtn: {
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  backBtnText: {
+    ...Typography.body,
+    color: Colors.primary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  cancelBtn: {
+    paddingVertical: 12,
+    marginTop: 8,
+    width: '100%',
+    alignItems: 'center',
+  },
+  cancelText: {
+    ...Typography.body,
+    color: Colors.onSurfaceVariant,
+    fontSize: 15,
   },
 });

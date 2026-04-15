@@ -54,6 +54,8 @@ export class SessionService {
   }
 
   async removeSession(userId: string, deviceId: string) {
+    if (!deviceId) return; // Chốt chặn an toàn cho lỗi TypeError Redis
+    
     const userSessionsKey = `USER_SESSIONS#${userId}`;
     const sessionId = this.getSessionKey(userId, deviceId);
     
