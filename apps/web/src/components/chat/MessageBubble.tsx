@@ -367,7 +367,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         const targetName = parsed.target
           ? getDisplayName(parsed.target, user, userProfiles)
           : "";
-        const isActorMe = parsed.actor === user?.email;
+        const isActorMe =
+          String(parsed.actor || "").trim().toLowerCase() ===
+          String(user?.email || "")
+            .trim()
+            .toLowerCase();
         const actorLabel = isActorMe ? "Bạn" : actorName;
         const targetLabel =
           rawTarget &&
@@ -381,22 +385,32 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             displayContent = `${actorLabel} đã thêm ${targetLabel} vào nhóm`;
             break;
           case "member_removed":
+          case "member_kicked":
             displayContent = `${actorLabel} đã xóa ${targetLabel} khỏi nhóm`;
             break;
           case "member_left":
-            displayContent = `${actorLabel} left the group`;
+            displayContent = `${actorLabel} đã rời nhóm`;
             break;
           case "role_updated":
             const roleName =
               parsed.role === "owner"
-                ? `transferred ownership to ${targetLabel}`
+                ? `đã chuyển quyền trưởng nhóm cho ${targetLabel}`
                 : parsed.role === "deputy"
-                  ? "set CO_ADMIN"
-                  : "updated member role";
+                  ? `đã đặt ${targetLabel} làm phó nhóm`
+                  : `đã cập nhật vai trò của ${targetLabel}`;
             displayContent =
-              parsed.role === "owner"
+              parsed.role === "owner" || parsed.role === "deputy"
                 ? `${actorLabel} ${roleName}`
-                : `${actorLabel} ${roleName} for ${targetLabel}`;
+                : `${actorLabel} ${roleName}`;
+            break;
+          case "promoted_to_deputy":
+            displayContent = `${actorLabel} đã đặt ${targetLabel} làm phó nhóm`;
+            break;
+          case "demoted_to_member":
+            displayContent = `${actorLabel} đã hạ ${targetLabel} xuống thành viên`;
+            break;
+          case "transferred_owner":
+            displayContent = `${actorLabel} đã chuyển quyền trưởng nhóm cho ${targetLabel}`;
             break;
           case "info_updated":
             displayContent = `${actorLabel} đã cập nhật thông tin nhóm`;

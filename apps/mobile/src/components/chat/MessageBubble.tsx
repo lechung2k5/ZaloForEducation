@@ -1,23 +1,38 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, TouchableOpacity, Linking, ActivityIndicator, Animated, PanResponder, Dimensions, Platform } from 'react-native';
-import { Video, ResizeMode, Audio } from 'expo-av';
-import Alert from '../../utils/Alert';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Typography } from '../../constants/Theme';
-import { useAuth } from '../../context/AuthContext';
-import MediaViewerModal from './MediaViewerModal';
-import { downloadAndOpenFile } from '../../utils/fileHelper';
-import FluentEmoji from '../common/FluentEmoji';
-import { FLUENT_EMOJI_MAP } from '../../constants/Emojis';
-import { useNavigation } from '@react-navigation/native';
+import React, { useState, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  Pressable,
+  TouchableOpacity,
+  Linking,
+  ActivityIndicator,
+  Animated,
+  PanResponder,
+  Dimensions,
+  Platform,
+} from "react-native";
+import { Video, ResizeMode, Audio } from "expo-av";
+import Alert from "../../utils/Alert";
+import { LinearGradient } from "expo-linear-gradient";
+import { Colors, Typography } from "../../constants/Theme";
+import { useAuth } from "../../context/AuthContext";
+import { useChatStore } from "../../store/chatStore";
+import MediaViewerModal from "./MediaViewerModal";
+import { downloadAndOpenFile } from "../../utils/fileHelper";
+import FluentEmoji from "../common/FluentEmoji";
+import { FLUENT_EMOJI_MAP } from "../../constants/Emojis";
+import { useNavigation } from "@react-navigation/native";
+import PollMessage from "./PollMessage";
 
-const DEFAULT_AVATAR = { uri: "https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png" };
+const DEFAULT_AVATAR = {
+  uri: "https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png",
+};
 
 const getDisplayAvatar = (userId: string) => {
   return DEFAULT_AVATAR;
 };
-
-
 
 interface Attachment {
   url: string;
@@ -32,38 +47,43 @@ interface Attachment {
 }
 
 const normalizeAttachment = (attachment: any): Attachment => {
-  if (!attachment || typeof attachment !== 'object') return {
-    url: '',
-    dataUrl: '',
-    name: 'Unknown File',
-    mimeType: 'application/octet-stream',
-    size: 0
-  };
+  if (!attachment || typeof attachment !== "object")
+    return {
+      url: "",
+      dataUrl: "",
+      name: "Unknown File",
+      mimeType: "application/octet-stream",
+      size: 0,
+    };
   return {
     ...attachment,
-    url: attachment.url || attachment.fileUrl || attachment.dataUrl || '',
-    dataUrl: attachment.dataUrl || attachment.fileUrl || attachment.url || '',
-    name: attachment.name || attachment.fileName || 'Unknown File',
-    mimeType: attachment.mimeType || attachment.fileType || 'application/octet-stream',
-    size: attachment.size || 0
+    url: attachment.url || attachment.fileUrl || attachment.dataUrl || "",
+    dataUrl: attachment.dataUrl || attachment.fileUrl || attachment.url || "",
+    name: attachment.name || attachment.fileName || "Unknown File",
+    mimeType:
+      attachment.mimeType || attachment.fileType || "application/octet-stream",
+    size: attachment.size || 0,
   };
 };
 
 const formatFileSize = (bytes: number) => {
-  if (!bytes || bytes === 0) return '0 B';
+  if (!bytes || bytes === 0) return "0 B";
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
 const getFileIcon = (mimeType: string, fileName: string) => {
   const mime = String(mimeType || "").toLowerCase();
   const name = String(fileName || "").toLowerCase();
 
-  if (mime.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(name)) return "image";
-  if (mime.startsWith("video/") || /\.(mp4|mov|avi|wmv)$/i.test(name)) return "movie";
-  if (mime.startsWith("audio/") || /\.(mp3|wav|ogg|m4a)$/i.test(name)) return "audio_file";
+  if (mime.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp)$/i.test(name))
+    return "image";
+  if (mime.startsWith("video/") || /\.(mp4|mov|avi|wmv)$/i.test(name))
+    return "movie";
+  if (mime.startsWith("audio/") || /\.(mp3|wav|ogg|m4a)$/i.test(name))
+    return "audio_file";
   if (mime.includes("pdf") || /\.pdf$/i.test(name)) return "picture_as_pdf";
   if (/\.(zip|rar|7z|tar|gz)$/i.test(name)) return "folder_zip";
   if (/\.(doc|docx)$/i.test(name)) return "description";
@@ -72,14 +92,19 @@ const getFileIcon = (mimeType: string, fileName: string) => {
 };
 
 const isVideoAttachment = (item: any) => {
-  const mime = String(item?.mimeType || item?.fileType || '').toLowerCase();
-  const name = String(item?.name || item?.fileName || item?.url || item?.dataUrl || '').toLowerCase();
-  return mime.startsWith('video/') || /\.(mp4|mov|avi|wmv|webm|mkv)(\?.*)?$/.test(name);
+  const mime = String(item?.mimeType || item?.fileType || "").toLowerCase();
+  const name = String(
+    item?.name || item?.fileName || item?.url || item?.dataUrl || "",
+  ).toLowerCase();
+  return (
+    mime.startsWith("video/") ||
+    /\.(mp4|mov|avi|wmv|webm|mkv)(\?.*)?$/.test(name)
+  );
 };
 
 const isStickerMedia = (item: any) => {
-  const mime = String(item?.mimeType || item?.fileType || '').toLowerCase();
-  return mime.includes('sticker') || item?.isSticker === true;
+  const mime = String(item?.mimeType || item?.fileType || "").toLowerCase();
+  return mime.includes("sticker") || item?.isSticker === true;
 };
 
 const AudioPlayer = ({ url, isMe }: { url: string; isMe: boolean }) => {
@@ -117,13 +142,13 @@ const AudioPlayer = ({ url, isMe }: { url: string; isMe: boolean }) => {
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: url },
           { shouldPlay: true },
-          onPlaybackStatusUpdate
+          onPlaybackStatusUpdate,
         );
         setSound(newSound);
         setIsLoading(false);
       }
     } catch (e) {
-      console.warn('Audio play error', e);
+      console.warn("Audio play error", e);
       setIsLoading(false);
     }
   };
@@ -150,44 +175,58 @@ const AudioPlayer = ({ url, isMe }: { url: string; isMe: boolean }) => {
   }, [sound]);
 
   const formatTime = (ms: number) => {
-    if (!ms || ms <= 0) return '0:00';
+    if (!ms || ms <= 0) return "0:00";
     const totalSecs = Math.floor(ms / 1000);
     const mins = Math.floor(totalSecs / 60);
     const secs = totalSecs % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   return (
     <View style={[styles.audioPlayer, isMe && styles.audioPlayerMe]}>
-      <TouchableOpacity onPress={playPause} style={styles.audioPlayBtn} disabled={isLoading}>
+      <TouchableOpacity
+        onPress={playPause}
+        style={styles.audioPlayBtn}
+        disabled={isLoading}
+      >
         {isLoading ? (
           <ActivityIndicator color="#fff" size="small" />
         ) : (
           <Text style={[styles.audioPlayIcon, isMe && styles.audioPlayIconMe]}>
-            {isPlaying ? 'pause' : 'play_arrow'}
+            {isPlaying ? "pause" : "play_arrow"}
           </Text>
         )}
       </TouchableOpacity>
       <View style={styles.audioProgress}>
         <View style={styles.audioHeader}>
-          <Text style={[styles.audioLabel, isMe && styles.audioLabelMe]}>Tin nhắn thoại</Text>
+          <Text style={[styles.audioLabel, isMe && styles.audioLabelMe]}>
+            Tin nhắn thoại
+          </Text>
           <Text style={[styles.audioTime, isMe && styles.audioTimeMe]}>
-             {duration > 0 ? formatTime(duration) : '--:--'}
+            {duration > 0 ? formatTime(duration) : "--:--"}
           </Text>
         </View>
-        <Pressable 
-          style={styles.audioTrack} 
+        <Pressable
+          style={styles.audioTrack}
           onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
           onPress={handleSeek}
         >
-          <View 
+          <View
             style={[
-              styles.audioFill, 
-              { width: duration > 0 ? `${(position / duration) * 100}%` : '0%' }, 
-              isMe && styles.audioFillMe
-            ]} 
+              styles.audioFill,
+              {
+                width: duration > 0 ? `${(position / duration) * 100}%` : "0%",
+              },
+              isMe && styles.audioFillMe,
+            ]}
           />
-          <View style={[styles.audioKnob, { left: duration > 0 ? `${(position / duration) * 100}%` : '0%' }, isMe && styles.audioKnobMe]} />
+          <View
+            style={[
+              styles.audioKnob,
+              { left: duration > 0 ? `${(position / duration) * 100}%` : "0%" },
+              isMe && styles.audioKnobMe,
+            ]}
+          />
         </Pressable>
         <Text style={[styles.audioPos, isMe && styles.audioPosMe]}>
           {formatTime(position)}
@@ -197,15 +236,26 @@ const AudioPlayer = ({ url, isMe }: { url: string; isMe: boolean }) => {
   );
 };
 
-const HighlightText = ({ text, keyword, style }: { text: string; keyword?: string; style: any }) => {
+const HighlightText = ({
+  text,
+  keyword,
+  style,
+}: {
+  text: string;
+  keyword?: string;
+  style: any;
+}) => {
   if (!text || !keyword?.trim()) return <Text style={style}>{text}</Text>;
-  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const parts = String(text).split(new RegExp(`(${escaped})`, 'gi'));
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = String(text).split(new RegExp(`(${escaped})`, "gi"));
   return (
     <Text style={style}>
       {parts.map((part, i) =>
         part.toLowerCase() === keyword.toLowerCase() ? (
-          <Text key={i} style={{ backgroundColor: '#fff59d', fontWeight: 'bold' }}>
+          <Text
+            key={i}
+            style={{ backgroundColor: "#fff59d", fontWeight: "bold" }}
+          >
             {part}
           </Text>
         ) : (
@@ -216,12 +266,12 @@ const HighlightText = ({ text, keyword, style }: { text: string; keyword?: strin
   );
 };
 
-export default function MessageBubble({ 
-  message, 
-  isMe, 
-  userProfile, 
-  onLongPress, 
-  onReaction, 
+export default function MessageBubble({
+  message,
+  isMe,
+  userProfile,
+  onLongPress,
+  onReaction,
   onReply,
   onSystemMessagePress,
   isHighlighted,
@@ -231,7 +281,10 @@ export default function MessageBubble({
   showAvatar,
   groupPosition,
   isSeen,
-  onNavigate
+  onNavigate,
+  onVotePoll,
+  onClosePoll,
+  convId,
 }: {
   message: any;
   isMe: boolean;
@@ -245,16 +298,37 @@ export default function MessageBubble({
   userProfiles?: Record<string, any>;
   onReplyPress?: (messageId: string) => void;
   showAvatar?: boolean;
-  groupPosition?: 'first' | 'middle' | 'last' | 'single';
+  groupPosition?: "first" | "middle" | "last" | "single";
   isSeen?: boolean;
   onNavigate?: (screen: string, params?: any) => void;
+  onVotePoll?: (messageId: string, optionIndex: number) => Promise<void>;
+  onClosePoll?: (messageId: string) => Promise<void>;
+  convId?: string;
 }) {
+  const { activeConvId } = useChatStore();
+  const finalConvId = convId || activeConvId;
   const isMediaOnly = (() => {
-    if (message.audioUrl || message.contactCard || message.location) return true;
+    if (message.audioUrl || message.contactCard || message.location)
+      return true;
     if (!message.content) return true;
-    const placeholders = ['[Hình ảnh]', '[Tin nhắn thoại]', '[Ghi âm]', '[Tệp tin]', '[Sticker]', '[Ảnh/Video]', '[Danh thiếp]', '[Vị trí]'];
-    if (placeholders.some(p => message.content.startsWith(p))) {
-      return (message.media && message.media.length > 0) || (message.files && message.files.length > 0) || !!message.audioUrl || !!message.contactCard || !!message.location;
+    const placeholders = [
+      "[Hình ảnh]",
+      "[Tin nhắn thoại]",
+      "[Ghi âm]",
+      "[Tệp tin]",
+      "[Sticker]",
+      "[Ảnh/Video]",
+      "[Danh thiếp]",
+      "[Vị trí]",
+    ];
+    if (placeholders.some((p) => message.content.startsWith(p))) {
+      return (
+        (message.media && message.media.length > 0) ||
+        (message.files && message.files.length > 0) ||
+        !!message.audioUrl ||
+        !!message.contactCard ||
+        !!message.location
+      );
     }
     return false;
   })();
@@ -266,7 +340,12 @@ export default function MessageBubble({
     return false;
   })();
 
-  const shouldHideBubble = isMediaOnly || isSticker || !!message.contactCard || !!message.location || !!message.audioUrl;
+  const shouldHideBubble =
+    isMediaOnly ||
+    isSticker ||
+    !!message.contactCard ||
+    !!message.location ||
+    !!message.audioUrl;
 
   const navigate = useNavigation();
 
@@ -275,28 +354,37 @@ export default function MessageBubble({
   // SWIPE TO REPLY LOGIC
   const translateX = useRef(new Animated.Value(0)).current;
   const swipeThreshold = 60;
-  
+
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return Math.abs(gestureState.dx) > 10 && Math.abs(gestureState.dy) < 10;
       },
       onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dx > 0) { // Swipe right to reply
+        if (gestureState.dx > 0) {
+          // Swipe right to reply
           translateX.setValue(gestureState.dx);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dx > swipeThreshold) {
-          onReply({ 
-          ...message, 
-          senderName: (() => {
-            const replySender = String(message.senderId || "").trim().toLowerCase();
-            if (replySender === String(user?.email || "").trim().toLowerCase()) return "Bạn";
-            const p = userProfiles?.[replySender];
-            return p?.nickname || p?.fullName || p?.fullname || replySender;
-          })()
-        });
+          onReply({
+            ...message,
+            senderName: (() => {
+              const replySender = String(message.senderId || "")
+                .trim()
+                .toLowerCase();
+              if (
+                replySender ===
+                String(user?.email || "")
+                  .trim()
+                  .toLowerCase()
+              )
+                return "Bạn";
+              const p = userProfiles?.[replySender];
+              return p?.nickname || p?.fullName || p?.fullname || replySender;
+            })(),
+          });
         }
         Animated.spring(translateX, {
           toValue: 0,
@@ -304,38 +392,38 @@ export default function MessageBubble({
           bounciness: 12,
         }).start();
       },
-    })
+    }),
   ).current;
 
   const replyIconOpacity = translateX.interpolate({
     inputRange: [0, swipeThreshold],
     outputRange: [0, 1],
-    extrapolate: 'clamp',
+    extrapolate: "clamp",
   });
 
   const replyIconScale = translateX.interpolate({
     inputRange: [0, swipeThreshold],
     outputRange: [0.5, 1.2],
-    extrapolate: 'clamp',
+    extrapolate: "clamp",
   });
 
   const isRecalled = !!message.recalled;
   const isPinned = !!message.pinned;
 
   const handleImagePress = (item: any) => {
-    console.log('[MessageBubble] Image/Video pressed:', item.name);
+    console.log("[MessageBubble] Image/Video pressed:", item.name);
     if (isRecalled) return;
     if (onNavigate) {
-      onNavigate('MediaDetail', {
+      onNavigate("MediaDetail", {
         url: item.url || item.dataUrl,
         name: item.name,
-        mimeType: item.mimeType || item.fileType
+        mimeType: item.mimeType || item.fileType,
       });
     }
   };
 
   const handleFilePress = (file: any) => {
-    console.log('[MessageBubble] File pressed:', file.name);
+    console.log("[MessageBubble] File pressed:", file.name);
     if (isRecalled) return;
     downloadAndOpenFile(file.url || file.dataUrl, file.name, file.mimeType);
   };
@@ -350,7 +438,7 @@ export default function MessageBubble({
   }
 
   // System Message
-  if (message.type === 'system') {
+  if (message.type === "system") {
     const targetId = message.metadata?.targetMessageId;
 
     let displayContent = message.content;
@@ -363,30 +451,37 @@ export default function MessageBubble({
           const targetEmail = email.trim().toLowerCase();
           if (targetEmail === myEmail) return "Bạn";
           const p = userProfiles?.[targetEmail];
-          return p?.nickname || p?.fullName || p?.fullname || email.split('@')[0];
+          return (
+            p?.nickname || p?.fullName || p?.fullname || email.split("@")[0]
+          );
         };
 
         const actorLabel = getDisplayName(parsed.actor);
-        const targetLabel = parsed.target ? getDisplayName(parsed.target) : '';
+        const targetLabel = parsed.target ? getDisplayName(parsed.target) : "";
 
         switch (parsed.action) {
-          case 'member_added':
+          case "member_added":
             displayContent = `${actorLabel} đã thêm ${targetLabel} vào nhóm`;
             break;
-          case 'member_removed':
+          case "member_removed":
             displayContent = `${actorLabel} đã xóa ${targetLabel} khỏi nhóm`;
             break;
-          case 'member_left':
+          case "member_left":
             displayContent = `${actorLabel} đã rời nhóm`;
             break;
-          case 'role_updated':
-            const roleName = parsed.role === 'owner' ? 'Trưởng nhóm' : parsed.role === 'deputy' ? 'Phó nhóm' : 'Thành viên';
+          case "role_updated":
+            const roleName =
+              parsed.role === "owner"
+                ? "Trưởng nhóm"
+                : parsed.role === "deputy"
+                  ? "Phó nhóm"
+                  : "Thành viên";
             displayContent = `${actorLabel} đã đặt ${targetLabel} làm ${roleName}`;
             break;
-          case 'info_updated':
+          case "info_updated":
             displayContent = `${actorLabel} đã cập nhật thông tin nhóm`;
             break;
-          case 'group_created':
+          case "group_created":
             displayContent = `${actorLabel} đã tạo nhóm`;
             break;
         }
@@ -397,17 +492,29 @@ export default function MessageBubble({
 
     return (
       <View style={styles.systemContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           activeOpacity={targetId ? 0.7 : 1}
-          onPress={() => targetId && onSystemMessagePress && onSystemMessagePress(targetId)}
-          style={[styles.systemBadge, targetId && { borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.1)' }]}
+          onPress={() =>
+            targetId && onSystemMessagePress && onSystemMessagePress(targetId)
+          }
+          style={[
+            styles.systemBadge,
+            targetId && {
+              borderBottomWidth: 1,
+              borderBottomColor: "rgba(0,0,0,0.1)",
+            },
+          ]}
         >
           <Text style={styles.systemText}>{displayContent}</Text>
         </TouchableOpacity>
         <Text style={styles.systemTime}>
-          {new Date(message.createdAt || Date.now()).toLocaleTimeString('vi-VN', {
-            hour: '2-digit', minute: '2-digit'
-          })}
+          {new Date(message.createdAt || Date.now()).toLocaleTimeString(
+            "vi-VN",
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+            },
+          )}
         </Text>
       </View>
     );
@@ -416,28 +523,57 @@ export default function MessageBubble({
   const RenderBubbleContent = () => (
     <>
       {message.replyTo && (
-        <TouchableOpacity 
+        <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => onReplyPress && onReplyPress(message.replyTo.id)}
           style={[styles.replyBox, isMe && styles.replyBoxMe]}
         >
           <View style={styles.replyContentRow}>
             <View style={styles.replyTextColumn}>
-              <Text style={[styles.replyHeader, isMe && styles.replyHeaderTextMe]} numberOfLines={1}>
+              <Text
+                style={[styles.replyHeader, isMe && styles.replyHeaderTextMe]}
+                numberOfLines={1}
+              >
                 {(() => {
-                  const replySender = String(message.replyTo.senderId || "").trim().toLowerCase();
-                  if (replySender === String(user?.email || "").trim().toLowerCase()) return "Bạn";
+                  const replySender = String(message.replyTo.senderId || "")
+                    .trim()
+                    .toLowerCase();
+                  if (
+                    replySender ===
+                    String(user?.email || "")
+                      .trim()
+                      .toLowerCase()
+                  )
+                    return "Bạn";
                   const p = userProfiles?.[replySender];
-                  return p?.nickname || p?.fullName || p?.fullname || replySender || "Người dùng";
+                  return (
+                    p?.nickname ||
+                    p?.fullName ||
+                    p?.fullname ||
+                    replySender ||
+                    "Người dùng"
+                  );
                 })()}
               </Text>
-              <Text style={[styles.replyContent, isMe && styles.replyContentTextMe]} numberOfLines={1}>
-                {message.replyTo.content || (message.replyTo.media?.length ? "[Hình ảnh]" : message.replyTo.files?.length ? "[Tệp tin]" : "Tin nhắn")}
+              <Text
+                style={[styles.replyContent, isMe && styles.replyContentTextMe]}
+                numberOfLines={1}
+              >
+                {message.replyTo.content ||
+                  (message.replyTo.media?.length
+                    ? "[Hình ảnh]"
+                    : message.replyTo.files?.length
+                      ? "[Tệp tin]"
+                      : "Tin nhắn")}
               </Text>
             </View>
-            {(message.replyTo.media && message.replyTo.media.length > 0) && (
-              <Image 
-                source={{ uri: message.replyTo.media[0].url || message.replyTo.media[0].dataUrl }} 
+            {message.replyTo.media && message.replyTo.media.length > 0 && (
+              <Image
+                source={{
+                  uri:
+                    message.replyTo.media[0].url ||
+                    message.replyTo.media[0].dataUrl,
+                }}
                 style={styles.replyImagePreview}
               />
             )}
@@ -446,16 +582,25 @@ export default function MessageBubble({
       )}
 
       {isRecalled ? (
-        <Text style={[styles.messageText, styles.recalledText, isMe && styles.messageTextMe]}>
+        <Text
+          style={[
+            styles.messageText,
+            styles.recalledText,
+            isMe && styles.messageTextMe,
+          ]}
+        >
           Tin nhắn đã được thu hồi
         </Text>
       ) : (
         <>
           {message.content && !isMediaOnly ? (
-            <HighlightText 
-              text={message.content} 
-              keyword={highlightKeyword} 
-              style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]} 
+            <HighlightText
+              text={message.content}
+              keyword={highlightKeyword}
+              style={[
+                styles.messageText,
+                isMe ? styles.messageTextMe : styles.messageTextOther,
+              ]}
             />
           ) : null}
 
@@ -463,21 +608,35 @@ export default function MessageBubble({
             <View style={styles.mediaContainer}>
               {(() => {
                 const videos = message.media.filter(isVideoAttachment);
-                const images = message.media.filter((m: any) => !isVideoAttachment(m));
-                
+                const images = message.media.filter(
+                  (m: any) => !isVideoAttachment(m),
+                );
+
                 return (
                   <>
                     {videos.length > 0 && (
-                      <View style={[styles.videoGrid, images.length > 0 && { marginBottom: 8 }]}>
+                      <View
+                        style={[
+                          styles.videoGrid,
+                          images.length > 0 && { marginBottom: 8 },
+                        ]}
+                      >
                         {videos.map((item: any, idx: number) => (
-                          <TouchableOpacity 
-                            key={`vid-${idx}`} 
-                            style={[styles.videoBox, videos.length === 1 && styles.singleVideoBox]}
+                          <TouchableOpacity
+                            key={`vid-${idx}`}
+                            style={[
+                              styles.videoBox,
+                              videos.length === 1 && styles.singleVideoBox,
+                            ]}
                             onPress={() => handleImagePress(item)}
                           >
-                            <Image 
-                              source={(item.url || item.dataUrl) ? { uri: item.url || item.dataUrl } : DEFAULT_AVATAR} 
-                              style={styles.mediaImage} 
+                            <Image
+                              source={
+                                item.url || item.dataUrl
+                                  ? { uri: item.url || item.dataUrl }
+                                  : DEFAULT_AVATAR
+                              }
+                              style={styles.mediaImage}
                               resizeMode="cover"
                             />
                             <View style={styles.videoOverlay}>
@@ -494,29 +653,37 @@ export default function MessageBubble({
                     )}
 
                     {images.length > 0 && (
-                      <View style={[
-                        styles.imageGrid,
-                        images.length === 1 && styles.singleMediaGrid,
-                        (images.length === 2 || images.length === 4) && styles.twoColumnGrid
-                      ]}>
+                      <View
+                        style={[
+                          styles.imageGrid,
+                          images.length === 1 && styles.singleMediaGrid,
+                          (images.length === 2 || images.length === 4) &&
+                            styles.twoColumnGrid,
+                        ]}
+                      >
                         {images.map((item: any, idx: number) => {
                           const isSticker = isStickerMedia(item);
                           return (
-                            <TouchableOpacity 
-                              key={`img-${idx}`} 
+                            <TouchableOpacity
+                              key={`img-${idx}`}
                               style={[
                                 styles.imageBox,
-                                images.length === 1 && styles.singleImageBox
+                                images.length === 1 && styles.singleImageBox,
                               ]}
                               onPress={() => handleImagePress(item)}
                             >
-                              <Image 
-                                source={(item.url || item.dataUrl) ? { uri: item.url || item.dataUrl } : DEFAULT_AVATAR} 
+                              <Image
+                                source={
+                                  item.url || item.dataUrl
+                                    ? { uri: item.url || item.dataUrl }
+                                    : DEFAULT_AVATAR
+                                }
                                 style={[
-                                  styles.mediaImage, 
+                                  styles.mediaImage,
                                   isSticker && styles.stickerImage,
-                                  images.length === 1 && styles.singleMediaImage
-                                ]} 
+                                  images.length === 1 &&
+                                    styles.singleMediaImage,
+                                ]}
                                 resizeMode={isSticker ? "contain" : "cover"}
                               />
                             </TouchableOpacity>
@@ -533,22 +700,33 @@ export default function MessageBubble({
           {/* 1. Special Cards (Location/Contact) */}
           {message.location && (
             <View style={styles.fileList}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.specialCard, isMe && styles.specialCardMe]}
                 onPress={() => {
                   const url = Platform.select({
                     ios: `maps:0,0?q=${message.location.latitude},${message.location.longitude}`,
-                    android: `geo:0,0?q=${message.location.latitude},${message.location.longitude}`
+                    android: `geo:0,0?q=${message.location.latitude},${message.location.longitude}`,
                   });
                   if (url) Linking.openURL(url);
                 }}
               >
-                <View style={[styles.specialIconBox, { backgroundColor: '#fff1f2' }]}>
-                  <Text style={[styles.specialIcon, { color: '#f43f5e' }]}>location_on</Text>
+                <View
+                  style={[
+                    styles.specialIconBox,
+                    { backgroundColor: "#fff1f2" },
+                  ]}
+                >
+                  <Text style={[styles.specialIcon, { color: "#f43f5e" }]}>
+                    location_on
+                  </Text>
                 </View>
                 <View style={styles.fileInfo}>
-                  <Text style={[styles.fileName, isMe && styles.fileNameMe]}>Vị trí hiện tại</Text>
-                  <Text style={[styles.fileSize, isMe && styles.fileSizeMe]}>{message.location.label || 'Nhấn để xem bản đồ'}</Text>
+                  <Text style={[styles.fileName, isMe && styles.fileNameMe]}>
+                    Vị trí hiện tại
+                  </Text>
+                  <Text style={[styles.fileSize, isMe && styles.fileSizeMe]}>
+                    {message.location.label || "Nhấn để xem bản đồ"}
+                  </Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -556,18 +734,37 @@ export default function MessageBubble({
 
           {message.contactCard && (
             <View style={styles.fileList}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.specialCard, isMe && styles.specialCardMe]}
                 onPress={() => {
-                  if (onNavigate) onNavigate('Profile', { userId: message.contactCard.email });
+                  if (onNavigate)
+                    onNavigate("Profile", {
+                      userId: message.contactCard.email,
+                    });
                 }}
               >
-                <View style={[styles.specialIconBox, { backgroundColor: '#f5f3ff' }]}>
-                  <Image source={{ uri: message.contactCard.avatarUrl || 'https://via.placeholder.com/150' }} style={styles.specialAvatar} />
+                <View
+                  style={[
+                    styles.specialIconBox,
+                    { backgroundColor: "#f5f3ff" },
+                  ]}
+                >
+                  <Image
+                    source={{
+                      uri:
+                        message.contactCard.avatarUrl ||
+                        "https://via.placeholder.com/150",
+                    }}
+                    style={styles.specialAvatar}
+                  />
                 </View>
                 <View style={styles.fileInfo}>
-                  <Text style={[styles.fileName, isMe && styles.fileNameMe]}>{message.contactCard.fullName || "Danh thiếp"}</Text>
-                  <Text style={[styles.fileSize, isMe && styles.fileSizeMe]}>Nhấn để xem trang cá nhân</Text>
+                  <Text style={[styles.fileName, isMe && styles.fileNameMe]}>
+                    {message.contactCard.fullName || "Danh thiếp"}
+                  </Text>
+                  <Text style={[styles.fileSize, isMe && styles.fileSizeMe]}>
+                    Nhấn để xem trang cá nhân
+                  </Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -586,178 +783,267 @@ export default function MessageBubble({
               {message.files.map((file: any, idx: number) => {
                 const f = normalizeAttachment(file);
                 return (
-                  <TouchableOpacity 
-                    key={idx} 
+                  <TouchableOpacity
+                    key={idx}
                     style={[styles.fileCard, isMe && styles.fileCardMe]}
                     onPress={() => handleFilePress(f)}
                   >
                     <View style={styles.fileIconBox}>
-                      <Text style={styles.fileIcon}>{getFileIcon(f.mimeType, f.name)}</Text>
+                      <Text style={styles.fileIcon}>
+                        {getFileIcon(f.mimeType, f.name)}
+                      </Text>
                     </View>
                     <View style={styles.fileInfo}>
-                      <Text style={[styles.fileName, isMe && styles.fileNameMe]} numberOfLines={1}>{f.name}</Text>
-                      <Text style={[styles.fileSize, isMe && styles.fileSizeMe]}>{formatFileSize(f.size)}</Text>
+                      <Text
+                        style={[styles.fileName, isMe && styles.fileNameMe]}
+                        numberOfLines={1}
+                      >
+                        {f.name}
+                      </Text>
+                      <Text
+                        style={[styles.fileSize, isMe && styles.fileSizeMe]}
+                      >
+                        {formatFileSize(f.size)}
+                      </Text>
                     </View>
                   </TouchableOpacity>
                 );
               })}
             </View>
           )}
+
+          {/* 4. Poll Message */}
+          {!isRecalled &&
+            (message.payload?.poll || message.poll) &&
+            finalConvId && (
+              <View style={styles.fileList}>
+                <PollMessage
+                  messageId={message.id}
+                  topic={(message.payload?.poll || message.poll).topic || ""}
+                  options={
+                    (message.payload?.poll || message.poll).options || []
+                  }
+                  votes={(message.payload?.poll || message.poll).votes || {}}
+                  senderEmail={message.senderId}
+                  isClosed={
+                    (message.payload?.poll || message.poll).isClosed || false
+                  }
+                  onVote={
+                    onVotePoll
+                      ? (optionIndex: number) =>
+                          onVotePoll(message.id, optionIndex)
+                      : undefined
+                  }
+                  onClosePoll={
+                    onClosePoll ? () => onClosePoll(message.id) : undefined
+                  }
+                />
+              </View>
+            )}
         </>
       )}
     </>
   );
 
   return (
-    <View style={[
-      styles.container, 
-      isMe ? styles.containerMe : styles.containerOther,
-      groupPosition === 'middle' || groupPosition === 'last' ? { marginBottom: 2 } : { marginBottom: 8 }
-    ]}>
+    <View
+      style={[
+        styles.container,
+        isMe ? styles.containerMe : styles.containerOther,
+        groupPosition === "middle" || groupPosition === "last"
+          ? { marginBottom: 2 }
+          : { marginBottom: 8 },
+      ]}
+    >
       {/* Swipe Reply Icon Indicator */}
-      <Animated.View style={[
-        styles.replySwipeIndicator,
-        {
-          opacity: replyIconOpacity,
-          transform: [{ scale: replyIconScale }, { translateX: -20 }]
-        }
-      ]}>
+      <Animated.View
+        style={[
+          styles.replySwipeIndicator,
+          {
+            opacity: replyIconOpacity,
+            transform: [{ scale: replyIconScale }, { translateX: -20 }],
+          },
+        ]}
+      >
         <Text style={styles.replySwipeIcon}>reply</Text>
       </Animated.View>
 
-      <Animated.View 
+      <Animated.View
         {...panResponder.panHandlers}
         style={[
-          { flexDirection: 'row', flex: 1, alignItems: 'flex-end', justifyContent: isMe ? 'flex-end' : 'flex-start' },
-          { transform: [{ translateX }] }
+          {
+            flexDirection: "row",
+            flex: 1,
+            alignItems: "flex-end",
+            justifyContent: isMe ? "flex-end" : "flex-start",
+          },
+          { transform: [{ translateX }] },
         ]}
       >
         {!isMe && (
-        <View style={styles.avatarSpace}>
-          {showAvatar ? (
-            <Image 
-              source={userProfile?.avatarUrl ? { uri: userProfile.avatarUrl } : DEFAULT_AVATAR} 
-              style={styles.avatar} 
-            />
-          ) : null}
-        </View>
-      )}
-      
-      <View style={[styles.bubbleWrapper, isMe ? styles.bubbleWrapperMe : styles.bubbleWrapperOther]}>
-        {/* Name and Pin Header - Only show if pinned */}
-        {isPinned && (
-          <View style={styles.headerRow}>
-            <View style={styles.pinBadge}>
-              <Text style={styles.pinIcon}>push_pin</Text>
-              <Text style={styles.pinText}>Đã ghim</Text>
-            </View>
+          <View style={styles.avatarSpace}>
+            {showAvatar ? (
+              <Image
+                source={
+                  userProfile?.avatarUrl
+                    ? { uri: userProfile.avatarUrl }
+                    : DEFAULT_AVATAR
+                }
+                style={styles.avatar}
+              />
+            ) : null}
           </View>
         )}
 
-        <Pressable 
-          onLongPress={() => onLongPress(message)}
-          delayLongPress={300}
+        <View
+          style={[
+            styles.bubbleWrapper,
+            isMe ? styles.bubbleWrapperMe : styles.bubbleWrapperOther,
+          ]}
         >
-          {shouldHideBubble ? (
-            <View style={[
-              styles.noBubble,
-              isHighlighted && styles.bubbleHighlighted
-            ]}>
-              <RenderBubbleContent />
-            </View>
-          ) : isMe ? (
-            <LinearGradient
-              colors={isMe ? ['#e3f2fd', '#bbdefb'] : ['#ffffff', '#ffffff']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[
-                styles.bubble,
-                isMe ? styles.bubbleMe : styles.bubbleOther,
-                groupPosition === 'first' && (isMe ? styles.firstMe : styles.firstOther),
-                groupPosition === 'middle' && (isMe ? styles.middleMe : styles.middleOther),
-                groupPosition === 'last' && (isMe ? styles.lastMe : styles.lastOther),
-                isHighlighted && styles.bubbleHighlighted
-              ]}
-            >
-              <RenderBubbleContent />
-            </LinearGradient>
-          ) : (
-            <View
-              style={[
-                styles.bubble,
-                styles.bubbleOther,
-                groupPosition === 'first' && styles.firstOther,
-                groupPosition === 'middle' && styles.middleOther,
-                groupPosition === 'last' && styles.lastOther,
-                isHighlighted && styles.bubbleHighlighted
-              ]}
-            >
-              <RenderBubbleContent />
+          {/* Name and Pin Header - Only show if pinned */}
+          {isPinned && (
+            <View style={styles.headerRow}>
+              <View style={styles.pinBadge}>
+                <Text style={styles.pinIcon}>push_pin</Text>
+                <Text style={styles.pinText}>Đã ghim</Text>
+              </View>
             </View>
           )}
-        </Pressable>
 
-
-        {message.reactions && reactionSummary.length > 0 && (
-          <View style={[styles.reactionSummary, isMe ? styles.reactionSummaryMe : styles.reactionSummaryOther]}>
-            {reactionSummary.map(([emoji, users], idx) => (
-              <TouchableOpacity key={idx} style={styles.reactionBadge} onPress={() => onReaction(message, emoji)}>
-                <FluentEmoji emoji={emoji} style={styles.reactionEmojiIcon} />
-                <Text style={styles.reactionCount}>{users.length}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {(groupPosition === 'last' || groupPosition === 'single' || (isMe && message.status)) && (
-          <View style={[styles.footerRow, isMe && styles.footerRowMe]}>
-            {(groupPosition === 'last' || groupPosition === 'single') && (
-              <Text style={styles.timeText}>
-                {new Date(message.createdAt || Date.now()).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-            )}
-            
-            {isMe && (
-              <View style={styles.statusWrapper}>
-                {isSeen ? (
-                  <Image source={userProfile?.avatarUrl ? { uri: userProfile.avatarUrl } : DEFAULT_AVATAR} style={styles.seenAvatar} />
-                ) : message.status === 'sending' ? (
-                  <View style={styles.statusCircle} />
-                ) : message.status === 'error' ? (
-                  <View style={[styles.statusCircle, { borderColor: '#ef4444' }]}>
-                    <Text style={[styles.statusCheck, { color: '#ef4444' }]}>!</Text>
-                  </View>
-                ) : (
-                  <View style={[styles.statusCircle, styles.statusSent]}>
-                    <Text style={styles.statusCheck}>✓</Text>
-                  </View>
-                )}
+          <Pressable
+            onLongPress={() => onLongPress(message)}
+            delayLongPress={300}
+          >
+            {shouldHideBubble ? (
+              <View
+                style={[
+                  styles.noBubble,
+                  isHighlighted && styles.bubbleHighlighted,
+                ]}
+              >
+                <RenderBubbleContent />
+              </View>
+            ) : isMe ? (
+              <LinearGradient
+                colors={isMe ? ["#e3f2fd", "#bbdefb"] : ["#ffffff", "#ffffff"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[
+                  styles.bubble,
+                  isMe ? styles.bubbleMe : styles.bubbleOther,
+                  groupPosition === "first" &&
+                    (isMe ? styles.firstMe : styles.firstOther),
+                  groupPosition === "middle" &&
+                    (isMe ? styles.middleMe : styles.middleOther),
+                  groupPosition === "last" &&
+                    (isMe ? styles.lastMe : styles.lastOther),
+                  isHighlighted && styles.bubbleHighlighted,
+                ]}
+              >
+                <RenderBubbleContent />
+              </LinearGradient>
+            ) : (
+              <View
+                style={[
+                  styles.bubble,
+                  styles.bubbleOther,
+                  groupPosition === "first" && styles.firstOther,
+                  groupPosition === "middle" && styles.middleOther,
+                  groupPosition === "last" && styles.lastOther,
+                  isHighlighted && styles.bubbleHighlighted,
+                ]}
+              >
+                <RenderBubbleContent />
               </View>
             )}
-          </View>
-        )}
-      </View>
-    </Animated.View>
-  </View>
-);
+          </Pressable>
+
+          {message.reactions && reactionSummary.length > 0 && (
+            <View
+              style={[
+                styles.reactionSummary,
+                isMe ? styles.reactionSummaryMe : styles.reactionSummaryOther,
+              ]}
+            >
+              {reactionSummary.map(([emoji, users], idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.reactionBadge}
+                  onPress={() => onReaction(message, emoji)}
+                >
+                  <FluentEmoji emoji={emoji} style={styles.reactionEmojiIcon} />
+                  <Text style={styles.reactionCount}>{users.length}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {(groupPosition === "last" ||
+            groupPosition === "single" ||
+            (isMe && message.status)) && (
+            <View style={[styles.footerRow, isMe && styles.footerRowMe]}>
+              {(groupPosition === "last" || groupPosition === "single") && (
+                <Text style={styles.timeText}>
+                  {new Date(message.createdAt || Date.now()).toLocaleTimeString(
+                    "vi-VN",
+                    { hour: "2-digit", minute: "2-digit" },
+                  )}
+                </Text>
+              )}
+
+              {isMe && (
+                <View style={styles.statusWrapper}>
+                  {isSeen ? (
+                    <Image
+                      source={
+                        userProfile?.avatarUrl
+                          ? { uri: userProfile.avatarUrl }
+                          : DEFAULT_AVATAR
+                      }
+                      style={styles.seenAvatar}
+                    />
+                  ) : message.status === "sending" ? (
+                    <View style={styles.statusCircle} />
+                  ) : message.status === "error" ? (
+                    <View
+                      style={[styles.statusCircle, { borderColor: "#ef4444" }]}
+                    >
+                      <Text style={[styles.statusCheck, { color: "#ef4444" }]}>
+                        !
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.statusCircle, styles.statusSent]}>
+                      <Text style={styles.statusCheck}>✓</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      </Animated.View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   noBubble: {
-    backgroundColor: 'transparent',
-    overflow: 'hidden',
+    backgroundColor: "transparent",
+    overflow: "hidden",
   },
   container: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 4,
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     paddingHorizontal: 8,
   },
   containerMe: {
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   containerOther: {
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
   },
   avatar: {
     width: 28,
@@ -770,16 +1056,16 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   bubbleWrapperMe: {
-    alignItems: 'flex-end',
-    maxWidth: '75%',
+    alignItems: "flex-end",
+    maxWidth: "75%",
   },
   bubbleWrapperOther: {
-    alignItems: 'flex-start',
-    maxWidth: '75%',
+    alignItems: "flex-start",
+    maxWidth: "75%",
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 2,
     gap: 4,
   },
@@ -787,29 +1073,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 14,
     borderRadius: 22,
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
+    alignSelf: "flex-start",
+    maxWidth: "100%",
     minHeight: 48,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   bubbleHighlighted: {
-    backgroundColor: '#fff9c4',
-    borderColor: '#ffd600',
+    backgroundColor: "#fff9c4",
+    borderColor: "#ffd600",
     borderWidth: 2,
     elevation: 4,
     shadowOpacity: 0.3,
   },
   bubbleMe: {
     borderRadius: 18,
-    alignSelf: 'flex-end',
-    backgroundColor: '#e3f2fd',
+    alignSelf: "flex-end",
+    backgroundColor: "#e3f2fd",
   },
   bubbleOther: {
-    backgroundColor: '#ffffff',
+    backgroundColor: "#ffffff",
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-    alignSelf: 'flex-start',
+    borderColor: "rgba(0,0,0,0.05)",
+    alignSelf: "flex-start",
   },
   firstMe: { borderBottomRightRadius: 4 },
   middleMe: { borderTopRightRadius: 4, borderBottomRightRadius: 4 },
@@ -821,23 +1107,23 @@ const styles = StyleSheet.create({
     ...Typography.body,
     fontSize: 17,
     lineHeight: 24,
-    color: '#000000',
-    fontWeight: '400',
+    color: "#000000",
+    fontWeight: "400",
   },
   messageTextMe: {
-    color: '#000000',
+    color: "#000000",
   },
   messageTextOther: {
-    color: '#000000',
+    color: "#000000",
   },
   recalledText: {
-    fontStyle: 'italic',
+    fontStyle: "italic",
     opacity: 0.6,
   },
   replyBox: {
-    backgroundColor: 'rgba(0, 104, 255, 0.1)',
+    backgroundColor: "rgba(0, 104, 255, 0.1)",
     borderLeftWidth: 4,
-    borderLeftColor: '#0068ff',
+    borderLeftColor: "#0068ff",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
@@ -845,9 +1131,9 @@ const styles = StyleSheet.create({
     minWidth: 140,
   },
   replyContentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: 8,
   },
   replyTextColumn: {
@@ -857,16 +1143,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 4,
-    backgroundColor: '#eee',
+    backgroundColor: "#eee",
   },
   replyBoxMe: {
-    backgroundColor: 'rgba(0,0,0,0.06)',
+    backgroundColor: "rgba(0,0,0,0.06)",
     borderLeftColor: Colors.primary,
   },
   replyHeader: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#000',
+    fontWeight: "700",
+    color: "#000",
     marginBottom: 2,
   },
   replyHeaderTextMe: {
@@ -876,10 +1162,10 @@ const styles = StyleSheet.create({
   replyContent: {
     ...Typography.body,
     fontSize: 13,
-    color: '#666',
+    color: "#666",
   },
   replyContentTextMe: {
-    color: '#333',
+    color: "#333",
     opacity: 0.8,
   },
   mediaContainer: {
@@ -887,13 +1173,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   imageGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 4,
   },
   singleMediaGrid: {
-    flexDirection: 'column',
-    flexWrap: 'nowrap',
+    flexDirection: "column",
+    flexWrap: "nowrap",
   },
   twoColumnGrid: {
     width: 270,
@@ -902,7 +1188,7 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 8,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   singleImageBox: {
     width: 220,
@@ -910,27 +1196,27 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   mediaImage: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0,0,0,0.05)",
   },
   singleMediaImage: {
     borderRadius: 16,
   },
   stickerImage: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   videoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 4,
   },
   videoBox: {
-    width: '100%',
+    width: "100%",
     aspectRatio: 16 / 9,
-    backgroundColor: '#000',
+    backgroundColor: "#000",
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   singleVideoBox: {
     maxWidth: 300,
@@ -939,42 +1225,42 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.3)",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: "rgba(255,255,255,0.5)",
   },
   playIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 32,
-    color: '#fff',
+    color: "#fff",
     marginLeft: 4,
   },
   videoBadge: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 8,
     right: 8,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: "rgba(0,0,0,0.6)",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   videoBadgeText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   videoOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   videoIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 48,
-    color: '#fff',
+    color: "#fff",
     opacity: 0.9,
   },
   fileList: {
@@ -982,27 +1268,27 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   fileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.04)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.04)",
     padding: 8,
     borderRadius: 12,
     width: 220,
   },
   fileCardMe: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: "rgba(0,0,0,0.05)",
   },
   fileIconBox: {
     width: 32,
     height: 32,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 8,
   },
   fileIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 18,
     color: Colors.primary,
   },
@@ -1011,43 +1297,43 @@ const styles = StyleSheet.create({
   },
   fileName: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#1f2631',
+    fontWeight: "700",
+    color: "#1f2631",
   },
   fileNameMe: {
-    color: '#1f2631',
+    color: "#1f2631",
   },
   fileSize: {
     fontSize: 10,
-    color: '#6b7280',
+    color: "#6b7280",
   },
   fileSizeMe: {
-    color: '#555',
+    color: "#555",
   },
   specialCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     padding: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: "#eee",
     minWidth: 200,
     marginTop: 4,
   },
   specialCardMe: {
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: "rgba(255,255,255,0.7)",
   },
   specialIconBox: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   specialIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 24,
   },
   specialAvatar: {
@@ -1056,33 +1342,33 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   reactionSummary: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginTop: 2,
     marginBottom: 4,
     zIndex: 10,
     gap: 4,
   },
   reactionSummaryMe: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     marginRight: 4,
   },
   reactionSummaryOther: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     marginLeft: 4,
   },
   reactionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    borderColor: "rgba(0,0,0,0.1)",
     borderRadius: 14,
     paddingHorizontal: 10,
     height: 24,
     gap: 4,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 1,
@@ -1093,22 +1379,22 @@ const styles = StyleSheet.create({
   },
   reactionCount: {
     fontSize: 9,
-    fontWeight: '800',
-    color: '#64748b',
+    fontWeight: "800",
+    color: "#64748b",
   },
   footerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 2,
   },
   footerRowMe: {
-    justifyContent: 'flex-end',
-    alignSelf: 'flex-end',
+    justifyContent: "flex-end",
+    alignSelf: "flex-end",
   },
   timeText: {
     fontSize: 9,
-    fontWeight: '600',
-    color: '#9ba3b2',
+    fontWeight: "600",
+    color: "#9ba3b2",
   },
   statusWrapper: {
     marginLeft: 4,
@@ -1118,17 +1404,17 @@ const styles = StyleSheet.create({
     height: 14,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: '#0084ff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "#0084ff",
+    alignItems: "center",
+    justifyContent: "center",
   },
   statusSent: {
-    backgroundColor: '#0084ff',
+    backgroundColor: "#0084ff",
   },
   statusCheck: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 8,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   seenAvatar: {
     width: 14,
@@ -1138,100 +1424,100 @@ const styles = StyleSheet.create({
   avatarSpace: {
     width: 28,
     marginRight: 6,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   systemContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginVertical: 12,
   },
   systemBadge: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: "rgba(0,0,0,0.05)",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
   },
   systemText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#5a6781',
+    fontWeight: "700",
+    color: "#5a6781",
   },
   systemTime: {
     fontSize: 9,
-    color: '#9ba3b2',
+    color: "#9ba3b2",
     marginTop: 2,
   },
   pinBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff9c4',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff9c4",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ffd600',
+    borderColor: "#ffd600",
     marginBottom: 4,
   },
   pinIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 12,
-    color: '#f57f17',
+    color: "#f57f17",
     marginRight: 4,
   },
   pinText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#f57f17',
+    fontWeight: "700",
+    color: "#f57f17",
   },
   audioPlayer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     padding: 12,
     borderRadius: 20,
     width: 250,
     marginTop: 4,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: "#e2e8f0",
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
   },
   audioPlayerMe: {
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: "rgba(255,255,255,0.85)",
   },
   audioPlayBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 12,
   },
   audioPlayIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 22,
-    color: '#fff',
+    color: "#fff",
   },
   audioPlayIconMe: {
-    color: '#fff',
+    color: "#fff",
   },
   audioProgress: {
     flex: 1,
   },
   audioHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 4,
   },
   audioLabel: {
     fontSize: 10,
-    fontWeight: '800',
+    fontWeight: "800",
     color: Colors.primary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   audioLabelMe: {
@@ -1239,13 +1525,13 @@ const styles = StyleSheet.create({
   },
   audioTrack: {
     height: 6,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: "#e2e8f0",
     borderRadius: 3,
-    position: 'relative',
+    position: "relative",
     marginVertical: 4,
   },
   audioFill: {
-    height: '100%',
+    height: "100%",
     backgroundColor: Colors.primary,
     borderRadius: 3,
   },
@@ -1253,7 +1539,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   audioKnob: {
-    position: 'absolute',
+    position: "absolute",
     top: -3,
     width: 12,
     height: 12,
@@ -1261,9 +1547,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     marginLeft: -6,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: "#fff",
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1,
@@ -1273,35 +1559,35 @@ const styles = StyleSheet.create({
   },
   audioTime: {
     fontSize: 10,
-    color: '#64748b',
-    fontWeight: '700',
+    color: "#64748b",
+    fontWeight: "700",
   },
   audioTimeMe: {
-    color: '#5a6781',
+    color: "#5a6781",
   },
   audioPos: {
     fontSize: 9,
-    color: '#94a3b8',
-    fontWeight: '600',
+    color: "#94a3b8",
+    fontWeight: "600",
   },
   audioPosMe: {
-    color: '#94a3b8',
+    color: "#94a3b8",
   },
   replySwipeIndicator: {
-    position: 'absolute',
+    position: "absolute",
     left: -40,
-    top: '30%',
+    top: "30%",
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.05)",
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: -1,
   },
   replySwipeIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 18,
-    color: '#666',
-  }
+    color: "#666",
+  },
 });

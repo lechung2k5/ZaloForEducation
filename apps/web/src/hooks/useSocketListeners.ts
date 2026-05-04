@@ -12,6 +12,10 @@ import {
   isConversationMutedNow,
   getDisplayName,
 } from "../utils/chatUtils";
+import {
+  bootstrapReminderNotifications,
+  registerReminderNotificationFromMessage,
+} from "../utils/reminderNotifications";
 import { pushSecurityAlert } from "../utils/securityAlerts";
 import Swal from "sweetalert2";
 
@@ -57,6 +61,10 @@ export const useSocketListeners = () => {
   const { socket, user } = useAuth();
   const notifiedMessageIdsRef = useRef<Set<string>>(new Set());
   const activeCallNotificationRef = useRef<Notification | null>(null);
+
+  useEffect(() => {
+    bootstrapReminderNotifications();
+  }, []);
 
   // Chat Store Selectors
   const addMessage = useChatStore((state) => state.addMessage);
@@ -151,8 +159,14 @@ export const useSocketListeners = () => {
         });
       }
 
+      if (msg.payload?.reminder && msg.status !== "sending") {
+        registerReminderNotificationFromMessage(msg, incomingConvId);
+      }
+
       // 3. Browser notification
-      void showIncomingMessageNotification(msg, incomingConvId);
+      if (!msg.payload?.reminder) {
+        void showIncomingMessageNotification(msg, incomingConvId);
+      }
     };
 
     const handleConversationRead = (data: ConversationReadPayload) => {

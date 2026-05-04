@@ -291,10 +291,14 @@ export const getMessagePreview = (message: any): string => {
           case "member_added":
             return "[Thêm thành viên]";
           case "member_removed":
+          case "member_kicked":
             return "[Xóa thành viên]";
           case "member_left":
             return "[Rời nhóm]";
           case "role_updated":
+          case "promoted_to_deputy":
+          case "demoted_to_member":
+          case "transferred_owner":
             return "[Cập nhật vai trò]";
           case "info_updated":
             return "[Cập nhật thông tin]";
@@ -365,18 +369,25 @@ const formatSystemPreview = (
         case "member_added":
           return `${actorLabel} đã thêm ${buildTargetLabel(parsed.target)} vào nhóm`;
         case "member_removed":
+        case "member_kicked":
           return `${actorLabel} đã xóa ${buildTargetLabel(parsed.target)} khỏi nhóm`;
         case "member_left":
-          return `${actorLabel} left the group`;
+          return `${actorLabel} đã rời nhóm`;
         case "role_updated": {
           if (parsed.role === "owner") {
-            return `${actorLabel} transferred ownership to ${buildTargetLabel(parsed.target)}`;
+            return `${actorLabel} đã chuyển quyền trưởng nhóm cho ${buildTargetLabel(parsed.target)}`;
           }
           if (parsed.role === "deputy") {
-            return `${actorLabel} set CO_ADMIN for ${buildTargetLabel(parsed.target)}`;
+            return `${actorLabel} đã đặt ${buildTargetLabel(parsed.target)} làm phó nhóm`;
           }
-          return `${actorLabel} updated member role for ${buildTargetLabel(parsed.target)}`;
+          return `${actorLabel} đã cập nhật vai trò của ${buildTargetLabel(parsed.target)}`;
         }
+        case "promoted_to_deputy":
+          return `${actorLabel} đã đặt ${buildTargetLabel(parsed.target)} làm phó nhóm`;
+        case "demoted_to_member":
+          return `${actorLabel} đã hạ ${buildTargetLabel(parsed.target)} xuống thành viên`;
+        case "transferred_owner":
+          return `${actorLabel} đã chuyển quyền trưởng nhóm cho ${buildTargetLabel(parsed.target)}`;
         case "info_updated":
           return `${actorLabel} đã cập nhật thông tin nhóm`;
         default:
@@ -406,6 +417,8 @@ const formatSystemPreview = (
       return `${actorLabel} đã cập nhật vai trò thành viên`;
     case "[Cập nhật thông tin]":
       return `${actorLabel} đã cập nhật thông tin nhóm`;
+    case "[Chuyển quyền trưởng nhóm]":
+      return `${actorLabel} đã chuyển quyền trưởng nhóm`;
     default:
       return legacy || "[Hệ thống]";
   }

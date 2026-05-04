@@ -218,12 +218,19 @@ export class ChatService {
       throw new BadRequestException("Group not found");
 
     // Permission check: Actor must be a member of the group (any member can add members)
-    if (!metadata.members.includes(actorEmail))
+    // Compare membership case-insensitively to avoid issues with email casing
+    const membersLower = (metadata.members || []).map((m) =>
+      String(m).trim().toLowerCase(),
+    );
+    const actorLower = String(actorEmail).trim().toLowerCase();
+
+    if (!membersLower.includes(actorLower))
       throw new BadRequestException("You are not a member of this group");
 
-    const uniqueNewMembers = newMembers.filter(
-      (m) => !metadata.members.includes(m),
-    );
+    const uniqueNewMembers = newMembers.filter((m) => {
+      const lower = String(m).trim().toLowerCase();
+      return !membersLower.includes(lower);
+    });
     if (uniqueNewMembers.length === 0) return metadata;
 
     const updatedMembers = [...metadata.members, ...uniqueNewMembers];
@@ -283,14 +290,29 @@ export class ChatService {
     if (!metadata || metadata.type !== "group")
       throw new BadRequestException("Group not found");
 
-    const isSelf = actorEmail === targetEmail;
-    const isOwner =
-      metadata.owner === actorEmail || metadata.admin === actorEmail;
-    const isDeputy = (metadata.deputies || []).includes(actorEmail);
+    // Normalize emails for case-insensitive comparison
+    const actorLower = String(actorEmail).trim().toLowerCase();
+    const targetLower = String(targetEmail).trim().toLowerCase();
+    const ownerLower = String(metadata.owner || "")
+      .trim()
+      .toLowerCase();
+    const adminLower = String(metadata.admin || "")
+      .trim()
+      .toLowerCase();
+    const deputiesLower = (metadata.deputies || []).map((m) =>
+      String(m).trim().toLowerCase(),
+    );
+    const membersLower = (metadata.members || []).map((m) =>
+      String(m).trim().toLowerCase(),
+    );
+
+    const isSelf = actorLower === targetLower;
+    const isOwner = ownerLower === actorLower || adminLower === actorLower;
+    const isDeputy = deputiesLower.includes(actorLower);
 
     const targetIsOwner =
-      metadata.owner === targetEmail || metadata.admin === targetEmail;
-    const targetIsDeputy = (metadata.deputies || []).includes(targetEmail);
+      ownerLower === targetLower || adminLower === targetLower;
+    const targetIsDeputy = deputiesLower.includes(targetLower);
 
     if (!isSelf) {
       // Kicking logic
@@ -313,9 +335,15 @@ export class ChatService {
       }
     }
 
-    const updatedMembers = metadata.members.filter((m) => m !== targetEmail);
+    // Preserve original casing for stored members, but filter by normalized email
+    const updatedMembers = (metadata.members || []).filter(
+      (m) => String(m).trim().toLowerCase() !== targetLower,
+    );
+    const storedTargetEmail = (metadata.members || []).find(
+      (m) => String(m).trim().toLowerCase() === targetLower,
+    );
     const updatedDeputies = (metadata.deputies || []).filter(
-      (m) => m !== targetEmail,
+      (m) => String(m).trim().toLowerCase() !== targetLower,
     );
     const now = new Date().toISOString();
 
@@ -337,7 +365,10 @@ export class ChatService {
       {
         Delete: {
           TableName: this.db.tableName,
-          Key: { PK: `USER#${targetEmail}`, SK: convId },
+          Key: {
+            PK: `USER#${storedTargetEmail || targetEmail}`,
+            SK: convId,
+          },
         },
       },
     ];
@@ -365,14 +396,28 @@ export class ChatService {
     if (!metadata || metadata.type !== "group")
       throw new BadRequestException("Group not found");
 
-    const isOwner =
-      metadata.owner === actorEmail || metadata.admin === actorEmail;
+    // Normalize actor/target and membership for case-insensitive checks
+    const actorLower = String(actorEmail).trim().toLowerCase();
+    const ownerLower = String(metadata.owner || "")
+      .trim()
+      .toLowerCase();
+    const adminLower = String(metadata.admin || "")
+      .trim()
+      .toLowerCase();
+    const deputiesLower = (metadata.deputies || []).map((m) =>
+      String(m).trim().toLowerCase(),
+    );
+    const membersLower = (metadata.members || []).map((m) =>
+      String(m).trim().toLowerCase(),
+    );
+
+    const isOwner = ownerLower === actorLower || adminLower === actorLower;
     if (!isOwner)
       throw new BadRequestException(
         "Chỉ trưởng nhóm mới có quyền thay đổi vai trò",
       );
 
-    if (!metadata.members.includes(targetEmail))
+    if (!membersLower.includes(String(targetEmail).trim().toLowerCase()))
       throw new BadRequestException("Target is not a member");
 
     let updateExp = "SET updatedAt = :now";
@@ -463,9 +508,20 @@ export class ChatService {
     if (!metadata || metadata.type !== "group")
       throw new BadRequestException("Group not found");
 
-    const isOwner =
-      metadata.owner === actorEmail || metadata.admin === actorEmail;
-    const isDeputy = (metadata.deputies || []).includes(actorEmail);
+    // Normalize for case-insensitive permission checks
+    const actorLower = String(actorEmail).trim().toLowerCase();
+    const ownerLower = String(metadata.owner || "")
+      .trim()
+      .toLowerCase();
+    const adminLower = String(metadata.admin || "")
+      .trim()
+      .toLowerCase();
+    const deputiesLower = (metadata.deputies || []).map((m) =>
+      String(m).trim().toLowerCase(),
+    );
+
+    const isOwner = ownerLower === actorLower || adminLower === actorLower;
+    const isDeputy = deputiesLower.includes(actorLower);
 
     if (data.avatar && !isOwner) {
       throw new BadRequestException(
@@ -521,8 +577,14 @@ export class ChatService {
     if (!metadata || metadata.type !== "group")
       throw new BadRequestException("Group not found");
 
-    const isOwner =
-      metadata.owner === actorEmail || metadata.admin === actorEmail;
+    const actorLower = String(actorEmail).trim().toLowerCase();
+    const ownerLower = String(metadata.owner || "")
+      .trim()
+      .toLowerCase();
+    const adminLower = String(metadata.admin || "")
+      .trim()
+      .toLowerCase();
+    const isOwner = ownerLower === actorLower || adminLower === actorLower;
     if (!isOwner)
       throw new BadRequestException("Only owner can dissolve group");
 
@@ -660,7 +722,9 @@ export class ChatService {
     if (
       !metadata ||
       !Array.isArray(metadata.members) ||
-      !metadata.members.includes(email)
+      !(metadata.members || [])
+        .map((m) => String(m).trim().toLowerCase())
+        .includes(String(email).trim().toLowerCase())
     ) {
       throw new BadRequestException(
         "You are not a member of this conversation",
@@ -747,7 +811,9 @@ export class ChatService {
 
     if (
       !Array.isArray(metadata.members) ||
-      !metadata.members.includes(userEmail)
+      !(metadata.members || [])
+        .map((m) => String(m).trim().toLowerCase())
+        .includes(String(userEmail).trim().toLowerCase())
     ) {
       throw new BadRequestException(
         "You are not a member of this conversation",

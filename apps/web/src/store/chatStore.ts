@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 import { create } from "zustand";
 import api from "../services/api";
 import { type Attachment, getMessagePreview } from "../utils/chatUtils";
+import { registerReminderNotificationFromMessage } from "../utils/reminderNotifications";
 
 // Extend shared types with optional properties used in this store
 export type Message = SharedMessage & {
@@ -594,6 +595,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         nextCursor: res.data.nextCursor,
         isLoadingMessages: false,
       });
+
+      formattedMessages.forEach((message: any) => {
+        registerReminderNotificationFromMessage(message, convId);
+      });
     } catch (err) {
       set({ isLoadingMessages: false });
       console.error("Failed to fetch messages", err);
@@ -655,6 +660,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
           nextCursor: res.data.nextCursor,
           isLoadingMessages: false,
         };
+      });
+
+      olderMessages.forEach((message: any) => {
+        registerReminderNotificationFromMessage(message, convId);
       });
     } catch (err) {
       set({ isLoadingMessages: false });
@@ -801,6 +810,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
           m.id === tempId ? { ...res.data, status: "sent" } : m,
         ),
       }));
+
+      if (res.data?.payload?.reminder) {
+        registerReminderNotificationFromMessage(res.data, convId);
+      }
     } catch (err) {
       set((state) => ({
         messages: state.messages.map((m) =>

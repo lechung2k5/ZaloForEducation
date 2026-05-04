@@ -195,7 +195,11 @@ export class ChatController {
       targetEmail,
     );
 
-    const action = email === targetEmail ? "member_left" : "member_kicked";
+    const action =
+      String(email).trim().toLowerCase() ===
+      String(targetEmail).trim().toLowerCase()
+        ? "member_left"
+        : "member_kicked";
     await this.messageService.sendMessage(
       id,
       "system",

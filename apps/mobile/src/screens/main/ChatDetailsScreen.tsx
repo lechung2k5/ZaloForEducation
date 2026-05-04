@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -22,6 +23,8 @@ import { useChatStore } from "../../store/chatStore";
 import { useAuth } from "../../context/AuthContext";
 import { chatUpload } from "../../utils/api";
 import { normalizeAttachment } from "../../store/chatHelpers";
+import { useContacts } from "../../hooks/queries/useContacts";
+import { friendEmailOf } from "../../utils/contactUtils";
 import { LinearGradient } from "expo-linear-gradient";
 
 const { width } = Dimensions.get("window");
@@ -54,13 +57,31 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   const [successorMode, setSuccessorMode] = useState<"transfer" | "leave">(
     "transfer",
   );
+  const [showAddContactPicker, setShowAddContactPicker] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
+  const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
+  const { data: contactsData } = useContacts();
+
+  const getInitials = (name: string) => {
+    if (!name) return "?";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  const normalizeEmail = (email: string | null | undefined) =>
+    String(email || "")
+      .trim()
+      .toLowerCase();
 
   if (!chat) return null;
 
   const partnerEmail =
     chat.type === "direct"
       ? Array.isArray(chat.members)
-        ? chat.members.find((m: string) => m !== user?.email)
+        ? chat.members.find(
+            (m: string) => normalizeEmail(m) !== normalizeEmail(user?.email),
+          )
         : undefined
       : undefined;
 
@@ -116,7 +137,9 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   };
 
   const handleLeaveGroup = () => {
-    const isOwner = chat.owner === user?.email || chat.admin === user?.email;
+    const isOwner =
+      normalizeEmail(chat.owner) === normalizeEmail(user?.email) ||
+      normalizeEmail(chat.admin) === normalizeEmail(user?.email);
     if (isOwner && (chat.members?.length || 0) > 1) {
       // Owners must choose a successor before leaving.
       setSuccessorMode("leave");
@@ -295,6 +318,73 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       } catch (err) {
         Alert.alert("Lỗi", "Không thể cập nhật ảnh đại diện");
       }
+    }
+  };
+
+  const contactList = useMemo(() => {
+    const friendships = contactsData?.friendships || [];
+    const list = friendships
+      .filter((f: any) => f.status === "accepted")
+      .map((f: any) => {
+        const email = (friendEmailOf(f, user?.email) || "").toLowerCase();
+        const profile = userProfiles[email] || { email };
+        return {
+          email,
+          displayName:
+            f.nickname || profile.fullName || profile.fullname || email,
+          avatarUrl: profile.avatarUrl || undefined,
+        };
+      });
+    return list;
+  }, [contactsData, user?.email, userProfiles]);
+
+  const existingMembersSet = useMemo(() => {
+    return new Set(
+      (chat.members || []).map((m: string) => String(m).toLowerCase()),
+    );
+  }, [chat.members]);
+
+  const filteredContactList = useMemo(() => {
+    const q = contactSearch.trim().toLowerCase();
+    // exclude existing group members
+    const base = contactList.filter(
+      (c: any) => !existingMembersSet.has(c.email),
+    );
+    if (!q) return base;
+    return base.filter(
+      (c: any) =>
+        c.displayName.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q),
+    );
+  }, [contactList, contactSearch]);
+
+  const toggleSelectContact = (email: string) => {
+    const normalized = email.toLowerCase();
+    setSelectedToAdd((prev) => {
+      const next = new Set(prev);
+      if (next.has(normalized)) next.delete(normalized);
+      else next.add(normalized);
+      return next;
+    });
+  };
+
+  const handleAddSelectedContacts = async () => {
+    if (selectedToAdd.size === 0) {
+      Alert.alert("Lỗi", "Vui lòng chọn ít nhất một liên hệ");
+      return;
+    }
+    try {
+      const emails = Array.from(selectedToAdd);
+      await addMembers(conversationId, emails);
+      setShowAddContactPicker(false);
+      setSelectedToAdd(new Set());
+      await useChatStore.getState().fetchConversations();
+      Alert.alert("Thành công", "Đã thêm thành viên mới vào nhóm");
+    } catch (err: any) {
+      Alert.alert(
+        "Lỗi",
+        err?.response?.data?.message || "Không thể thêm thành viên",
+      );
     }
   };
 
@@ -491,7 +581,8 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
               undefined,
               handleUpdateGroupName,
             )}
-            {(chat.owner === user?.email || chat.admin === user?.email) &&
+            {(normalizeEmail(chat.owner) === normalizeEmail(user?.email) ||
+              normalizeEmail(chat.admin) === normalizeEmail(user?.email)) &&
               renderMenuItem(
                 "delete_forever",
                 "Giải tán nhóm",
@@ -499,7 +590,8 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
                 handleDissolveGroup,
                 "#ef4444",
               )}
-            {(chat.owner === user?.email || chat.admin === user?.email) &&
+            {(normalizeEmail(chat.owner) === normalizeEmail(user?.email) ||
+              normalizeEmail(chat.admin) === normalizeEmail(user?.email)) &&
               renderMenuItem(
                 "how_to_vote",
                 "Bầu lại trưởng nhóm",
@@ -525,25 +617,223 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
             </View>
             <TouchableOpacity
               style={styles.addMemberBtn}
-              onPress={() => {
-                Alert.prompt("Thêm thành viên", "Nhập email", async (email) => {
-                  if (email) await addMembers(conversationId, [email]);
-                });
-              }}
+              onPress={() => setShowAddContactPicker(true)}
             >
               <Text style={styles.addMemberIcon}>add</Text>
               <Text style={styles.addMemberText}>Thêm thành viên</Text>
             </TouchableOpacity>
 
+            <Modal
+              visible={showAddContactPicker}
+              animationType="slide"
+              transparent
+            >
+              <View
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(0,0,0,0.4)",
+                  justifyContent: "center",
+                }}
+              >
+                <View
+                  style={{
+                    margin: 20,
+                    backgroundColor: "#fff",
+                    borderRadius: 8,
+                    padding: 16,
+                    maxHeight: "80%",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "700",
+                      marginBottom: 12,
+                    }}
+                  >
+                    Chọn liên hệ để thêm
+                  </Text>
+                  <View style={{ marginBottom: 8 }}>
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: "#e2e8f0",
+                        borderRadius: 8,
+                        padding: 8,
+                      }}
+                      placeholder="Tìm tên hoặc email"
+                      value={contactSearch}
+                      onChangeText={setContactSearch}
+                    />
+                  </View>
+                  <ScrollView style={{ maxHeight: 340 }}>
+                    {filteredContactList.length === 0 ? (
+                      <Text
+                        style={{
+                          textAlign: "center",
+                          marginTop: 12,
+                          color: "#64748b",
+                        }}
+                      >
+                        Không tìm thấy liên hệ
+                      </Text>
+                    ) : (
+                      filteredContactList.map((c: any) => (
+                        <TouchableOpacity
+                          key={c.email}
+                          onPress={() => toggleSelectContact(c.email)}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingVertical: 12,
+                            paddingHorizontal: 6,
+                            borderBottomWidth: 1,
+                            borderBottomColor: "#f1f5f9",
+                          }}
+                        >
+                          {c.avatarUrl ? (
+                            <Image
+                              source={{ uri: c.avatarUrl }}
+                              style={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 24,
+                                marginRight: 12,
+                              }}
+                            />
+                          ) : (
+                            <View
+                              style={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 24,
+                                marginRight: 12,
+                                backgroundColor: "#eef2ff",
+                                justifyContent: "center",
+                                alignItems: "center",
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: Colors.primary,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {getInitials(c.displayName)}
+                              </Text>
+                            </View>
+                          )}
+
+                          <View style={{ flex: 1 }}>
+                            <Text
+                              style={{
+                                fontSize: 16,
+                                fontWeight: "600",
+                                color: "#0f172a",
+                              }}
+                            >
+                              {c.displayName}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                color: "#64748b",
+                                marginTop: 2,
+                              }}
+                            >
+                              {c.email}
+                            </Text>
+                          </View>
+
+                          <View
+                            style={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: 17,
+                              borderWidth: 2,
+                              borderColor: selectedToAdd.has(c.email)
+                                ? Colors.primary
+                                : "#e6eefc",
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            {selectedToAdd.has(c.email) ? (
+                              <Text
+                                style={{
+                                  color: Colors.primary,
+                                  fontWeight: "800",
+                                }}
+                              >
+                                ✓
+                              </Text>
+                            ) : (
+                              <View
+                                style={{
+                                  width: 18,
+                                  height: 18,
+                                  borderRadius: 9,
+                                  borderWidth: 1,
+                                  borderColor: "#cbd5e1",
+                                }}
+                              />
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      ))
+                    )}
+                  </ScrollView>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "flex-end",
+                      marginTop: 12,
+                    }}
+                  >
+                    <TouchableOpacity
+                      onPress={() => setShowAddContactPicker(false)}
+                      style={{ padding: 8 }}
+                    >
+                      <Text style={{ color: "#6b7280" }}>Hủy</Text>
+                    </TouchableOpacity>
+                    <View style={{ width: 12 }} />
+                    <TouchableOpacity
+                      onPress={handleAddSelectedContacts}
+                      style={{
+                        padding: 8,
+                        opacity: selectedToAdd.size === 0 ? 0.5 : 1,
+                      }}
+                      disabled={selectedToAdd.size === 0}
+                    >
+                      <Text style={{ color: Colors.primary }}>
+                        Thêm
+                        {selectedToAdd.size > 0
+                          ? ` (${selectedToAdd.size})`
+                          : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+
             {chat.members?.map((m: string) => {
               const p = userProfiles[m.trim().toLowerCase()];
-              const isMe = m === user?.email;
-              const isOwner = chat.owner === m || chat.admin === m;
-              const isDeputy = (chat.deputies || []).includes(m);
+              const isMe = normalizeEmail(m) === normalizeEmail(user?.email);
+              const isOwner =
+                normalizeEmail(chat.owner) === normalizeEmail(m) ||
+                normalizeEmail(chat.admin) === normalizeEmail(m);
+              const isDeputy = (chat.deputies || []).some(
+                (d: string) => normalizeEmail(d) === normalizeEmail(m),
+              );
               const myRole =
-                chat.owner === user?.email || chat.admin === user?.email
+                normalizeEmail(chat.owner) === normalizeEmail(user?.email) ||
+                normalizeEmail(chat.admin) === normalizeEmail(user?.email)
                   ? "owner"
-                  : (chat.deputies || []).includes(user?.email || "")
+                  : (chat.deputies || []).some(
+                        (d: string) =>
+                          normalizeEmail(d) === normalizeEmail(user?.email),
+                      )
                     ? "deputy"
                     : "member";
 
@@ -648,7 +938,10 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
             </Text>
             <ScrollView>
               {(chat.members || [])
-                .filter((m: string) => m !== user?.email)
+                .filter(
+                  (m: string) =>
+                    normalizeEmail(m) !== normalizeEmail(user?.email),
+                )
                 .map((m: string) => {
                   const p = userProfiles[m.trim().toLowerCase()];
                   return (

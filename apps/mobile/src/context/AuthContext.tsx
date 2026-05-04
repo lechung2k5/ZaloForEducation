@@ -80,6 +80,16 @@ export const AuthProvider = ({
   const isKickingRef = useRef(false);
   const callTimeoutRef = useRef<any>(null);
 
+  useEffect(() => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+  }, []);
+
   const checkSessionStatus = async () => {
     const token = await AsyncStorage.getItem("token");
     if (!token) return;
