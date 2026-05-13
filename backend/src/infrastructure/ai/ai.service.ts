@@ -11,16 +11,19 @@ import {
 export interface TextPart {
   type: 'text';
   text: string;
+  [key: string]: unknown;
 }
 
 export interface ImageUrlPart {
   type: 'image_url';
   image_url: { url: string };
+  [key: string]: unknown;
 }
 
 export interface FileUrlPart {
   type: 'file_url';
   file_url: { url: string };
+  [key: string]: unknown;
 }
 
 export type ContentPart = TextPart | ImageUrlPart | FileUrlPart;
@@ -82,11 +85,13 @@ export class AiService {
               ?.map((c: any) => c.text ?? c.image_url?.url ?? '')
               .join('\n') ?? '';
 
+      const meta = response.usage_metadata as Record<string, any> | undefined;
+
       return {
         text: text.trim(),
         usage: {
-          promptTokens: response.usage_metadata?.input_tokens ?? 0,
-          completionTokens: response.usage_metadata?.output_tokens ?? 0,
+          promptTokens: meta?.input_tokens ?? 0,
+          completionTokens: meta?.output_tokens ?? 0,
         },
       };
     } catch (error) {
