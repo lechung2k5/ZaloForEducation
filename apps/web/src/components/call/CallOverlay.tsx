@@ -108,7 +108,7 @@ const CallOverlay: React.FC = () => {
   // 2. Fallback Thông tin đối phương "bao sống"
   const getFallbackName = () => {
     if (toEmail) return toEmail.split("@")[0]; // Lấy phần đầu của email làm tên
-    return "Người dùng EnuNest";
+    return "Người dùng UniChat";
   };
 
   const peer = {
@@ -573,7 +573,7 @@ const CallOverlay: React.FC = () => {
         Cuộc gọi đã kết thúc
       </h2>
       <p className="text-white/40 font-bold uppercase tracking-[0.25em] text-[10px] mb-12">
-        EnuNest Live • Professional Experience
+        UniChat Live • Professional Experience
       </p>
 
       <div className="bg-white/5 border border-white/10 rounded-3xl p-8 flex flex-col gap-6 w-full max-w-sm backdrop-blur-md shadow-2xl">
@@ -851,7 +851,7 @@ const CallOverlay: React.FC = () => {
             </div>
             <div>
               <p className="font-black text-white text-md leading-tight tracking-tight">
-                EnuNest Live <span className="text-blue-500 ml-1">Pro</span>
+                UniChat Live <span className="text-blue-500 ml-1">Pro</span>
               </p>
               <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20">
                 {callType === "video"

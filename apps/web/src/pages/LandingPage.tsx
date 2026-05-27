@@ -13,7 +13,7 @@ const Navbar: React.FC = () => {
       <Link to="/" className="flex items-center gap-3">
         <img src="/logo_blue.png" alt="Logo" className="w-10 h-10 object-contain" />
         <span className="text-2xl font-black tracking-tighter text-primary font-heading italic">
-          EnuNest<sup className="text-[10px] font-normal not-italic ml-0.5">®</sup>
+          UniChat<sup className="text-[10px] font-normal not-italic ml-0.5">®</sup>
         </span>
       </Link>
 
@@ -108,7 +108,7 @@ const HeroSection: React.FC = () => {
             Infinite <span className="text-secondary italic">wisdom.</span>
           </h1>
           <p className="text-lg md:text-xl text-secondary font-body max-w-2xl mx-auto mb-16 leading-relaxed">
-            Học tập Không giới hạn hướng tới Tương lai. EnuNest mang đến giải pháp OTT chuyên nghiệp, an toàn và bảo mật tuyệt đối cho mọi tâm hồn học thuật.
+            Học tập Không giới hạn hướng tới Tương lai. UniChat mang đến giải pháp OTT chuyên nghiệp, an toàn và bảo mật tuyệt đối cho mọi tâm hồn học thuật.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
             <button
@@ -242,7 +242,7 @@ const CTASection: React.FC = () => {
         className="max-w-4xl mx-auto space-y-12"
       >
         <h2 className="text-5xl md:text-8xl font-heading italic leading-tight text-primary">
-          Sẵn sàng để bắt đầu<br /> cùng EnuNest?
+          Sẵn sàng để bắt đầu<br /> cùng UniChat?
         </h2>
         <p className="text-xl text-secondary font-body max-w-xl mx-auto">
           Giao diện tối giản, trải nghiệm tối ưu. Nơi kiến thức được truyền tải một cách thuần khiết nhất.
@@ -281,11 +281,11 @@ const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-10">
           <div className="flex items-center gap-4">
             <img src="/logo_blue.png" alt="Logo" className="w-8 h-8 object-contain" />
-            <span className="font-heading italic text-xl text-primary">EnuNest</span>
+            <span className="font-heading italic text-xl text-primary">UniChat</span>
           </div>
 
           <p className="text-secondary text-sm">
-            © 2026 EnuNest System. Luxury Editorial Refactor.
+            © 2026 UniChat System. Luxury Editorial Refactor.
           </p>
 
           <div className="flex gap-10 text-sm uppercase tracking-widest text-secondary font-bold">

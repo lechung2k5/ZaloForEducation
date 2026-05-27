@@ -49,7 +49,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ isVisible }) => {
               >
                 <img 
                   src="/logo_blue.png" 
-                  alt="EnuNest Logo"
+                  alt="UniChat Logo"
                   className="w-full h-full object-cover"
                 />
               </motion.div>
@@ -63,7 +63,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ isVisible }) => {
               className="flex flex-col items-center mt-8 text-center"
             >
               <h1 className="text-4xl font-heading font-black tracking-tighter text-[#00418f] mb-3">
-                EnuNest
+                UniChat
               </h1>
               
               {/* Subtitle with slide-up */}

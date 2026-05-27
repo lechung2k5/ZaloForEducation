@@ -19,7 +19,7 @@ export interface ConversationMuteSchedule {
 
 const MUTE_SCHEDULE_STORAGE_PREFIX = "chat_notification_mute_schedule:";
 export const DEFAULT_GROUP_AVATAR =
-  "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true";
+  "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
 
 const getMuteScheduleStorageKey = (convId: string) =>
   `${MUTE_SCHEDULE_STORAGE_PREFIX}${convId.toLowerCase().replace(/^conv#/, "")}`;

@@ -119,7 +119,7 @@ const SecurityAlertsView: React.FC = () => {
           </div>
           <div>
             <h2 className="text-lg font-bold text-on-surface">Cảnh báo bảo mật</h2>
-            <p className="text-xs text-on-surface-variant font-medium">Hệ thống EnuNest</p>
+            <p className="text-xs text-on-surface-variant font-medium">Hệ thống UniChat</p>
           </div>
         </div>
       </div>
@@ -140,7 +140,7 @@ const SecurityAlertsView: React.FC = () => {
                   <span className="text-xs font-bold text-on-surface uppercase tracking-wider">Tin nhắn hệ thống</span>
                 </div>
                 <p className="text-sm text-on-surface-variant">
-                  EnuNest không bao giờ yêu cầu mật khẩu hoặc mã OTP của bạn qua tin nhắn.
+                  UniChat không bao giờ yêu cầu mật khẩu hoặc mã OTP của bạn qua tin nhắn.
                 </p>
               </div>
 
