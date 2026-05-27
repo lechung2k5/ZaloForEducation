@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { apiRequest } from '../utils/api';
 
 const DEFAULT_AVATAR =
-  'https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true';
+  'https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DEBOUNCE_MS = 400;

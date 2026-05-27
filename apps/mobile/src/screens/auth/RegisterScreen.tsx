@@ -222,7 +222,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                 resizeMode="cover"
               />
             </View>
-            <Text style={styles.brandTitle}>EnuNest</Text>
+            <Text style={styles.brandTitle}>UniChat</Text>
           </View>
 
           <StepIndicator />

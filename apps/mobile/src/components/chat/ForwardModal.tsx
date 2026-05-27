@@ -62,7 +62,7 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
                 }}
               >
                 <Image 
-                  source={{ uri: item.avatar || "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true" }}
+                  source={{ uri: item.avatar || "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true" }}
                   style={styles.forwardAvatar} 
                 />
                 <Text style={styles.forwardName}>{item.name}</Text>

@@ -119,7 +119,7 @@ export default function SplashScreen() {
             resizeMode="contain"
           />
         </View>
-        <Text style={styles.brandTitle}>EnuNest</Text>
+        <Text style={styles.brandTitle}>UniChat</Text>
       </Animated.View>
 
       <Animated.View style={[

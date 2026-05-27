@@ -335,7 +335,7 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
   }, [userProfiles, user, normalizeEmail, selectedChat?.alias]);
 
   const getDisplayAvatar = useCallback((email?: string) => {
-    const defaultAvatar = "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true";
+    const defaultAvatar = "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
     const normalized = normalizeEmail(email);
     if (!normalized) return defaultAvatar;
     if (normalized === normalizeEmail(user?.email)) return user?.avatarUrl || defaultAvatar;

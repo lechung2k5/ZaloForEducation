@@ -216,7 +216,7 @@ const GroupCallOverlay = () => {
                 </Text>
               )}
             </View>
-            <Text style={styles.callerName}>{groupName || peerProfile?.fullName || 'Nhóm EnuNest'}</Text>
+            <Text style={styles.callerName}>{groupName || peerProfile?.fullName || 'Nhóm UniChat'}</Text>
             <Text style={styles.callTypeLabel}>Cuộc gọi video nhóm mới...</Text>
 
             <View style={styles.actionRow}>

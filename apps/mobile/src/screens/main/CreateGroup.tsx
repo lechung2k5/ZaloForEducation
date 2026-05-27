@@ -22,7 +22,7 @@ import { chatGet, apiPost, chatUpload } from "../../utils/api";
 import { friendEmailOf } from "../../utils/contactUtils";
 
 const DEFAULT_AVATAR =
-  "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true";
+  "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
 
 interface Friend {
   email: string;

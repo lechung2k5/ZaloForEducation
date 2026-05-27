@@ -23,7 +23,7 @@ export const ContactRequests: React.FC<ContactRequestsProps> = ({
   onSendSuggestionRequest,
   sendingRequestMap,
 }) => {
-  const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true";
+  const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
 
   return (
     <View>

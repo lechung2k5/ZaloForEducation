@@ -1,5 +1,5 @@
 /**
- * Centralized asset constants for the EnuNest Mobile App.
+ * Centralized asset constants for the UniChat Mobile App.
  * Using this file ensures consistent fallbacks across all components.
  */
 

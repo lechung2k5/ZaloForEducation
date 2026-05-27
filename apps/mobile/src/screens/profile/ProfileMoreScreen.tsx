@@ -18,7 +18,7 @@ const INFORMATION_ITEMS = [
   'Change your avatar',
   'Change your cover',
   'Update Bio',
-  'Ví EnuNest',
+  'Ví UniChat',
 ];
 
 const SETTINGS_ITEMS = [

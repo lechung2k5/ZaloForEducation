@@ -119,7 +119,7 @@ export const useChime = () => {
     if (!hasPermission) {
       Alert.alert(
         'Thiếu quyền truy cập',
-        'EnuNest cần quyền truy cập Camera và Micros để thực hiện cuộc gọi. Vui lòng cấp quyền trong Cài đặt.'
+        'UniChat cần quyền truy cập Camera và Micros để thực hiện cuộc gọi. Vui lòng cấp quyền trong Cài đặt.'
       );
       return;
     }

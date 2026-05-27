@@ -195,7 +195,7 @@ export default function BotChatScreen() {
       <View style={styles.header}>
         <Image source={{ uri: BOT_AVATAR }} style={styles.headerAvatar} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerName}>EnuNest AI</Text>
+          <Text style={styles.headerName}>UniChat AI</Text>
           <Text style={styles.headerSub}>{botSending ? 'Đang soạn tin...' : 'Trợ lý giáo dục'}</Text>
         </View>
       </View>
@@ -205,7 +205,7 @@ export default function BotChatScreen() {
         {botMessages.length === 0 && (
           <View style={styles.welcome}>
             <Text style={styles.welcomeIcon}>smart_toy</Text>
-            <Text style={styles.welcomeTitle}>Chào bạn! Tôi là EnuNest AI</Text>
+            <Text style={styles.welcomeTitle}>Chào bạn! Tôi là UniChat AI</Text>
             <Text style={styles.welcomeText}>
               Hỏi tôi về thông tin tài khoản, bạn bè, hoặc bất kỳ câu hỏi giáo dục nào!
             </Text>

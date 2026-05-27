@@ -110,7 +110,7 @@ export default function SecurityAlertsScreen({ navigation }: any) {
           </View>
           <View>
             <Text style={styles.headerTitle}>Cảnh báo bảo mật</Text>
-            <Text style={styles.headerSubtitle}>Hệ thống EnuNest</Text>
+            <Text style={styles.headerSubtitle}>Hệ thống UniChat</Text>
           </View>
         </View>
       </View>
@@ -129,7 +129,7 @@ export default function SecurityAlertsScreen({ navigation }: any) {
                 <Text style={styles.infoBadgeText}>TIN NHẮN HỆ THỐNG</Text>
               </View>
               <Text style={styles.infoText}>
-                EnuNest không bao giờ yêu cầu mật khẩu hoặc mã OTP của bạn qua tin nhắn.
+                UniChat không bao giờ yêu cầu mật khẩu hoặc mã OTP của bạn qua tin nhắn.
               </Text>
             </View>
 

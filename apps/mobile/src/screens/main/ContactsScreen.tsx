@@ -32,7 +32,7 @@ import { BlockedList } from "../../components/contacts/BlockedList";
 import { ContactRequests } from "../../components/contacts/ContactRequests";
 import { ContactModals } from "../../components/contacts/ContactModals";
 
-const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true";
+const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
 
 export default function ContactsScreen({
   user,

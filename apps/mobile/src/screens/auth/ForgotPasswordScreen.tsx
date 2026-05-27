@@ -160,7 +160,7 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
             >
               <Text style={styles.logoIcon}>edu</Text>
             </LinearGradient>
-            <Text style={styles.brandTitle}>EnuNest</Text>
+            <Text style={styles.brandTitle}>UniChat</Text>
           </View>
 
           <View style={styles.cardContainer}>

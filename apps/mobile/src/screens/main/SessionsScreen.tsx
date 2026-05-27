@@ -199,7 +199,7 @@ export default function SessionsScreen({ onNavigate, goBack }: SessionsScreenPro
         <View style={styles.infoBox}>
           <Text style={styles.infoTitle}>Phiên đăng nhập</Text>
           <Text style={styles.infoSubtitle}>
-            Quản lý các thiết bị hiện đang truy cập vào tài khoản EnuNest của bạn.
+            Quản lý các thiết bị hiện đang truy cập vào tài khoản UniChat của bạn.
           </Text>
         </View>
 

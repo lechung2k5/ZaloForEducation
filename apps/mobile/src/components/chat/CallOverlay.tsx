@@ -546,7 +546,7 @@ const CallOverlay = () => {
 
   const peer = isIncoming ? caller : receiver;
   const displayName =
-    peer?.fullName || peer?.fullname || peer?.email || "Người dùng EnuNest";
+    peer?.fullName || peer?.fullname || peer?.email || "Người dùng UniChat";
 
   // [V9.0] Avatar URI Safety - use data URI as fallback to avoid empty string warnings
   const FALLBACK_AVATAR = {

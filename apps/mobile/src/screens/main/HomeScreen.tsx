@@ -42,7 +42,7 @@ const TAB_ALIAS: Record<string, string> = {
 
 const normalizeHomeTab = (tab: string) => TAB_ALIAS[String(tab || "").trim().toLowerCase()] || "chat";
 
-const DEFAULT_AVATAR = { uri: "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true" };
+const DEFAULT_AVATAR = { uri: "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true" };
 
 export default function HomeScreen({
   navigation,

@@ -638,7 +638,7 @@ export default function ChatInput({
                     onPress={() => handleContactSend(f)}
                   >
                     <Image
-                      source={{ uri: f.avatarUrl || f.urlAvatar || 'https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true' }}
+                      source={{ uri: f.avatarUrl || f.urlAvatar || 'https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true' }}
                       style={styles.contactAvatar}
                     />
                     <View style={{ flex: 1 }}>

@@ -13,7 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import PollMessage from './PollMessage';
 import ReminderMessage from './ReminderMessage';
 
-const DEFAULT_AVATAR = { uri: "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true" };
+const DEFAULT_AVATAR = { uri: "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true" };
 
 const getDisplayAvatar = (userId: string) => {
   return DEFAULT_AVATAR;
