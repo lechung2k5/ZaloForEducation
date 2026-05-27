@@ -21,6 +21,17 @@ services:
     container_name: unichat-web
     ports:
       - "80:80"
+      - "443:443"
+    env_file:
+      - backend/.env
     depends_on:
       - backend
     restart: always
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
+

@@ -42,8 +42,8 @@ EXPOSE 3000
 CMD ["npm", "run", "start:prod", "-w", "backend"]
 
 # --- Frontend Production Image ---
-FROM nginx:alpine AS frontend
-COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+FROM caddy:alpine AS frontend
+COPY --from=builder /app/apps/web/dist /usr/share/caddy
+COPY Caddyfile /etc/caddy/Caddyfile
+EXPOSE 80 443
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
