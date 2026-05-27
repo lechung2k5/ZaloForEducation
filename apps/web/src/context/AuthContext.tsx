@@ -142,6 +142,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       });
     });
 
+    newSocket.on("connect_error", (err) => {
+      console.error("Socket connect_error:", err.message);
+      if (err.message === "SESSION_INVALIDATED") {
+        alert("Phiên đăng nhập của bạn đã hết hạn hoặc bị đăng xuất từ thiết bị khác.");
+        logoutLocal();
+      }
+    });
+
     newSocket.on("force_logout", (data) => {
       console.log("🔥 [SOCKET] force_logout EVENT RECEIVED:", data);
       const currentDeviceId =

@@ -20,7 +20,12 @@ import type { Attachment } from "../../utils/chatUtils";
 import { useGroupSocketListeners } from "../../hooks/useGroupSocketListeners";
 import { useGroupCallStore } from "../../store/groupCallStore";
 import type { Message } from "@zalo-edu/shared";
-
+import { useTheme } from "../../context/ThemeContext";
+import {
+  getConversationWallpaperId,
+  getChatWallpaperUrl,
+  CHAT_WALLPAPER_CHANGED_EVENT,
+} from "../../utils/chatWallpapers";
 import {
   Copy,
   Pin,
@@ -37,6 +42,7 @@ import Swal from "sweetalert2";
 
 const ChatPage: React.FC = () => {
   const { user, socket } = useAuth();
+  const { isDark } = useTheme();
   useGroupSocketListeners();
   const {
     activeConvId,
@@ -92,6 +98,30 @@ const ChatPage: React.FC = () => {
   const isPrependingRef = useRef(false);
   const lastCursorRef = useRef<string | null>(null);
   const isLoadingMoreRef = useRef(false);
+
+  // [SENIOR] Dynamic Wallpaper logic
+  const [wallpaperId, setWallpaperId] = useState(() =>
+    getConversationWallpaperId(activeConvId)
+  );
+
+  useEffect(() => {
+    setWallpaperId(getConversationWallpaperId(activeConvId));
+  }, [activeConvId]);
+
+  useEffect(() => {
+    const handleWallpaperChange = (e: any) => {
+      const { convId, wallpaperId: newId } = e.detail;
+      if (convId === activeConvId) {
+        setWallpaperId(newId);
+      }
+    };
+    window.addEventListener(CHAT_WALLPAPER_CHANGED_EVENT, handleWallpaperChange);
+    return () => {
+      window.removeEventListener(CHAT_WALLPAPER_CHANGED_EVENT, handleWallpaperChange);
+    };
+  }, [activeConvId]);
+
+  const bgUrl = getChatWallpaperUrl(wallpaperId, isDark);
 
   // Utility to scroll to bottom
   const scrollToBottom = (instant = false) => {
@@ -611,7 +641,7 @@ const ChatPage: React.FC = () => {
               className="flex-1 overflow-y-auto p-4 hide-scrollbar flex flex-col relative"
               onScroll={handleScroll}
               style={{ 
-                backgroundImage: "url('/background/background1.png')", 
+                backgroundImage: `url('${bgUrl}')`, 
                 backgroundSize: 'cover', 
                 backgroundPosition: 'center',
                 backgroundAttachment: 'fixed'

@@ -69,7 +69,9 @@ export class BotService {
    * Returns the conversation ID.
    */
   async getOrCreateBotConversation(userEmail: string): Promise<string> {
-    const sorted = [userEmail, BOT_EMAIL].sort();
+    const emailLower = String(userEmail || '').trim().toLowerCase();
+    const botLower = String(BOT_EMAIL || '').trim().toLowerCase();
+    const sorted = [emailLower, botLower].sort();
     const convId = `CONV#DIRECT#${sorted[0]}#${sorted[1]}`;
 
     // Check if exists
@@ -95,7 +97,7 @@ export class BotService {
                 SK: 'METADATA',
                 id: convId,
                 type: 'direct',
-                members: [userEmail, BOT_EMAIL],
+                members: [emailLower, botLower],
                 createdAt: timestamp,
                 updatedAt: timestamp,
               },
@@ -105,10 +107,10 @@ export class BotService {
             Put: {
               TableName: this.db.tableName,
               Item: {
-                PK: `USER#${userEmail}`,
+                PK: `USER#${emailLower}`,
                 SK: convId,
                 type: 'direct',
-                partner: BOT_EMAIL,
+                partner: botLower,
                 createdAt: timestamp,
               },
             },
@@ -117,10 +119,10 @@ export class BotService {
             Put: {
               TableName: this.db.tableName,
               Item: {
-                PK: `USER#${BOT_EMAIL}`,
+                PK: `USER#${botLower}`,
                 SK: convId,
                 type: 'direct',
-                partner: userEmail,
+                partner: emailLower,
                 createdAt: timestamp,
               },
             },
