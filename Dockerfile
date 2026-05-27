@@ -9,8 +9,8 @@ COPY packages/shared/package*.json ./packages/shared/
 COPY backend/package*.json ./backend/
 COPY apps/web/package*.json ./apps/web/
 
-# Install dependencies
-RUN npm install
+# Install dependencies (Remove package-lock to avoid cross-platform native binding issues)
+RUN rm -f package-lock.json && npm install
 
 # Copy source code for building
 COPY packages/shared ./packages/shared
