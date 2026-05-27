@@ -25,7 +25,7 @@ Dự án này là hệ thống học tập và liên lạc trực tuyến đa n�
 Dự án dùng tính năng `workspaces` của NPM. Vì vậy bạn chỉ cần chạy cài đặt một lần duy nhất tại thư mục gốc!
 ```bash
 git clone <URL_CUA_REPO_GITHUB>
-cd BTL_ZaloForEducation
+cd BTL_UniChat
 npm install
 ```
 

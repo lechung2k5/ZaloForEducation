@@ -450,7 +450,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const confirmDeleteAccount = async (otp: string) => {
     await api.post("/auth/delete-account/confirm", { otp });
     alert(
-      "Tài khoản của bạn đã được xóa hoàn toàn. Cảm ơn bạn đã đồng hành cùng Zalo Education!",
+      "Tài khoản của bạn đã được xóa hoàn toàn. Cảm ơn bạn đã đồng hành cùng UniChat!",
     );
     logoutLocal();
   };

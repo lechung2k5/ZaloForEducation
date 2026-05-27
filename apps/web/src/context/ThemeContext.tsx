@@ -23,11 +23,11 @@ const translations: Record<Language, Record<string, string>> = {
     // Navigation
     'nav.back': 'Quay lại',
     'nav.settings': 'Cài đặt',
-    'nav.experience': 'Zalo Education Experience',
+    'nav.experience': 'UniChat Experience',
 
     // Headers
     'header.title': 'Tuỳ chỉnh ứng dụng',
-    'header.description': 'Mọi thay đổi sẽ được lưu cục bộ trên trình duyệt này và đồng bộ hoá khi bạn đăng nhập trên các thiết bị Zalo Education khác.',
+    'header.description': 'Mọi thay đổi sẽ được lưu cục bộ trên trình duyệt này và đồng bộ hoá khi bạn đăng nhập trên các thiết bị UniChat khác.',
     'header.search_messages': 'Tìm kiếm tin nhắn...',
     'header.view_profile': 'Xem trang cá nhân',
     'header.members_count': '{count} thành viên',
@@ -109,7 +109,7 @@ const translations: Record<Language, Record<string, string>> = {
     'account_mgmt.delete_desc': 'Xóa vĩnh viễn tài khoản và toàn bộ dữ liệu liên quan.',
 
     // Footer
-    'footer.version': 'Zalo Education v1.0.0 Alpha',
+    'footer.version': 'UniChat v1.0.0 Alpha',
     'footer.note': 'Hệ thống giáo dục nội bộ. Các thiết lập giao diện chỉ có hiệu lực trên trình duyệt này.',
 
     // Modals
@@ -345,7 +345,7 @@ const translations: Record<Language, Record<string, string>> = {
     'input.hd_tooltip': 'Gửi ảnh chất lượng gốc',
 
     // Chat Window & Welcome Area
-    'chat.welcome': 'Chào mừng bạn đến với Zalo Education!',
+    'chat.welcome': 'Chào mừng bạn đến với UniChat!',
     'chat.welcome_desc': 'Chọn một cuộc trò chuyện từ danh sách bên trái hoặc bắt đầu cuộc trò chuyện mới để liên lạc với giáo viên hoặc bạn học của bạn.',
     'chat.fav_msg': 'Tin nhắn yêu thích',
     'chat.fav_msg_desc': 'Lưu trữ các tin nhắn và tài liệu quan trọng để xem lại nhanh chóng bất cứ lúc nào.',
@@ -512,11 +512,11 @@ const translations: Record<Language, Record<string, string>> = {
     // Navigation
     'nav.back': 'Back',
     'nav.settings': 'Settings',
-    'nav.experience': 'Zalo Education Experience',
+    'nav.experience': 'UniChat Experience',
 
     // Headers
     'header.title': 'Customize Application',
-    'header.description': 'All changes will be saved locally on this browser and synced when you log in on other Zalo Education devices.',
+    'header.description': 'All changes will be saved locally on this browser and synced when you log in on other UniChat devices.',
     'header.search_messages': 'Search messages...',
     'header.view_profile': 'View profile',
     'header.members_count': '{count} members',
@@ -598,7 +598,7 @@ const translations: Record<Language, Record<string, string>> = {
     'account_mgmt.delete_desc': 'Permanently delete your account and all associated data.',
 
     // Footer
-    'footer.version': 'Zalo Education v1.0.0 Alpha',
+    'footer.version': 'UniChat v1.0.0 Alpha',
     'footer.note': 'Internal education system. Display settings only apply on this browser.',
 
     // Modals
@@ -793,7 +793,7 @@ const translations: Record<Language, Record<string, string>> = {
     'input.hd_tooltip': 'Send original high-quality image',
 
     // Chat Window & Welcome Area
-    'chat.welcome': 'Welcome to Zalo Education!',
+    'chat.welcome': 'Welcome to UniChat!',
     'chat.welcome_desc': 'Select a conversation from the sidebar or start a new one to communicate with your teachers and classmates.',
     'chat.fav_msg': 'Favorite Messages',
     'chat.fav_msg_desc': 'Store important messages and documents to quickly review them at any time.',
