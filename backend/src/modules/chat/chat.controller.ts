@@ -523,7 +523,8 @@ export class ChatController {
     }
 
     // Bot conversation: fire-and-forget
-    if (normalizedConvId.includes(BOT_EMAIL) && body.type !== "system") {
+    const botEmailLower = String(BOT_EMAIL).toLowerCase();
+    if (normalizedConvId.includes(botEmailLower) && body.type !== "system") {
       this.botService
         .handleIncomingMessage(
           convId,
