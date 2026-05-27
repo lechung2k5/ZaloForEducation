@@ -1,3 +1,10 @@
+export interface Mention {
+  email: string;
+  displayName?: string;
+  start?: number;
+  end?: number;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -9,6 +16,7 @@ export interface Message {
   createdAt: string | null;
   media?: any[];
   files?: any[];
+  mentions?: Mention[];
   [key: string]: any;
 }
 
@@ -24,6 +32,10 @@ export interface Conversation {
   lastMessageSenderId?: string;
   type?: 'direct' | 'group';
   members?: string[];
+  hasUnreadMention?: boolean;
+  mentionCount?: number;
+  lastMentionMessageId?: string;
+  lastMentionAt?: string;
   [key: string]: any;
 }
 

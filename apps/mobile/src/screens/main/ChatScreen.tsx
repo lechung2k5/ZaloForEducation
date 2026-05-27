@@ -66,6 +66,13 @@ interface ChatScreenProps {
   };
 }
 
+type MentionPayload = {
+  email: string;
+  displayName?: string;
+  start?: number;
+  end?: number;
+};
+
 export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenProps) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -328,7 +335,7 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
   }, [userProfiles, user, normalizeEmail, selectedChat?.alias]);
 
   const getDisplayAvatar = useCallback((email?: string) => {
-    const defaultAvatar = "https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png";
+    const defaultAvatar = "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true";
     const normalized = normalizeEmail(email);
     if (!normalized) return defaultAvatar;
     if (normalized === normalizeEmail(user?.email)) return user?.avatarUrl || defaultAvatar;
@@ -617,7 +624,7 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
     return mime.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|heic|heif)(\?.*)?$/.test(name);
   };
 
-  const handleChatSend = async (content: string, attachments: any[]) => {
+  const handleChatSend = async (content: string, attachments: any[], mentions: MentionPayload[] = []) => {
     const chatId = selectedChat?.id || conversationId;
     if (!chatId || !user?.email) return;
 
@@ -655,12 +662,20 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
       files: replyTarget.files
     } : undefined;
 
-    const tempId = await sendMessageOptimistic(chatId, { 
+    const messageMentions = mentions.map((mention) => ({
+      email: String(mention.email || '').replace(/^USER#/i, '').trim().toLowerCase(),
+      displayName: mention.displayName,
+      start: mention.start,
+      end: mention.end,
+    })).filter((mention) => mention.email);
+
+    const tempId = await sendMessageOptimistic(chatId, {
       content,
       type: messageType,
       replyTo: replyToData,
       media: optimisticMedia,
       files: optimisticFiles,
+      extraFields: messageMentions.length > 0 ? { mentions: messageMentions } : undefined,
       skipApi: true
     });
 
@@ -679,10 +694,10 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
           console.log(`[ChatScreen] Uploading attachment: ${item.name}`);
           const res = await chatUpload(item.file || { uri: uploadUri, name: item.name, type: item.mimeType });
           
-          if (res.ok && res.data) {
+          if (res.ok && res.data && res.data.fileUrl) {
             uploaded.push({ ...item, ...res.data });
           } else {
-            console.error(`[ChatScreen] Upload failed for ${item.name}`, res.error);
+            console.error(`[ChatScreen] Upload failed or missing fileUrl for ${item.name}`, res.error);
             uploadFailed = true;
             break;
           }
@@ -720,7 +735,8 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
           media: media.length > 0 ? media : undefined,
           files: files.length > 0 ? files : undefined,
           audioUrl,
-          replyToId: replyToData?.id
+          replyToId: replyToData?.id,
+          mentions: messageMentions.length > 0 ? messageMentions : undefined
         };
 
         const res = await chatPost(`/conversations/${encodeURIComponent(chatId)}/messages`, payload);
@@ -1063,6 +1079,10 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
           onOpenPollModal={() => setIsPollModalOpen(true)}
           onOpenReminderModal={() => setIsReminderModalOpen(true)}
           isBot={isBot}
+          conversationType={selectedChat?.type}
+          members={selectedChat?.members || []}
+          userProfiles={userProfiles}
+          currentUserEmail={user?.email || currentUserEmail}
         />
 
         {/* TARGETING MESSAGE OVERLAY */}

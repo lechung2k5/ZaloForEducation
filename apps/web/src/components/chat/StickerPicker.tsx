@@ -1,4 +1,4 @@
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 
 interface StickerItem {
@@ -10,6 +10,7 @@ interface StickerItem {
 
 interface StickerPickerProps {
   onSelect: (sticker: StickerItem) => void;
+  onClose?: () => void;
 }
 
 type StickerLibrary = 'cute' | 'meme' | 'anime' | 'vn';
@@ -30,7 +31,7 @@ const LIBRARY_TABS: Array<{ id: StickerLibrary; label: string }> = [
   { id: 'vn', label: 'VN' },
 ];
 
-const StickerPicker: React.FC<StickerPickerProps> = ({ onSelect }) => {
+const StickerPicker: React.FC<StickerPickerProps> = ({ onSelect, onClose }) => {
   const [activeLibrary, setActiveLibrary] = useState<StickerLibrary>('cute');
   const [query, setQuery] = useState('');
   const [remoteStickers, setRemoteStickers] = useState<StickerItem[]>([]);
@@ -87,9 +88,20 @@ const StickerPicker: React.FC<StickerPickerProps> = ({ onSelect }) => {
       onClick={(e) => e.stopPropagation()}
     >
       <div className="px-4 py-3 border-b border-outline-variant/10 space-y-2">
-        <div>
-          <p className="text-[13px] font-bold text-on-surface">Sticker Library</p>
-          <p className="text-[11px] text-on-surface-variant">Nhiều thư viện sticker: Cute, Meme, Anime, Việt Nam</p>
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="text-[13px] font-bold text-on-surface">Sticker Library</p>
+            <p className="text-[11px] text-on-surface-variant">Nhiều thư viện sticker: Cute, Meme, Anime, Việt Nam</p>
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/5 text-on-surface-variant transition-colors"
+              title="Đóng"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         <div className="flex bg-surface-container-low rounded-xl px-3 py-2 items-center gap-2 border border-outline-variant/10 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all">

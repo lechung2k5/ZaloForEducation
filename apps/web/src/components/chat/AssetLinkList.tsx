@@ -14,7 +14,9 @@ const AssetLinkList: React.FC<AssetLinkListProps> = ({ convId }) => {
   const urlRegex = /https?:\/\/[^\s]+/g;
 
   useEffect(() => {
-    fetchArchiveAssets(convId, "link", true);
+    if (items.length === 0 && !loading) {
+      fetchArchiveAssets(convId, "link");
+    }
   }, [convId]);
 
   useEffect(() => {
@@ -34,7 +36,7 @@ const AssetLinkList: React.FC<AssetLinkListProps> = ({ convId }) => {
     return () => observer.disconnect();
   }, [convId, cursor, loading]);
 
-  if (items.length === 0 && !loading) {
+  if (items.length === 0 && !loading && !cursor) {
     return (
       <div className="flex flex-col items-center justify-center py-10 opacity-60">
         <p className="text-[13px] italic">Chưa có liên kết nào</p>

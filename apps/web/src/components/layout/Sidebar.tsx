@@ -8,7 +8,6 @@ import {
   MessageSquare, 
   Users, 
   Bell, 
-  Cloud, 
   Settings, 
   User, 
   LogOut,
@@ -17,7 +16,7 @@ import {
 
 const Sidebar: React.FC = () => {
   const { user, logout } = useAuth();
-  const { isDark } = useTheme();
+  const { isDark, t } = useTheme();
   const navigate = useNavigate();
   const { conversations, setIsSearching, setSearchQuery } = useChatStore();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -45,21 +44,20 @@ const Sidebar: React.FC = () => {
   const hasBotUnread = conversations.some(conv => isBotConversation(conv) && isUnread(conv, user?.email));
   
   const totalUnreadCount = conversations.reduce((acc, c) => {
-    if (isBotConversation(c)) return acc;
+    if (isBotConversation(c) || c.isMuted) return acc;
     return acc + (c.unreadCount || 0);
   }, 0);
 
   const botUnreadCount = conversations.reduce((acc, c) => {
-    if (!isBotConversation(c)) return acc;
+    if (!isBotConversation(c) || c.isMuted) return acc;
     return acc + (c.unreadCount || 0);
   }, 0);
 
   const navItems = [
-    { id: 'chat', icon: MessageSquare, label: 'Tin nhắn', path: '/chat', hasBadge: hasUnreadMessages, count: totalUnreadCount },
-    { id: 'contacts', icon: Users, label: 'Danh bạ', path: '/contacts', hasBadge: false },
-    { id: 'notifications', icon: Bell, label: 'Thông báo', path: '/notifications', hasBadge: false },
-    { id: 'cloud', icon: Cloud, label: 'Cloud', path: '/cloud', hasBadge: false },
-    { id: 'bot', icon: Bot, label: 'AI Trợ lý', path: '/bot', hasBadge: hasBotUnread, count: botUnreadCount },
+    { id: 'chat', icon: MessageSquare, label: t('sidebar.chat'), path: '/chat', hasBadge: hasUnreadMessages, count: totalUnreadCount },
+    { id: 'contacts', icon: Users, label: t('sidebar.contacts'), path: '/contacts', hasBadge: false },
+    { id: 'notifications', icon: Bell, label: t('sidebar.notifications'), path: '/notifications', hasBadge: false },
+    { id: 'bot', icon: Bot, label: t('sidebar.bot'), path: '/bot', hasBadge: hasBotUnread, count: botUnreadCount },
   ];
 
   const handleNavClick = (id: string) => {
@@ -154,7 +152,7 @@ const Sidebar: React.FC = () => {
             {isDropdownOpen && (
               <div className={`absolute bottom-0 left-16 w-64 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border overflow-hidden z-[100] animate-in fade-in slide-in-from-left-4 duration-200 ${isDark ? 'bg-surface-container border-outline-variant/30' : 'bg-white border-outline-variant/10'}`}>
                 <div className="p-4 border-b border-outline-variant/5">
-                  <h3 className="font-bold text-on-surface">Cài đặt</h3>
+                  <h3 className="font-bold text-on-surface">{t('sidebar.settings')}</h3>
                 </div>
                 <div className="py-2">
                   <button 
@@ -162,14 +160,14 @@ const Sidebar: React.FC = () => {
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-high transition-colors text-on-surface font-semibold text-sm"
                   >
                     <User size={18} className="text-on-surface-variant" />
-                    Thông tin tài khoản
+                    {t('sidebar.profile')}
                   </button>
                   <button 
                     onClick={() => navigate('/settings')}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-high transition-colors text-on-surface font-semibold text-sm"
                   >
                     <Settings size={18} className="text-on-surface-variant" />
-                    Cài đặt chung
+                    {t('sidebar.general_settings')}
                   </button>
                 </div>
                 <div className="border-t border-outline-variant/5 py-1">
@@ -178,7 +176,7 @@ const Sidebar: React.FC = () => {
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-high transition-colors text-on-surface font-bold text-sm"
                   >
                     <LogOut size={18} />
-                    Đăng xuất
+                    {t('sidebar.logout')}
                   </button>
                 </div>
               </div>

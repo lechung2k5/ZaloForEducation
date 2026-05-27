@@ -12,21 +12,29 @@ import {
   Minimize2,
   Maximize2,
   Monitor,
+  Settings,
 } from "lucide-react";
 import { useCallStore, type CallState } from "../../store/callStore";
 import { useAuth } from "../../context/AuthContext";
 import {
   setLocalVideoRef,
   setRemoteVideoRef,
-  setContentVideoRef,
+  bindContentVideo,
   toggleCamera as toggleCameraChime,
   toggleMic as toggleMicChime,
   leaveCurrentSession,
   startScreenShare,
   stopScreenShare,
   rebindAllTiles,
+  listAudioInputDevices,
+  listVideoInputDevices,
+  listAudioOutputDevices,
+  switchAudioInput,
+  switchVideoInput,
+  switchAudioOutput,
 } from "../../hooks/useChime";
 import api from "../../services/api";
+import { playHangupSound } from "../../utils/audioUtils";
 import { useChatStore } from "../../store/chatStore";
 
 const CallOverlay: React.FC = () => {
@@ -52,9 +60,12 @@ const CallOverlay: React.FC = () => {
     isMinimized,
     setMinimized,
     isLocalScreenSharing,
+    localScreenShareStream,
     screenShares,
     isPeerJoined,
     hangupCall,
+    isLocalSpeaking,
+    isRemoteSpeaking,
   } = useCallStore();
 
   const { socket, user } = useAuth();
@@ -94,23 +105,133 @@ const CallOverlay: React.FC = () => {
     (p) => p.status === "rejected" || p.status === "timeout",
   );
 
-  // [SENIOR] Resilient LOCAL Video Binding
-  const localVideoRef = useCallback((node: HTMLVideoElement | null) => {
-    setLocalVideoRef(node);
-  }, []);
+  // 2. Fallback Thông tin đối phương "bao sống"
+  const getFallbackName = () => {
+    if (toEmail) return toEmail.split("@")[0]; // Lấy phần đầu của email làm tên
+    return "Người dùng EnuNest";
+  };
 
-  // [SENIOR] Resilient REMOTE Video Binding
-  const remoteVideoRef = useCallback((node: HTMLVideoElement | null) => {
-    setRemoteVideoRef(node);
-  }, []);
+  const peer = {
+    fullName: peerProfile?.fullName || getFallbackName(),
+    avatar: peerProfile?.avatarUrl || peerProfile?.avatar || null,
+  };
 
-  // [PRINCIPLE 6] Screen Share Ref Callback
-  const screenShareVideoRef = useCallback((node: HTMLVideoElement | null) => {
-    setContentVideoRef(node);
+  // [SENIOR] Stream Options for Discord-like Layout
+  type StreamType = "local-camera" | "remote-camera" | "local-screen" | "remote-screen";
+  interface StreamOption {
+    id: string;
+    type: StreamType;
+    label: string;
+    isLocal: boolean;
+    attendeeId?: string;
+    isSpeaking?: boolean;
+    isCameraOff?: boolean;
+  }
+
+  const availableStreams = React.useMemo(() => {
+    const streams: StreamOption[] = [];
+    if (isRemoteCameraOn) {
+      streams.push({ id: "remote-camera", type: "remote-camera", label: peer.fullName, isLocal: false, isSpeaking: isRemoteSpeaking });
+    } else if (callState === "CONNECTED") {
+      // Still show the user in sidebar even if camera is off, just like Discord
+      streams.push({ id: "remote-camera", type: "remote-camera", label: peer.fullName, isLocal: false, isSpeaking: isRemoteSpeaking, isCameraOff: true });
+    }
+    
+    if (isCameraOn) {
+      streams.push({ id: "local-camera", type: "local-camera", label: "Bạn", isLocal: true, isSpeaking: isLocalSpeaking });
+    } else if (callState === "CONNECTED") {
+      streams.push({ id: "local-camera", type: "local-camera", label: "Bạn", isLocal: true, isSpeaking: isLocalSpeaking, isCameraOff: true });
+    }
+
+    if (isLocalScreenSharing) {
+      streams.push({ id: "local-screen", type: "local-screen", label: "Bạn (Màn hình)", isLocal: true });
+    }
+    
+    Object.entries(screenShares).forEach(([attendeeId, share]) => {
+      // Don't render the server loopback of the local user's screen share (it usually has #content appended to user id)
+      if (share.isSharing && !attendeeId.startsWith(String(user?.email || ""))) {
+        streams.push({ id: `remote-screen-${attendeeId}`, type: "remote-screen", label: `${peer.fullName} (Màn hình)`, isLocal: false, attendeeId });
+      }
+    });
+    return streams;
+  }, [isRemoteCameraOn, isCameraOn, isLocalScreenSharing, screenShares, peer.fullName, user?.id, isRemoteSpeaking, isLocalSpeaking, callState]);
+
+  const [focusedStageId, setFocusedStageId] = useState<string | null>(null);
+
+  // Auto-focus logic
+  useEffect(() => {
+    const currentFocus = availableStreams.find(s => s.id === focusedStageId);
+    if (!currentFocus && availableStreams.length > 0) {
+      const firstScreen = availableStreams.find(s => s.type.includes("screen"));
+      setFocusedStageId(firstScreen ? firstScreen.id : availableStreams[0].id);
+    } else if (!currentFocus) {
+      setFocusedStageId(null);
+    }
+  }, [availableStreams, focusedStageId]);
+
+  // Dynamic Ref Binder
+  const streamRefs = useRef<Record<string, (node: HTMLVideoElement | null) => void>>({});
+
+  const getStreamRef = useCallback((stream: StreamOption) => {
+    if (!streamRefs.current[stream.id]) {
+      streamRefs.current[stream.id] = (node: HTMLVideoElement | null) => {
+        if (!node) return;
+        switch (stream.type) {
+          case "local-camera":
+            setLocalVideoRef(node);
+            break;
+          case "remote-camera":
+            setRemoteVideoRef(node);
+            break;
+          case "local-screen": {
+            const currentStream = useCallStore.getState().localScreenShareStream;
+            if (currentStream && node.srcObject !== currentStream) {
+              node.srcObject = currentStream;
+              node.muted = true;
+              node.play().catch(e => console.warn("[Web-Call] Local screen share autoPlay failed:", e));
+            }
+            break;
+          }
+          case "remote-screen":
+            if (stream.attendeeId) {
+              bindContentVideo(stream.attendeeId, node);
+            }
+            break;
+        }
+      };
+    }
+    return streamRefs.current[stream.id];
   }, []);
 
   const [duration, setDuration] = useState(0);
   const [lastDuration, setLastDuration] = useState<number | null>(null);
+
+  // Device Settings State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
+  const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
+  
+  const loadDevices = useCallback(async () => {
+    try {
+      const [ai, vi, ao] = await Promise.all([
+        listAudioInputDevices(),
+        listVideoInputDevices(),
+        listAudioOutputDevices()
+      ]);
+      setAudioInputs(ai);
+      setVideoInputs(vi);
+      setAudioOutputs(ao);
+    } catch (e) {
+      console.warn("Failed to load devices", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isSettingsOpen) {
+      loadDevices();
+    }
+  }, [isSettingsOpen, loadDevices]);
 
   // Timer Logic
   useEffect(() => {
@@ -129,22 +250,6 @@ const CallOverlay: React.FC = () => {
 
   // [SENIOR] Incoming Call Ringtone Logic (Web)
   const ringtoneRef = useRef<HTMLAudioElement | null>(null);
-
-  // [SENIOR] Calculate layout state for rebinding
-  const activeRemoteScreenShare = Object.entries(screenShares).find(([_, s]) => s.isSharing);
-  const someoneIsSharing = !!activeRemoteScreenShare || isLocalScreenSharing;
-
-  // [SENIOR] Force re-bind when layout switches (e.g. screen share start/stop)
-  useEffect(() => {
-    if (callState === "CONNECTED") {
-      console.log(`[Web-Call] 🔃 Layout changed (someoneIsSharing=${someoneIsSharing}). Re-binding tiles...`);
-      // Short delay to ensure DOM nodes are ready
-      const timer = setTimeout(() => {
-        rebindAllTiles();
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [someoneIsSharing, callState, rebindAllTiles]);
 
   useEffect(() => {
     // Initialize audio instance once
@@ -228,6 +333,11 @@ const CallOverlay: React.FC = () => {
       `[Web-Call] handleHangup called. Reason: ${reason}, callState: ${useCallStore.getState().callState}`,
     );
 
+    // Play hangup sound if initiated manually by the user
+    if (reason === "manual") {
+      playHangupSound();
+    }
+
     // [GUARD] Never send hangup if we're the callee in RINGING state
     const currentState = useCallStore.getState().callState;
     if (currentState === "RINGING" && useCallStore.getState().isIncoming) {
@@ -280,16 +390,7 @@ const CallOverlay: React.FC = () => {
     return "...";
   })();
 
-  // 2. Fallback Thông tin đối phương "bao sống"
-  const getFallbackName = () => {
-    if (toEmail) return toEmail.split("@")[0]; // Lấy phần đầu của email làm tên
-    return "Người dùng ZaloEdu";
-  };
 
-  const peer = {
-    fullName: peerProfile?.fullName || getFallbackName(),
-    avatar: peerProfile?.avatarUrl || peerProfile?.avatar || null,
-  };
 
   // Initialize participants list from toEmails / toEmail
   useEffect(() => {
@@ -408,12 +509,6 @@ const CallOverlay: React.FC = () => {
 
 
 
-  // Tick to update elapsed times for tooltips/spinners
-  useEffect(() => {
-    const interval = setInterval(() => setParticipants(prev => [...prev]), 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Participant tooltip helper
   const getParticipantTooltip = (p: (typeof participants)[0]) => {
     const baseText = `${p.name} (${p.email})`;
@@ -478,7 +573,7 @@ const CallOverlay: React.FC = () => {
         Cuộc gọi đã kết thúc
       </h2>
       <p className="text-white/40 font-bold uppercase tracking-[0.25em] text-[10px] mb-12">
-        ZaloEdu Live • Professional Experience
+        EnuNest Live • Professional Experience
       </p>
 
       <div className="bg-white/5 border border-white/10 rounded-3xl p-8 flex flex-col gap-6 w-full max-w-sm backdrop-blur-md shadow-2xl">
@@ -594,7 +689,7 @@ const CallOverlay: React.FC = () => {
             </>
           )}
 
-          <div className="w-48 h-48 rounded-full border-[6px] border-white/5 overflow-hidden relative z-10 shadow-[0_0_80px_rgba(59,130,246,0.15)] bg-[#1c1c2e]">
+          <div className={`w-48 h-48 rounded-full border-[6px] ${isRemoteSpeaking ? "border-green-500 shadow-[0_0_25px_rgba(34,197,94,0.6)]" : "border-white/5 shadow-[0_0_80px_rgba(59,130,246,0.15)]"} transition-all duration-300 overflow-hidden relative z-10 bg-[#1c1c2e]`}>
             {peer.avatar ? (
               <img
                 src={peer.avatar}
@@ -631,48 +726,31 @@ const CallOverlay: React.FC = () => {
   );
 
   const renderVideoLayout = () => {
+    const focusedStream = availableStreams.find(s => s.id === focusedStageId);
+    const sidebarStreams = availableStreams.filter(s => s.id !== focusedStageId);
+
     return (
       <div className="grow relative bg-[#0a0a0a] overflow-hidden flex flex-col md:flex-row">
-        {/* Main Stage: Screen Share or Remote Video */}
+        {/* Main Stage */}
         <div className="grow relative flex items-center justify-center">
-          {someoneIsSharing ? (
+          {focusedStream ? (
             <div className="absolute inset-0 z-10 bg-black flex flex-col items-center justify-center">
-              <video
-                id="main-stage-content"
-                ref={screenShareVideoRef}
-                className="w-full h-full object-contain"
-                autoPlay
-                playsInline
-              />
-              <div className="absolute top-4 left-4 px-4 py-2 bg-black/60 backdrop-blur-md border border-white/10 rounded-full flex items-center gap-2">
-                <Monitor size={16} className="text-blue-400" />
-                <span className="text-xs font-bold text-white/90">
-                  {isLocalScreenSharing ? "Bạn đang chia sẻ màn hình" : "Đang xem màn hình chia sẻ"}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <>
-              {isRemoteCameraOn ? (
+              {!focusedStream.isCameraOff ? (
                 <video
-                  id="main-stage-remote"
-                  ref={remoteVideoRef}
-                  className="w-full h-full object-cover animate-in fade-in duration-700"
+                  key={`main-${focusedStream.id}`}
+                  id={`main-${focusedStream.id}`}
+                  ref={getStreamRef(focusedStream)}
+                  className={`w-full h-full ${focusedStream.type.includes("screen") ? "object-contain" : "object-cover animate-in fade-in duration-700"} ${focusedStream.isLocal && !focusedStream.type.includes("screen") ? "scale-x-[-1]" : ""}`}
                   autoPlay
                   playsInline
+                  muted
                 />
               ) : (
-                <div
-                  className={`flex flex-col items-center gap-6 animate-in zoom-in duration-500 ${isMinimized ? "scale-50" : ""}`}
-                >
+                <div className={`flex flex-col items-center gap-6 animate-in zoom-in duration-500 ${isMinimized ? "scale-50" : ""}`}>
                   <div className="w-28 h-28 rounded-full bg-white/5 animate-pulse flex items-center justify-center border border-white/10 shadow-inner relative">
                     <div className="absolute inset-0 bg-blue-500/10 rounded-full blur-xl" />
-                    {peer.avatar ? (
-                      <img
-                        src={peer.avatar}
-                        className="w-full h-full object-cover rounded-full opacity-40 grayscale"
-                        alt=""
-                      />
+                    {peer.avatar && !focusedStream.isLocal ? (
+                      <img src={peer.avatar} className="w-full h-full object-cover rounded-full opacity-40 grayscale" alt="" />
                     ) : (
                       <User size={48} className="text-white/10 relative z-10" />
                     )}
@@ -682,90 +760,55 @@ const CallOverlay: React.FC = () => {
                       <p className="text-white/20 font-black uppercase tracking-[0.2em] text-[10px] mb-2 flex items-center justify-center gap-2">
                         <CameraOff size={12} /> Camera Đang Tắt
                       </p>
-                      <p className="text-white/40 font-bold text-xs">
-                        Đang chờ tín hiệu video từ {peer.fullName}...
-                      </p>
                     </div>
                   )}
                 </div>
               )}
-            </>
+              {focusedStream.type.includes("screen") && (
+                <div className="absolute top-4 left-4 px-4 py-2 bg-black/60 backdrop-blur-md border border-white/10 rounded-full flex items-center gap-2">
+                  <Monitor size={16} className="text-blue-400" />
+                  <span className="text-xs font-bold text-white/90">{focusedStream.label}</span>
+                </div>
+              )}
+              {focusedStream.isSpeaking && (
+                <div className="absolute inset-0 border-4 border-green-500/50 pointer-events-none transition-all duration-300" />
+              )}
+            </div>
+          ) : (
+            <div className="absolute inset-0 bg-black flex flex-col items-center justify-center">
+              <Loader2 size={32} className="text-white/20 animate-spin" />
+            </div>
           )}
         </div>
 
-        {/* Camera Sidebar/Floating Tiles if sharing */}
-        {someoneIsSharing && !isMinimized && (
+        {/* Sidebar Mini Tiles */}
+        {!isMinimized && sidebarStreams.length > 0 && (
           <div className="absolute bottom-24 right-8 flex flex-col gap-4 z-20">
-            {/* Remote Camera Mini Tile */}
-            <div className="w-48 aspect-video rounded-2xl bg-[#1c1c2e]/60 backdrop-blur-2xl overflow-hidden border border-white/10 shadow-2xl relative">
-              {isRemoteCameraOn ? (
-                <video
-                  id="sidebar-remote"
-                  ref={remoteVideoRef}
-                  className="w-full h-full object-cover"
-                  autoPlay
-                  playsInline
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-black/40">
-                   <User size={24} className="text-white/20" />
+            {sidebarStreams.map(stream => (
+              <div
+                key={`sidebar-${stream.id}`}
+                onClick={() => setFocusedStageId(stream.id)}
+                className={`w-48 aspect-video rounded-2xl bg-[#1c1c2e]/60 backdrop-blur-2xl overflow-hidden border cursor-pointer hover:border-blue-500 hover:scale-105 ${stream.isSpeaking ? "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)]" : "border-white/10 shadow-2xl"} relative transition-all duration-300 group`}
+              >
+                {!stream.isCameraOff ? (
+                  <video
+                    id={`sidebar-${stream.id}`}
+                    ref={getStreamRef(stream)}
+                    className={`w-full h-full ${stream.type.includes("screen") ? "object-contain bg-black" : "object-cover"} ${stream.isLocal && !stream.type.includes("screen") ? "scale-x-[-1]" : ""}`}
+                    autoPlay
+                    playsInline
+                    muted
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-black/40">
+                    <User size={24} className="text-white/20" />
+                  </div>
+                )}
+                <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 rounded text-[9px] font-bold z-10">
+                  {stream.label}
                 </div>
-              )}
-              <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/40 rounded text-[9px] font-bold">
-                 {peer.fullName}
               </div>
-            </div>
-
-            {/* Local Camera Mini Tile */}
-            <div className="w-48 aspect-video rounded-2xl bg-[#1c1c2e]/60 backdrop-blur-2xl overflow-hidden border border-white/10 shadow-2xl relative">
-              {isCameraOn ? (
-                <video
-                  id="sidebar-local"
-                  ref={localVideoRef}
-                  className="w-full h-full object-cover scale-x-[-1]"
-                  autoPlay
-                  playsInline
-                  muted
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-black/40">
-                   <User size={24} className="text-white/20" />
-                </div>
-              )}
-              <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/40 rounded text-[9px] font-bold">
-                 Bạn
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Local Mini Pip - Default behavior when not sharing */}
-        {!someoneIsSharing && !isMinimized && (
-          <div className="absolute top-8 right-8 w-64 aspect-video rounded-3xl bg-[#1c1c2e]/60 backdrop-blur-2xl overflow-hidden border border-white/10 shadow-2xl z-20 group transition-all hover:scale-105 hover:shadow-blue-500/10">
-            {isCameraOn ? (
-              <video
-                id="pip-local"
-                ref={localVideoRef}
-                className="w-full h-full object-cover scale-x-[-1]"
-                autoPlay
-                playsInline
-                muted
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-[#1c1c2e]/80">
-                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3">
-                  <User size={24} className="text-white/20" />
-                </div>
-                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em]">
-                  Camera Của Bạn Đang Tắt
-                </p>
-              </div>
-            )}
-            <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-5">
-              <p className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Bạn
-              </p>
-            </div>
+            ))}
           </div>
         )}
 
@@ -773,15 +816,14 @@ const CallOverlay: React.FC = () => {
           <div className="absolute inset-x-0 bottom-0 h-48 bg-linear-to-t from-black/90 to-transparent pointer-events-none" />
         )}
 
-        {!someoneIsSharing && !isMinimized && (
+        {/* Info overlay (always bottom left) */}
+        {!isMinimized && (
           <div className="absolute left-10 bottom-10 z-10">
             <p className="text-white font-black text-3xl mb-2 tracking-tight">
               {peer.fullName}
             </p>
             <div className="flex items-center gap-3">
-              <div
-                className={`w-2 h-2 rounded-full ${callState === "CONNECTED" ? "bg-green-500" : "bg-yellow-500"} shadow-[0_0_8px_rgba(34,197,94,0.5)]`}
-              />
+              <div className={`w-2 h-2 rounded-full ${callState === "CONNECTED" ? "bg-green-500" : "bg-yellow-500"} shadow-[0_0_8px_rgba(34,197,94,0.5)]`} />
               <p className="text-white/50 text-[11px] font-black uppercase tracking-[0.2em]">
                 {statusText}
               </p>
@@ -809,7 +851,7 @@ const CallOverlay: React.FC = () => {
             </div>
             <div>
               <p className="font-black text-white text-md leading-tight tracking-tight">
-                ZaloEdu Live <span className="text-blue-500 ml-1">Pro</span>
+                EnuNest Live <span className="text-blue-500 ml-1">Pro</span>
               </p>
               <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/20">
                 {callType === "video"
@@ -1090,6 +1132,14 @@ const CallOverlay: React.FC = () => {
               <Monitor size={24} />
             </button>
 
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="w-14 h-14 rounded-2xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 border border-white/5"
+              title="Cài đặt thiết bị"
+            >
+              <Settings size={24} className="text-white/60" />
+            </button>
+
             <div className="w-px h-8 bg-white/10 mx-2" />
 
             <button
@@ -1126,6 +1176,68 @@ const CallOverlay: React.FC = () => {
           />
         </div>
       )}
+
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#1c1c2e] border border-white/10 w-full max-w-md p-6 rounded-3xl shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-white">Cài Đặt Thiết Bị</h3>
+              <button
+                onClick={() => setIsSettingsOpen(false)}
+                className="text-white/50 hover:text-white transition-colors p-2"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="flex flex-col gap-5">
+              <div>
+                <label className="block text-sm font-semibold text-white/60 mb-2">Microphone</label>
+                <select 
+                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  onChange={(e) => switchAudioInput(e.target.value)}
+                >
+                  {audioInputs.map(device => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Microphone ${device.deviceId.slice(0, 5)}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-white/60 mb-2">Loa / Tai nghe</label>
+                <select 
+                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  onChange={(e) => switchAudioOutput(e.target.value)}
+                >
+                  {audioOutputs.map(device => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Speaker ${device.deviceId.slice(0, 5)}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-white/60 mb-2">Camera</label>
+                <select 
+                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  onChange={(e) => switchVideoInput(e.target.value)}
+                >
+                  {videoInputs.map(device => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label || `Camera ${device.deviceId.slice(0, 5)}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Note: Audio tag is now globally managed in App.tsx */}
     </div>
   );

@@ -22,7 +22,7 @@ interface ProfileModalProps {
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
   const { user, refreshUser } = useAuth();
-  const { isDark } = useTheme();
+  const { isDark, t } = useTheme();
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -103,14 +103,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
       setIsEditing(false);
       Swal.fire({
         icon: 'success',
-        title: 'Thành công',
-        text: 'Thông tin cá nhân đã được cập nhật.',
+        title: t('info.success'),
+        text: t('profile.save_success_text'),
         timer: 1500,
         showConfirmButton: false
       });
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      Swal.fire('Lỗi', error.response?.data?.message || 'Không thể cập nhật thông tin.', 'error');
+      Swal.fire(t('modal.error'), error.response?.data?.message || t('profile.save_error_title'), 'error');
     }
   };
 
@@ -129,14 +129,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
       await loadProfile();
       Swal.fire({
         icon: 'success',
-        title: 'Thành công',
-        text: 'Ảnh đã được cập nhật.',
+        title: t('info.success'),
+        text: t('profile.image_updated'),
         timer: 1500,
         showConfirmButton: false
       });
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      Swal.fire('Lỗi', error.response?.data?.message || 'Không thể upload ảnh.', 'error');
+      Swal.fire(t('modal.error'), error.response?.data?.message || t('profile.avatar_upload_error'), 'error');
     } finally {
       setUploading(null);
     }

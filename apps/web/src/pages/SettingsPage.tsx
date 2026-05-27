@@ -10,7 +10,6 @@ type WebSettings = {
   messageSound: boolean;
   showOnlineStatus: boolean;
   allowSearchByPhone: boolean;
-  syncContacts: boolean;
   autoDownloadMedia: boolean;
   themeMode: 'system' | 'light' | 'dark';
   language: 'vi' | 'en';
@@ -21,7 +20,6 @@ const DEFAULT_SETTINGS: WebSettings = {
   messageSound: true,
   showOnlineStatus: true,
   allowSearchByPhone: true,
-  syncContacts: true,
   autoDownloadMedia: true,
   themeMode: 'system',
   language: 'vi',
@@ -205,13 +203,6 @@ const SettingsPage: React.FC = () => {
               enabled={settings.allowSearchByPhone}
               onToggle={() => patchSettings({ allowSearchByPhone: !settings.allowSearchByPhone })}
             />
-            <SettingsToggle
-              icon="sync"
-              label={t('privacy.sync_contacts')}
-              description={t('privacy.sync_contacts_desc')}
-              enabled={settings.syncContacts}
-              onToggle={() => patchSettings({ syncContacts: !settings.syncContacts })}
-            />
           </Section>
 
           <Section title={t('section.notifications')} subtitle={t('section.notifications_subtitle')}>
@@ -220,7 +211,13 @@ const SettingsPage: React.FC = () => {
               label={t('notif.push')}
               description={t('notif.push_desc')}
               enabled={settings.notifications}
-              onToggle={() => patchSettings({ notifications: !settings.notifications })}
+              onToggle={() => {
+                const nextVal = !settings.notifications;
+                if (nextVal && typeof window !== 'undefined' && 'Notification' in window) {
+                  Notification.requestPermission().catch(() => {});
+                }
+                patchSettings({ notifications: nextVal });
+              }}
             />
             <SettingsToggle
               icon="volume_up"

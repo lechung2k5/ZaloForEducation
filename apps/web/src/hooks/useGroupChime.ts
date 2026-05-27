@@ -8,6 +8,7 @@ import {
 } from 'amazon-chime-sdk-js';
 import { useGroupCallStore } from '../store/groupCallStore';
 import { useAuth } from '../context/AuthContext';
+import { BackgroundBlurVideoFrameProcessor, DefaultVideoTransformDevice } from 'amazon-chime-sdk-js';
 
 /**
  * [Web-Chime] Normalize Chime attendee IDs (strips modality suffix like #1, #content)
@@ -37,13 +38,15 @@ export const useGroupChime = () => {
 
   const [session, setSession] = useState<DefaultMeetingSession | null>(null);
   const sessionRef = useRef<DefaultMeetingSession | null>(null);
+  const deviceControllerRef = useRef<DefaultDeviceController | null>(null);
+  const observerRef = useRef<any>(null);
   const heartbeatIntervalRef = useRef<any>(null);
 
   // [SENIOR] Physical video element singletons for group
   const groupLocalVideoRef = useRef<HTMLVideoElement | null>(null);
   const groupRemoteVideoRefs = useRef<Record<number, HTMLVideoElement | null>>({});
-  const groupContentVideoRef = useRef<HTMLVideoElement | null>(null);
-  const contentTileIdRef = useRef<number | null>(null);
+  const groupContentVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const contentTileIdsRef = useRef<Map<string, number>>(new Map());
 
   // [FIX #4] Dùng ref để tránh stale closure trong onended handler
   const stopScreenShareRef = useRef<() => Promise<void>>(async () => { });
@@ -90,12 +93,13 @@ export const useGroupChime = () => {
   // [FIX #6] Retry binding content tile với exponential backoff
   // Xử lý trường hợp React ref chưa mount tại thời điểm tile update
   // ─────────────────────────────────────────────
-  const tryBindContentTile = (tileId: number, attempt = 0) => {
-    if (groupContentVideoRef.current && sessionRef.current) {
-      sessionRef.current.audioVideo.bindVideoElement(tileId, groupContentVideoRef.current);
-      console.log(`[GroupChime] ✅ Content tile=${tileId} bound on attempt ${attempt}`);
+  const tryBindContentTile = (tileId: number, attendeeId: string, attempt = 0) => {
+    const el = groupContentVideoRefs.current.get(attendeeId);
+    if (el && sessionRef.current) {
+      sessionRef.current.audioVideo.bindVideoElement(tileId, el);
+      console.log(`[GroupChime] ✅ Content tile=${tileId} bound for ${attendeeId} on attempt ${attempt}`);
     } else if (attempt < 5) {
-      setTimeout(() => tryBindContentTile(tileId, attempt + 1), 100 * (attempt + 1));
+      setTimeout(() => tryBindContentTile(tileId, attendeeId, attempt + 1), 100 * (attempt + 1));
     } else {
       console.error(`[GroupChime] ❌ Content tile=${tileId} bind failed after 5 attempts`);
     }
@@ -120,12 +124,16 @@ export const useGroupChime = () => {
     }
   }, []);
 
-  const setGroupContentVideoRef = useCallback((node: HTMLVideoElement | null) => {
-    groupContentVideoRef.current = node;
-    if (node && sessionRef.current && contentTileIdRef.current) {
-      const tid = contentTileIdRef.current;
-      console.log(`[GroupChime] 🖥️ Binding Content Ref to tile=${tid}`);
-      sessionRef.current.audioVideo.bindVideoElement(tid, node);
+  const setGroupContentVideoRef = useCallback((attendeeId: string, node: HTMLVideoElement | null) => {
+    if (node) {
+      groupContentVideoRefs.current.set(attendeeId, node);
+      const tid = contentTileIdsRef.current.get(attendeeId);
+      if (tid !== undefined && sessionRef.current) {
+        console.log(`[GroupChime] 🔗 Binding Content Ref to tile=${tid} for ${attendeeId}`);
+        sessionRef.current.audioVideo.bindVideoElement(tid, node);
+      }
+    } else {
+      groupContentVideoRefs.current.delete(attendeeId);
     }
   }, []);
 
@@ -151,10 +159,12 @@ export const useGroupChime = () => {
     });
 
     // 3. Bind Content
-    if (contentTileIdRef.current && groupContentVideoRef.current) {
-      console.log(`[GroupChime] 🔗 Re-binding CONTENT tile=${contentTileIdRef.current}`);
-      s.audioVideo.bindVideoElement(contentTileIdRef.current, groupContentVideoRef.current);
-    }
+    contentTileIdsRef.current.forEach((tileId, attendeeId) => {
+      const el = groupContentVideoRefs.current.get(attendeeId);
+      if (el) {
+        s.audioVideo.bindVideoElement(tileId, el);
+      }
+    });
   };
 
   // ─────────────────────────────────────────────
@@ -165,7 +175,11 @@ export const useGroupChime = () => {
 
     const logger = new ConsoleLogger('GroupChime', LogLevel.ERROR);
     const deviceController = new DefaultDeviceController(logger);
+    deviceControllerRef.current = deviceController;
     const configuration = new MeetingSessionConfiguration(meetingData, attendeeData);
+    
+    // [PREMIUM] Enable Simulcast for Bandwidth Optimization
+    configuration.enableSimulcastForUnifiedPlanChromiumBasedBrowsers = true;
 
     const newSession = new DefaultMeetingSession(configuration, logger, deviceController);
 
@@ -174,10 +188,46 @@ export const useGroupChime = () => {
 
     // [SENIOR] Physical presence mapping handled by socket SSOT
     newSession.audioVideo.realtimeSubscribeToAttendeeIdPresence((attendeeId, present) => {
+      if (attendeeId.includes('#')) return; // Ignore modality attendees (like #content)
+      
+      const { setActiveSpeaker } = useGroupCallStore.getState();
+
       if (present) {
         updateParticipant(attendeeId, { status: 'connected' });
+        
+        // [PREMIUM] Active Speaker Detection
+        newSession.audioVideo.realtimeSubscribeToVolumeIndicator(
+          attendeeId,
+          (id: string, volume: number | null, muted: boolean | null, signalStrength: number | null) => {
+            if (volume !== null && volume > 0.1 && !muted) {
+              const currentActive = useGroupCallStore.getState().activeSpeakerId;
+              if (currentActive !== id) {
+                setActiveSpeaker(id);
+              }
+            }
+          }
+        );
       } else {
         removeParticipant(attendeeId);
+        newSession.audioVideo.realtimeUnsubscribeFromVolumeIndicator(attendeeId);
+        const currentActive = useGroupCallStore.getState().activeSpeakerId;
+        if (currentActive === attendeeId) {
+          setActiveSpeaker(null);
+        }
+      }
+    });
+
+    // [PREMIUM] Reactions Receiver
+    newSession.audioVideo.realtimeSubscribeToReceiveDataMessage('reaction', (message: any) => {
+      try {
+        const text = new TextDecoder().decode(message.data);
+        const payload = JSON.parse(text);
+        const { addReaction } = useGroupCallStore.getState();
+        const senderId = message.senderAttendeeId;
+        // The sender might have a suffix if it's from a web client sometimes, normalize it
+        addReaction(normalizeAttendeeId(senderId) || senderId, payload.emoji);
+      } catch (e) {
+        console.error('[GroupChime] Failed to parse reaction message', e);
       }
     });
 
@@ -248,20 +298,12 @@ export const useGroupChime = () => {
         if (!attendeeId) return;
 
         if (tileState.isContent) {
-          contentTileIdRef.current = tileState.tileId;
-          console.log(`[GroupChime] 🖥️ CONTENT TILE UPDATE: id=${tileState.tileId} attendee=${attendeeId} active=${tileState.active}`);
+          contentTileIdsRef.current.set(attendeeId, tileState.tileId);
+          console.log(`[GroupChime] 📺 CONTENT TILE UPDATE: id=${tileState.tileId} attendee=${attendeeId} active=${tileState.active}`);
 
           const store = useGroupCallStore.getState();
-          
-          if (!tileState.active) {
-            console.log('[GroupChime] 🖥️ Content tile inactive. Cleaning up...');
-            contentTileIdRef.current = null;
-            store.clearAllScreenShares();
-            setTimeout(() => rebindAllGroupTiles(), 200);
-            return;
-          }
 
-          if (!store.screenShares[attendeeId]) {
+          if (!tileState.localTile && !store.screenShares[attendeeId]) {
             store.setScreenShare(attendeeId, { stream: null, isSharing: true });
           }
 
@@ -274,7 +316,7 @@ export const useGroupChime = () => {
           });
 
           // [FIX #6] Dùng retry thay vì bind trực tiếp một lần
-          tryBindContentTile(tileState.tileId);
+          tryBindContentTile(tileState.tileId, attendeeId);
           return;
         }
 
@@ -297,10 +339,15 @@ export const useGroupChime = () => {
         removeRemoteTile(tileId);
         delete groupRemoteVideoRefs.current[tileId];
 
-        if (contentTileIdRef.current === tileId) {
-          contentTileIdRef.current = null;
+        let removedAttendeeId: string | undefined;
+        contentTileIdsRef.current.forEach((tId, aId) => {
+          if (tId === tileId) removedAttendeeId = aId;
+        });
+
+        if (removedAttendeeId) {
+          contentTileIdsRef.current.delete(removedAttendeeId);
           const store = useGroupCallStore.getState();
-          store.clearAllScreenShares();
+          store.removeScreenShare(removedAttendeeId);
           setTimeout(() => rebindAllGroupTiles(), 100);
         }
       },
@@ -314,6 +361,7 @@ export const useGroupChime = () => {
       },
     };
 
+    observerRef.current = observer;
     newSession.audioVideo.addObserver(observer);
 
     // Setup Devices
@@ -355,6 +403,14 @@ export const useGroupChime = () => {
     }
   };
 
+  // [PREMIUM] Send Reaction
+  const sendReaction = useCallback((emoji: string) => {
+    if (sessionRef.current) {
+      const payload = JSON.stringify({ emoji });
+      sessionRef.current.audioVideo.realtimeSendDataMessage('reaction', payload);
+    }
+  }, []);
+
   // ─────────────────────────────────────────────
   // [FIX #5] leaveSession — await content share stop đúng thứ tự
   // ─────────────────────────────────────────────
@@ -382,13 +438,29 @@ export const useGroupChime = () => {
       }
 
       // Stop media devices song song
+      if (groupLocalVideoRef.current?.srcObject) {
+        (groupLocalVideoRef.current.srcObject as MediaStream)
+          .getTracks()
+          .forEach((t) => t.stop());
+        groupLocalVideoRef.current.srcObject = null;
+      }
+
       await Promise.allSettled([
         sessionToStop.audioVideo.stopVideoInput(),
         sessionToStop.audioVideo.stopAudioInput(),
       ]);
 
       // Stop session sau cùng
+      if (observerRef.current) {
+        sessionToStop.audioVideo.removeObserver(observerRef.current);
+        observerRef.current = null;
+      }
       sessionToStop.audioVideo.stop();
+
+      if (deviceControllerRef.current) {
+        deviceControllerRef.current.destroy();
+        deviceControllerRef.current = null;
+      }
     } catch (error) {
       console.error('[GroupChime] Error leaving session:', error);
     }
@@ -409,7 +481,24 @@ export const useGroupChime = () => {
     if (on) {
       const videoInputs = await sessionRef.current.audioVideo.listVideoInputDevices();
       if (videoInputs.length > 0) {
-        await sessionRef.current.audioVideo.startVideoInput(videoInputs[0].deviceId);
+        let videoDevice: any = videoInputs[0].deviceId;
+        const { isBlurEnabled } = useGroupCallStore.getState();
+
+        // [PREMIUM] Background Blur
+        if (isBlurEnabled) {
+          try {
+            const blurProcessor = await BackgroundBlurVideoFrameProcessor.create();
+            videoDevice = new DefaultVideoTransformDevice(
+              new ConsoleLogger('Chime', LogLevel.INFO),
+              videoDevice,
+              [blurProcessor]
+            );
+          } catch (e) {
+            console.error('[GroupChime] Failed to create background blur processor', e);
+          }
+        }
+
+        await sessionRef.current.audioVideo.startVideoInput(videoDevice);
       }
       sessionRef.current.audioVideo.startLocalVideoTile();
     } else {
@@ -506,6 +595,7 @@ export const useGroupChime = () => {
     toggleCamera,
     startScreenShare,
     stopScreenShare,
+    sendReaction,
     setGroupLocalVideoRef,
     setGroupRemoteVideoRef,
     setGroupContentVideoRef,

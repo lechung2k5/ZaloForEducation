@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useChatStore } from "../../store/chatStore";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import {
   getDisplayName,
   getDisplayAvatar,
@@ -24,6 +25,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useTheme();
   const {
     conversations,
     activeConvId,
@@ -39,7 +41,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 
   const [isSearchBarOpen, setIsSearchBarOpen] = React.useState(false);
   const [localSearchQuery, setLocalSearchQuery] = React.useState("");
-  const { activeCallForConv, checkActiveCall, callState, joinMeeting } = useGroupCallStore();
+  const { activeCallForConv, setActiveCallForConv, checkActiveCall, callState, joinMeeting } = useGroupCallStore();
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   // Keep focus on input even when store updates
@@ -99,6 +101,37 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
       checkActiveCall(activeConvId);
     }
   }, [activeConvId, handleCloseSearch, checkActiveCall, activeChat?.type]);
+
+  // [PREMIUM] Real-time socket listener for active group calls
+  React.useEffect(() => {
+    const socket = (window as any).socket;
+    if (!socket || !activeConvId) return;
+
+    const handleActive = (data: any) => {
+      if (data.convId === activeConvId) {
+        // Optimistically set active call
+        setActiveCallForConv({
+          callId: data.callId,
+          callType: data.callType,
+          participantCount: 1 // Initially 1 (the caller)
+        });
+      }
+    };
+
+    const handleEnded = (data: any) => {
+      if (data.convId === activeConvId) {
+        setActiveCallForConv(null);
+      }
+    };
+
+    socket.on('group-call:active', handleActive);
+    socket.on('group-call:ended', handleEnded);
+
+    return () => {
+      socket.off('group-call:active', handleActive);
+      socket.off('group-call:ended', handleEnded);
+    };
+  }, [activeConvId, setActiveCallForConv]);
 
   // [FIX] Now we can return early after all hooks are declared
   if (activeConvId && !activeChat) {
@@ -161,7 +194,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 type="text"
                 value={localSearchQuery}
                 onChange={handleSearchChange}
-                placeholder="Tìm kiếm tin nhắn..."
+                placeholder={t('header.search_messages')}
                 className="flex-1 bg-transparent border-none outline-none px-3 text-[14px] text-on-surface"
                 onKeyDown={(e) => {
                   if (e.key === "Escape") handleCloseSearch();
@@ -179,7 +212,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               <div
                 className={`relative group ${partnerEmail ? "cursor-pointer" : ""}`}
                 onClick={handleOpenProfile}
-                title={partnerEmail ? "Xem trang cá nhân" : undefined}
+                title={partnerEmail ? t('header.view_profile') : undefined}
               >
                 <img
                   className="w-11 h-11 rounded-full object-cover bg-surface-container ring-2 ring-white dark:ring-surface-container-high shadow-sm group-hover:ring-primary/20 transition-all"
@@ -199,10 +232,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                     className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-outline/40"}`}
                   ></span>
                   {activeChat.type === "group"
-                    ? `${activeChat.members?.length || 0} thành viên`
+                    ? t('header.members_count', { count: activeChat.members?.length || 0 })
                     : isOnline
-                      ? "Đang hoạt động"
-                      : "Đang ngoại tuyến"}
+                      ? t('header.active')
+                      : t('header.offline')}
                 </p>
               </div>
             </>
@@ -223,7 +256,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               <button
                 onClick={() => startCall("video")}
                 disabled={activeChat.type === "system"}
-                title={activeChat.type === "group" ? "Gọi video nhóm" : "Gọi video"}
+                title={activeChat.type === "group" ? t('header.video_call_group') : t('header.video_call_direct')}
                 className="w-10 h-10 flex items-center justify-center hover:bg-surface-container rounded-full transition-all text-on-surface-variant hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Video size={20} />
@@ -231,30 +264,12 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               <button
                 onClick={() => startCall("audio")}
                 disabled={activeChat.type === "system"}
-                title={activeChat.type === "group" ? "Gọi thoại nhóm" : "Gọi thoại"}
+                title={activeChat.type === "group" ? t('header.voice_call_group') : t('header.voice_call_direct')}
                 className="w-10 h-10 flex items-center justify-center hover:bg-surface-container rounded-full transition-all text-on-surface-variant hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <Phone size={20} />
               </button>
             </>
-          )}
-
-
-          {/* Active Call Indicator */}
-          {activeChat.type === "group" && activeCallForConv && callState === 'IDLE' && (
-            <button
-              onClick={() => joinMeeting(activeConvId!, activeCallForConv.callId, activeCallForConv.callType || 'video', {
-                email: user?.email || '',
-                fullName: user?.fullName || user?.email || '',
-                avatarUrl: user?.avatarUrl || ''
-              })}
-              className="ml-2 px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 text-green-500 rounded-full flex items-center gap-2 transition-all border border-green-500/30 animate-pulse"
-            >
-              <VideoIcon size={14} className="fill-current" />
-              <span className="text-[12px] font-extrabold uppercase tracking-tight">
-                Cuộc gọi đang diễn ra ({activeCallForConv.participantCount})
-              </span>
-            </button>
           )}
 
           <div className="w-px h-6 bg-outline-variant/20 mx-1" />
@@ -265,8 +280,36 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             <PanelRightOpen size={20} />
           </button>
         </div>
-
       </header>
+
+      {/* [PREMIUM] Banner: Active Group Call Indicator (Real-time & Prominent) */}
+      {activeChat.type === "group" && activeCallForConv && callState === 'IDLE' && (
+        <div className="bg-green-500/10 border-b border-green-500/20 px-6 py-3 flex items-center justify-between shrink-0 animate-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 animate-pulse">
+              <VideoIcon size={20} className="fill-current" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[14px] font-bold text-green-600 dark:text-green-400">
+                Đang có cuộc gọi nhóm diễn ra
+              </span>
+              <span className="text-[12px] text-green-600/70 dark:text-green-400/70 font-medium">
+                Hãy nhấn tham gia để kết nối cùng mọi người
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => joinMeeting(activeConvId!, activeCallForConv.callId, activeCallForConv.callType || 'video', {
+              email: user?.email || '',
+              fullName: user?.fullName || user?.email || '',
+              avatarUrl: user?.avatarUrl || ''
+            })}
+            className="px-5 py-2 bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg shadow-green-500/30 transition-all hover:scale-105 flex items-center gap-2"
+          >
+            Tham gia
+          </button>
+        </div>
+      )}
 
       {/* Modern Multi-Pin Header */}
       <PinnedHeader />
@@ -281,22 +324,24 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                   <Search size={24} className="text-primary/40" />
                 </div>
                 <p className="text-[13px] text-on-surface-variant font-medium">
-                  Nhập tối thiểu 2 ký tự để tìm kiếm tin nhắn trong hội thoại này
+                  {t('header.search_min_chars')}
                 </p>
               </div>
             ) : isLocalSearching ? (
               <div className="p-8 flex flex-col items-center justify-center gap-3">
                 <Loader2 className="animate-spin text-primary" size={24} />
-                <p className="text-[13px] text-on-surface-variant font-medium">Đang tìm kiếm...</p>
+                <p className="text-[13px] text-on-surface-variant font-medium">{t('header.searching')}</p>
               </div>
             ) : searchResults.length === 0 ? (
               <div className="p-8 text-center">
-                <p className="text-[13px] text-on-surface-variant font-medium">Không tìm thấy tin nhắn nào khớp với "{localSearchQuery}"</p>
+                <p className="text-[13px] text-on-surface-variant font-medium">
+                  {t('header.no_messages_found', { query: localSearchQuery })}
+                </p>
               </div>
             ) : (
               <div className="space-y-1">
                 <p className="px-3 py-1.5 text-[11px] font-extrabold text-on-surface-variant uppercase tracking-wider">
-                  Kết quả tìm kiếm ({searchResults.length})
+                  {t('header.search_results', { count: searchResults.length })}
                 </p>
                 {searchResults.map((msg) => (
                   <button
@@ -312,7 +357,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                         {getDisplayName(msg.senderId, user, userProfiles)}
                       </span>
                       <span className="text-[10px] text-on-surface-variant/70 font-medium">
-                        {msg.createdAt ? new Date(msg.createdAt).toLocaleString("vi-VN") : ""}
+                        {msg.createdAt ? new Date(msg.createdAt).toLocaleString(t('nav.back') === 'Back' ? 'en-US' : 'vi-VN') : ""}
                       </span>
                     </div>
                     <p className="text-[13px] text-on-surface-variant line-clamp-2 leading-snug">

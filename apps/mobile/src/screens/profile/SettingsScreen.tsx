@@ -201,7 +201,7 @@ export default function SettingsScreen({ onNavigate, returnTo = 'Main', onLogout
   };
 
   const handleAbout = () => {
-    Alert.alert('About Zalo', 'Zalo Education Mobile\nPhiên bản giáo dục nội bộ cho hồ sơ, thiết bị và cài đặt.');
+    Alert.alert('About EnuNest', 'EnuNest Mobile\nPhiên bản giáo dục nội bộ cho hồ sơ, thiết bị và cài đặt.');
   };
 
   const handleRestore = () => {
@@ -457,10 +457,10 @@ export default function SettingsScreen({ onNavigate, returnTo = 'Main', onLogout
           </View>
         </Section>
 
-        <Section title="About Zalo" subtitle="Thông tin ứng dụng và hỗ trợ" compact={isCompact} cardRadius={cardRadius}>
+        <Section title="About EnuNest" subtitle="Thông tin ứng dụng và hỗ trợ" compact={isCompact} cardRadius={cardRadius}>
           <SettingRow
             icon="info"
-            title="About Zalo"
+            title="About EnuNest"
             subtitle="Phiên bản, điều khoản và cập nhật"
             rightElement={<Text style={styles.chevron}>chevron_right</Text>}
             onPress={handleAbout}

@@ -222,7 +222,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                 resizeMode="cover"
               />
             </View>
-            <Text style={styles.brandTitle}>Zalo Education</Text>
+            <Text style={styles.brandTitle}>EnuNest</Text>
           </View>
 
           <StepIndicator />

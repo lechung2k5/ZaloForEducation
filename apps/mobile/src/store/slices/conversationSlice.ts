@@ -10,6 +10,22 @@ import { normalizeConversation } from "../chatHelpers";
 import { getMessagePreview } from "../../utils/chatUtils";
 import { ChatStore } from "../chatStore";
 
+const normalizeMentionEmail = (value?: string | null) =>
+  String(value || '').replace(/^USER#/i, '').trim().toLowerCase();
+
+const getMessageMentions = (message: any) => {
+  const mentions = message?.mentions || message?.payload?.mentions || [];
+  return Array.isArray(mentions) ? mentions : [];
+};
+
+const isMentionedInMessage = (message: any, currentUserEmail?: string | null) => {
+  const normalizedCurrentUserEmail = normalizeMentionEmail(currentUserEmail);
+  if (!normalizedCurrentUserEmail) return false;
+  return getMessageMentions(message).some((mention: any) =>
+    normalizeMentionEmail(typeof mention === 'string' ? mention : mention?.email) === normalizedCurrentUserEmail,
+  );
+};
+
 export interface ConversationSlice {
   conversations: any[];
   activeConvId: string | null;
@@ -204,6 +220,14 @@ export const createConversationSlice: StateCreator<
       nextConversations[convIndex] = {
         ...nextConversations[convIndex],
         unreadCount: 0,
+        hasUnreadMention: false,
+        mentionCount: 0,
+        lastMentionMessageId: undefined,
+        lastMentionAt: undefined,
+        hasUnreadMention: false,
+        mentionCount: 0,
+        lastMentionMessageId: undefined,
+        lastMentionAt: undefined,
       };
 
       return { conversations: nextConversations } as any;
@@ -302,9 +326,17 @@ export const createConversationSlice: StateCreator<
 
       const isActive = state.activeConvId === convId;
       const isOwn = String(senderId || '').replace(/^USER#/, "").trim().toLowerCase() === String(get().currentUserEmail || '').trim().toLowerCase();
-      
+      const isMentioned = !isOwn && isMentionedInMessage(messageData, get().currentUserEmail);
+
       if (!isActive && !isOwn) {
         target.unreadCount = (target.unreadCount || 0) + 1;
+      }
+
+      if (isMentioned && !isActive) {
+        target.hasUnreadMention = true;
+        target.mentionCount = (target.mentionCount || 0) + 1;
+        target.lastMentionMessageId = messageId || messageData?.messageId || target.lastMessage;
+        target.lastMentionAt = new Date().toISOString();
       }
 
       // Try to create a human-readable preview for system messages (Vietnamese)
@@ -408,7 +440,7 @@ export const createConversationSlice: StateCreator<
         preview = getMessagePreview({ content });
       }
 
-      target.lastMessageContent = preview;
+      target.lastMessageContent = isMentioned && !isActive ? `@ Bạn · ${preview}` : preview;
       if (senderId) {
         target.lastMessageSenderId = senderId;
       }

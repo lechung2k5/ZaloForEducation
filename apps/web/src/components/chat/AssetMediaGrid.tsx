@@ -13,7 +13,9 @@ const AssetMediaGrid: React.FC<AssetMediaGridProps> = ({ convId }) => {
   const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchArchiveAssets(convId, "media", true);
+    if (items.length === 0 && !loading) {
+      fetchArchiveAssets(convId, "media");
+    }
   }, [convId]);
 
   useEffect(() => {
@@ -33,7 +35,7 @@ const AssetMediaGrid: React.FC<AssetMediaGridProps> = ({ convId }) => {
     return () => observer.disconnect();
   }, [convId, cursor, loading]);
 
-  if (items.length === 0 && !loading) {
+  if (items.length === 0 && !loading && !cursor) {
     return (
       <div className="flex flex-col items-center justify-center py-10 opacity-60">
         <p className="text-[13px] italic">Chưa có ảnh hoặc video nào</p>
@@ -47,9 +49,12 @@ const AssetMediaGrid: React.FC<AssetMediaGridProps> = ({ convId }) => {
         {items.map((msg) => {
           const attachments = [...(msg.media || []), ...(msg.files || [])]
             .map(normalizeAttachment)
-            .filter((a) => 
-              a.mimeType?.startsWith("image/") || a.mimeType?.startsWith("video/")
-            );
+            .filter((a) => {
+              const mime = a.mimeType?.toLowerCase() || "";
+              const isSticker = mime === "image/sticker" || a.isSticker;
+              if (isSticker) return false;
+              return mime.startsWith("image/") || mime.startsWith("video/");
+            });
 
           return attachments.map((att, idx) => {
             const isVideo = att.mimeType?.startsWith("video/");

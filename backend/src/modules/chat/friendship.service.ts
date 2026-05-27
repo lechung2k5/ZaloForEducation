@@ -469,6 +469,35 @@ export class FriendshipService {
     return { message: "User blocked successfully" };
   }
 
+  async dismissSuggestion(userEmail: string, targetEmail: string) {
+    const normalizedUser = this.normalizeEmail(userEmail);
+    const normalizedTarget = this.normalizeEmail(targetEmail);
+
+    if (normalizedUser === normalizedTarget) {
+      throw new BadRequestException("Cannot dismiss yourself");
+    }
+
+    const timestamp = new Date().toISOString();
+    
+    // We only need a one-way record to remember that userEmail dismissed targetEmail
+    await this.db.docClient.send(
+      new PutCommand({
+        TableName: this.db.tableName,
+        Item: {
+          PK: `USER#${normalizedUser}`,
+          SK: `FRIEND#${normalizedTarget}`,
+          sender_id: normalizedUser,
+          receiver_id: normalizedTarget,
+          status: "ignored_suggestion",
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        },
+      }),
+    );
+
+    return { message: "Suggestion dismissed successfully" };
+  }
+
   async unblockUser(userEmail: string, blockedEmail: string) {
     const normalizedUser = this.normalizeEmail(userEmail);
     const normalizedBlocked = this.normalizeEmail(blockedEmail);
@@ -731,7 +760,7 @@ export class FriendshipService {
         if (
           !candidateEmail ||
           candidateEmail === normalizedEmail ||
-          acceptedFriends.has(candidateEmail)
+          friendships.some(f => f.sender_id === candidateEmail || f.receiver_id === candidateEmail)
         )
           continue;
 
@@ -756,7 +785,7 @@ export class FriendshipService {
         if (
           !normalizedMember ||
           normalizedMember === normalizedEmail ||
-          acceptedFriends.has(normalizedMember)
+          friendships.some(f => f.sender_id === normalizedMember || f.receiver_id === normalizedMember)
         )
           continue;
 

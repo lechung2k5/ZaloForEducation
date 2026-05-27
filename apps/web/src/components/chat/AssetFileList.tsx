@@ -13,7 +13,9 @@ const AssetFileList: React.FC<AssetFileListProps> = ({ convId }) => {
   const observerTarget = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchArchiveAssets(convId, "file", true);
+    if (items.length === 0 && !loading) {
+      fetchArchiveAssets(convId, "file");
+    }
   }, [convId]);
 
   useEffect(() => {
@@ -33,7 +35,7 @@ const AssetFileList: React.FC<AssetFileListProps> = ({ convId }) => {
     return () => observer.disconnect();
   }, [convId, cursor, loading]);
 
-  if (items.length === 0 && !loading) {
+  if (items.length === 0 && !loading && !cursor) {
     return (
       <div className="flex flex-col items-center justify-center py-10 opacity-60">
         <p className="text-[13px] italic">Chưa có tệp tin nào</p>

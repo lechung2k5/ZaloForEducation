@@ -1,14 +1,16 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import ChatWallpaperModal from "./ChatWallpaperModal";
 import {
   BellOff,
+  Image as ImageIcon,
   Bell,
   Clock3,
   Trash2,
   X,
   Check,
-  ChevronDown,
   ChevronLeft,
+  ChevronDown,
   FileText,
   UserMinus,
   ShieldCheck,
@@ -20,6 +22,9 @@ import {
   Camera,
   Loader2,
   Pin,
+  PinOff,
+  QrCode,
+  Video,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import api from "../../services/api";
@@ -30,8 +35,6 @@ import {
   getDisplayName,
   normalizeAttachment,
   clearConversationMuteSchedule,
-  createConversationMuteScheduleFromDuration,
-  createConversationMuteScheduleUntilMorning,
   formatMuteScheduleLabel,
   getConversationMuteSchedule,
   setConversationMuteSchedule,
@@ -41,10 +44,14 @@ import AddMembersModal from "./AddMembersModal";
 import AssetMediaGrid from "./AssetMediaGrid";
 import AssetFileList from "./AssetFileList";
 import AssetLinkList from "./AssetLinkList";
+import GroupShareModal from "./GroupShareModal";
+import { useTheme } from "../../context/ThemeContext";
+import { useGroupCallStore } from "../../store/groupCallStore";
 
 const ChatInfoSidebar: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { language, t } = useTheme();
   const {
     conversations,
     activeConvId,
@@ -52,9 +59,6 @@ const ChatInfoSidebar: React.FC = () => {
     messages,
     setConversationAutoDelete,
     clearHistory,
-    mutedConversations,
-    muteConversationFor,
-    clearConversationMuted,
     isConversationMuted,
     removeMember,
     updateMemberRole,
@@ -63,6 +67,8 @@ const ChatInfoSidebar: React.FC = () => {
     archiveAssets,
     fetchArchiveAssets,
   } = useChatStore();
+
+  const { callState, joinMeeting, activeCallForConv } = useGroupCallStore();
 
   const activeChat = conversations.find((c) => c.id === activeConvId);
 
@@ -79,13 +85,16 @@ const ChatInfoSidebar: React.FC = () => {
   >(null);
   const [savingAutoDelete, setSavingAutoDelete] = useState(false);
 
-  // tin_notification States
+  // Mute schedule States
   const [showMutePanel, setShowMutePanel] = useState(false);
-  const [showCustomMuteInputs, setShowCustomMuteInputs] = useState(false);
-  const [isAddMembersModalOpen, setIsAddMembersModalOpen] = useState(false);
+  const [showCustomTime, setShowCustomTime] = useState(false);
   const [muteStartTime, setMuteStartTime] = useState("22:00");
   const [muteEndTime, setMuteEndTime] = useState("07:00");
   const [muteSummary, setMuteSummary] = useState<string | null>(null);
+
+  // tin_notification States
+  const [isAddMembersModalOpen, setIsAddMembersModalOpen] = useState(false);
+  const [isGroupShareOpen, setIsGroupShareOpen] = useState(false);
   const [showTransferOwnerModal, setShowTransferOwnerModal] = useState(false);
   const [isTransferringOwnership, setIsTransferringOwnership] = useState(false);
   const [selectedNewOwnerEmail, setSelectedNewOwnerEmail] = useState<
@@ -94,6 +103,8 @@ const ChatInfoSidebar: React.FC = () => {
   const [isEditingGroupName, setIsEditingGroupName] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [isSavingGroupName, setIsSavingGroupName] = useState(false);
+  const [isWallpaperModalOpen, setIsWallpaperModalOpen] = useState(false);
+  const [showClearHistoryPanel, setShowClearHistoryPanel] = useState(false);
 
   useEffect(() => {
     if (activeChat?.id) {
@@ -106,6 +117,7 @@ const ChatInfoSidebar: React.FC = () => {
 
   useEffect(() => {
     if (!activeChat) return;
+    // Sync mute schedule state when conversation changes
     const schedule = getConversationMuteSchedule(activeChat.id);
     if (schedule) {
       setMuteStartTime(schedule.startTime);
@@ -115,10 +127,10 @@ const ChatInfoSidebar: React.FC = () => {
       setMuteSummary(null);
     }
     setShowMutePanel(false);
-    setShowCustomMuteInputs(false);
+    setShowCustomTime(false);
     setIsEditingGroupName(false);
     setNewGroupName(activeChat.name || "");
-  }, [activeChat]);
+  }, [activeChat?.id]);
 
   const normalizedUserEmail = String(user?.email || "")
     .trim()
@@ -156,9 +168,9 @@ const ChatInfoSidebar: React.FC = () => {
       );
       return msg
         ? { id: msg.id, content: msg.content, createdAt: msg.createdAt }
-        : { id, content: "Đang tải...", isPlaceholder: true };
+        : { id, content: t("info.loading"), isPlaceholder: true };
     });
-  }, [pinnedIds, messages, activeConvId]);
+  }, [pinnedIds, messages, activeConvId, t]);
 
   // Instant Previews Logic
   const mediaPreview = useMemo(() => {
@@ -265,7 +277,7 @@ const ChatInfoSidebar: React.FC = () => {
   const chatName =
     activeChat.type === "direct"
       ? getDisplayName(partnerEmail, user, userProfiles)
-      : activeChat.name || "Group";
+      : activeChat.name || t("info.group_fallback");
 
   const chatAvatar =
     activeChat.type === "direct"
@@ -274,30 +286,15 @@ const ChatInfoSidebar: React.FC = () => {
 
   const currentAutoDeleteDays = activeChat.autoDeleteDays ?? null;
   const muted = !!(activeConvId && isConversationMuted(activeConvId));
-  const muteSetting = activeConvId
-    ? mutedConversations[activeConvId]
-    : undefined;
-
   const getMuteStatusLabel = () => {
-    if (!activeConvId || !muted) return "ĐANG BẬT";
-    if (muteSetting === "until-open") return "ĐẾN KHI MỞ LẠI";
-    if (muteSetting === true) return "VĨNH VIỄN";
-    if (typeof muteSetting === "number") {
-      const diff = muteSetting - Date.now();
-      if (diff <= 0) return "ĐANG BẬT";
-      const hours = Math.floor(diff / (60 * 60 * 1000));
-      const minutes = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
-      if (hours > 0) return `${hours}G ${minutes}P`;
-      return `${Math.max(1, minutes)} PHÚT`;
-    }
-    return "ĐANG TẮT";
+    return muted ? t('info.mute_status_muted') : t('info.mute_status_active');
   };
 
   const autoDeleteLabel = (days: 1 | 7 | 30 | null) => {
-    if (days === 1) return "1 ngày";
-    if (days === 7) return "7 ngày";
-    if (days === 30) return "30 ngày";
-    return "Không bao giờ";
+    if (days === 1) return t('info.day_1');
+    if (days === 7) return t('info.days_7');
+    if (days === 30) return t('info.days_30');
+    return t('info.never');
   };
 
   const openAutoDeleteModal = () => {
@@ -318,44 +315,6 @@ const ChatInfoSidebar: React.FC = () => {
     }
   };
 
-  const applyMuteSchedule = (schedule: {
-    enabled: boolean;
-    startTime: string;
-    endTime: string;
-  }) => {
-    if (!activeChat) return;
-
-    setConversationMuteSchedule(
-      activeChat.id,
-      schedule as ConversationMuteSchedule,
-    );
-    setMuteSummary(
-      formatMuteScheduleLabel(schedule as ConversationMuteSchedule),
-    );
-    setShowMutePanel(false);
-    setShowCustomMuteInputs(false);
-
-    // Also trigger store-level mute (manual) to be safe or just rely on scheduler
-    // For now, let's keep schedule as a separate UI/UX enhancement
-  };
-
-  const handleSaveMuteSchedule = () => {
-    applyMuteSchedule({
-      enabled: true,
-      startTime: muteStartTime,
-      endTime: muteEndTime,
-    });
-  };
-
-  const handleClearMuteSchedule = () => {
-    if (!activeChat) return;
-
-    clearConversationMuteSchedule(activeChat.id);
-    setMuteSummary(null);
-    setShowMutePanel(false);
-    setShowCustomMuteInputs(false);
-  };
-
   const uniqueSenders = activeChat?.members || [];
 
   const handleOpenProfile = () => {
@@ -363,90 +322,73 @@ const ChatInfoSidebar: React.FC = () => {
     navigate(`/profile?email=${encodeURIComponent(partnerEmail)}`);
   };
 
-  const handleToggleMute = async () => {
+  const handleToggleMute = () => {
     if (!activeConvId) return;
+    if (muted || muteSummary) {
+      // Currently muted (DB or schedule) → unmute immediately
+      if (muted) {
+        const { setConversationMuted } = useChatStore.getState();
+        setConversationMuted(activeConvId, false);
+      }
+      clearConversationMuteSchedule(activeConvId);
+      setMuteSummary(null);
+      setShowMutePanel(false);
+      setShowCustomTime(false);
+    } else {
+      // Not muted → open panel to choose duration
+      setShowMutePanel((prev) => !prev);
+      setShowCustomTime(false);
+    }
+  };
 
+  const applyDurationMute = (label: string, durationMs: number | null) => {
+    if (!activeConvId) return;
+    const { setConversationMuted } = useChatStore.getState();
+    setConversationMuted(activeConvId, true);
+    setMuteSummary(label);
+    setShowMutePanel(false);
+    setShowCustomTime(false);
+
+    // For duration-based mutes, also write a time-range schedule so
+    // isConversationMutedNow() catches it in the notification check.
+    if (durationMs !== null) {
+      const now = new Date();
+      const endMs = Date.now() + durationMs;
+      const endDate = new Date(endMs);
+      const startTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const endTime = `${String(endDate.getHours()).padStart(2, "0")}:${String(endDate.getMinutes()).padStart(2, "0")}`;
+      setConversationMuteSchedule(activeConvId, { enabled: true, startTime, endTime });
+    }
+    // "permanent" mute only relies on DB isMuted = true (already set above)
+  };
+
+
+  const handleSaveMuteSchedule = () => {
+    if (!activeChat) return;
+    const schedule: ConversationMuteSchedule = {
+      enabled: true,
+      startTime: muteStartTime,
+      endTime: muteEndTime,
+    };
+    setConversationMuteSchedule(activeChat.id, schedule);
+    setMuteSummary(formatMuteScheduleLabel(schedule));
+    setShowMutePanel(false);
+    setShowCustomTime(false);
+  };
+
+  const handleClearMuteSchedule = () => {
+    if (!activeConvId) return;
+    clearConversationMuteSchedule(activeConvId);
     if (muted) {
-      clearConversationMuted(activeConvId);
-      await Swal.fire({
-        icon: "success",
-        title: "Đã bật lại thông báo",
-        timer: 1300,
-        showConfirmButton: false,
-      });
-      return;
+      const { setConversationMuted } = useChatStore.getState();
+      setConversationMuted(activeConvId, false);
     }
-
-    const choice = await Swal.fire({
-      title: "Xác nhận",
-      html: `
-        <div style="text-align:left; margin-top:8px; font-size:18px; color:#1f2a44;">
-          Bạn có chắc muốn tắt thông báo hội thoại này:
-        </div>
-        <div style="margin-top:12px; display:flex; flex-direction:column; gap:12px; text-align:left; font-size:16px;">
-          <label><input type="radio" name="mute-option" value="1h" checked /> Trong 1 giờ</label>
-          <label><input type="radio" name="mute-option" value="4h" /> Trong 4 giờ</label>
-          <label><input type="radio" name="mute-option" value="until-8am" /> Cho đến 8:00 AM</label>
-          <label><input type="radio" name="mute-option" value="until-open" /> Cho đến khi được mở lại</label>
-        </div>
-      `,
-      showCancelButton: true,
-      confirmButtonText: "Đồng ý",
-      cancelButtonText: "Hủy",
-      focusConfirm: false,
-      preConfirm: () => {
-        const selected = document.querySelector(
-          'input[name="mute-option"]:checked',
-        ) as HTMLInputElement | null;
-        return selected?.value || "1h";
-      },
-    });
-
-    if (!choice.isConfirmed || !choice.value) return;
-
-    muteConversationFor(
-      activeConvId,
-      choice.value as "1h" | "4h" | "until-8am" | "until-open",
-    );
-    await Swal.fire({
-      icon: "success",
-      title: "Đã tắt thông báo",
-      timer: 1300,
-      showConfirmButton: false,
-    });
+    setMuteSummary(null);
+    setShowMutePanel(false);
+    setShowCustomTime(false);
   };
 
-  const handleClearConversationOneSide = async () => {
-    if (!activeConvId) return;
 
-    const confirm = await Swal.fire({
-      icon: "warning",
-      title: "Xóa cuộc trò chuyện phía bạn?",
-      text: "Tin nhắn sẽ bị xóa ở tài khoản của bạn, phía đối phương vẫn giữ nguyên.",
-      showCancelButton: true,
-      confirmButtonText: "Xóa",
-      cancelButtonText: "Hủy",
-      confirmButtonColor: "#d93025",
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    try {
-      await clearHistory(activeConvId);
-      await Swal.fire({
-        icon: "success",
-        title: "Đã xóa cuộc trò chuyện",
-        timer: 1400,
-        showConfirmButton: false,
-      });
-    } catch {
-      await Swal.fire({
-        icon: "error",
-        title: "Không thể xóa cuộc trò chuyện",
-        text: "Vui lòng thử lại sau.",
-      });
-    }
-  };
 
   const handleLeaveGroup = async () => {
     if (!activeConvId || !user?.email) return;
@@ -461,8 +403,8 @@ const ChatInfoSidebar: React.FC = () => {
       navigate("/chat");
     } catch (err: any) {
       Swal.fire(
-        "Lỗi",
-        err.response?.data?.message || "Không thể rời nhóm",
+        t('modal.error'),
+        err.response?.data?.message || t('info.leave_error'),
         "error",
       );
     }
@@ -471,11 +413,11 @@ const ChatInfoSidebar: React.FC = () => {
   const handleDissolveGroup = async () => {
     if (!activeConvId) return;
     const confirm = await Swal.fire({
-      title: "Giải tán nhóm?",
-      text: "Tất cả thành viên sẽ bị xóa khỏi nhóm và lịch sử chat sẽ bị xóa.",
+      title: t('info.dissolve_title'),
+      text: t('info.dissolve_text'),
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Giải tán",
+      confirmButtonText: t('info.dissolve_button'),
       cancelButtonColor: "#d33",
     });
     if (confirm.isConfirmed) {
@@ -483,47 +425,152 @@ const ChatInfoSidebar: React.FC = () => {
         await dissolveGroup(activeConvId);
       } catch (err: any) {
         Swal.fire(
-          "Lỗi",
-          err.response?.data?.message || "Không thể giải tán nhóm",
+          t('modal.error'),
+          err.response?.data?.message || t('info.dissolve_error'),
           "error",
         );
       }
+    }
+  };
+
+  const handleClearHistoryForEveryone = async () => {
+    if (!activeConvId) return;
+    try {
+      await clearHistory(activeConvId, true);
+      await Swal.fire({
+        icon: "success",
+        title: t('info.clear_success'),
+        timer: 1400,
+        showConfirmButton: false,
+      });
+      setShowClearHistoryPanel(false);
+    } catch (err: any) {
+      Swal.fire(
+        t('modal.error'),
+        err.response?.data?.message || t('info.history_error'),
+        "error"
+      );
+    }
+  };
+
+  const handleClearHistoryForMe = async () => {
+    if (!activeConvId) return;
+    try {
+      await clearHistory(activeConvId, false);
+      await Swal.fire({
+        icon: "success",
+        title: t('info.clear_success'),
+        timer: 1400,
+        showConfirmButton: false,
+      });
+      setShowClearHistoryPanel(false);
+    } catch (err: any) {
+      Swal.fire(
+        t('modal.error'),
+        err.response?.data?.message || t('info.clear_error'),
+        "error"
+      );
+    }
+  };
+
+  const handleClearHistoryClick = async () => {
+    if (!activeConvId) return;
+
+    if (isGroupOwner) {
+      setShowClearHistoryPanel(!showClearHistoryPanel);
+    } else {
+      const confirm = await Swal.fire({
+        icon: "warning",
+        title: t('info.clear_title_one_side'),
+        text: t('info.clear_text_one_side'),
+        showCancelButton: true,
+        confirmButtonText: t('info.delete_button'),
+        cancelButtonText: t('inbox.cancel'),
+        confirmButtonColor: "#d93025",
+      });
+
+      if (!confirm.isConfirmed) return;
+
+      try {
+        await clearHistory(activeConvId, false);
+        await Swal.fire({
+          icon: "success",
+          title: t('info.clear_success'),
+          timer: 1400,
+          showConfirmButton: false,
+        });
+      } catch (err: any) {
+        Swal.fire(
+          t('modal.error'),
+          err.response?.data?.message || t('info.clear_error'),
+          "error"
+        );
+      }
+    }
+  };
+
+  const handleTogglePin = async () => {
+    if (!activeConvId) return;
+    try {
+      // Assuming pinConversation is accessible from store or helper
+      const { pinConversation } = useChatStore.getState();
+      await pinConversation(activeConvId, !(activeChat as any).isPinned);
+    } catch (err: any) {
+      Swal.fire(t('modal.error'), t('info.pin_error'), "error");
     }
   };
 
   const handleKickMember = async (targetEmail: string) => {
     if (!activeConvId) return;
     const confirm = await Swal.fire({
-      title: "Xóa thành viên?",
-      text: `Bạn có chắc muốn xóa ${getDisplayName(targetEmail, user, userProfiles)} khỏi nhóm?`,
+      title: t('info.kick_title'),
+      text: t('info.kick_text', { name: getDisplayName(targetEmail, user, userProfiles) }),
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Xóa",
+      confirmButtonText: t('info.remove_button'),
     });
     if (confirm.isConfirmed) {
       try {
         await removeMember(activeConvId, targetEmail);
       } catch (err: any) {
         Swal.fire(
-          "Lỗi",
-          err.response?.data?.message || "Không thể xóa thành viên",
+          t('modal.error'),
+          err.response?.data?.message || t('info.remove_error'),
           "error",
         );
       }
     }
   };
 
-  const handleChangeRole = async (
+  const handleOpenChangeRoleDialog = async (
     targetEmail: string,
-    role: "member" | "deputy" | "owner",
+    currentRole: "member" | "deputy" | "owner",
   ) => {
     if (!activeConvId) return;
+
+    const { value: newRole } = await Swal.fire({
+      title: t('info.change_role_title'),
+      text: t('info.change_role_text', { name: getDisplayName(targetEmail, user, userProfiles) }),
+      input: "radio",
+      inputOptions: {
+        member: t('info.role_member'),
+        deputy: t('info.role_deputy'),
+        owner: t('info.role_owner'),
+      },
+      inputValue: currentRole,
+      showCancelButton: true,
+      confirmButtonText: t('info.role_save_btn'),
+      cancelButtonText: t('inbox.cancel'),
+    });
+
+    if (!newRole || newRole === currentRole) return;
+
     try {
-      await updateMemberRole(activeConvId, targetEmail, role);
+      await updateMemberRole(activeConvId, targetEmail, newRole);
     } catch (err: any) {
       Swal.fire(
-        "Lỗi",
-        err.response?.data?.message || "Không thể thay đổi vai trò",
+        t('modal.error'),
+        err.response?.data?.message || t('info.role_error'),
         "error",
       );
     }
@@ -541,8 +588,8 @@ const ChatInfoSidebar: React.FC = () => {
       navigate("/chat");
     } catch (err: any) {
       Swal.fire(
-        "Lỗi",
-        err.response?.data?.message || "Không thể chuyển quyền hoặc rời nhóm",
+        t('modal.error'),
+        err.response?.data?.message || t('info.transfer_error'),
         "error",
       );
     } finally {
@@ -568,15 +615,15 @@ const ChatInfoSidebar: React.FC = () => {
       setIsEditingGroupName(false);
       Swal.fire({
         icon: "success",
-        title: "Thành công",
-        text: "Đã đổi tên nhóm",
+        title: t('info.success'),
+        text: t('info.group_name_updated'),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (err: any) {
       Swal.fire(
-        "Lỗi",
-        err.response?.data?.message || "Không thể cập nhật tên nhóm",
+        t('modal.error'),
+        err.response?.data?.message || t('info.group_name_error'),
         "error",
       );
     } finally {
@@ -600,15 +647,15 @@ const ChatInfoSidebar: React.FC = () => {
       await updateGroupInfo(activeConvId, { avatar: avatarUrl });
       Swal.fire({
         icon: "success",
-        title: "Thành công",
-        text: "Đã cập nhật ảnh đại diện nhóm",
+        title: t('info.success'),
+        text: t('info.group_avatar_updated'),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (err: any) {
       Swal.fire(
-        "Lỗi",
-        err.response?.data?.message || "Không thể cập nhật ảnh đại diện",
+        t('modal.error'),
+        err.response?.data?.message || t('info.group_avatar_error'),
         "error",
       );
     }
@@ -633,9 +680,9 @@ const ChatInfoSidebar: React.FC = () => {
             }
             title={
               (partnerEmail && !isBot)
-                ? "Xem trang cá nhân"
+                ? t("info.view_profile")
                 : activeChat.type === "group"
-                  ? "Đổi ảnh đại diện"
+                  ? t("info.change_avatar")
                   : undefined
             }
           />
@@ -692,10 +739,38 @@ const ChatInfoSidebar: React.FC = () => {
         )}
         <p className="text-[12px] text-on-surface-variant font-medium mt-1">
           {activeChat.type === "direct"
-            ? isBot ? "Trợ lý AI" : "Trò chuyện cá nhân"
-            : "Hội thoại nhóm"}
+            ? isBot ? t("info.ai_assistant") : t("info.direct_chat")
+            : t("info.group_chat")}
         </p>
       </div>
+
+      {activeChat.type === "group" && activeCallForConv && callState === 'IDLE' && (
+        <div className="px-4 py-3 mx-4 mt-4 bg-green-500/10 border border-green-500/20 rounded-2xl flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-green-500">
+              <div className="relative flex items-center justify-center">
+                <Video size={16} className="relative z-10" />
+                <div className="absolute inset-0 bg-green-500/40 rounded-full blur-md animate-pulse"></div>
+              </div>
+              <span className="text-[13px] font-bold uppercase tracking-widest">Voice Channel</span>
+            </div>
+            <span className="text-[11px] font-bold bg-green-500/20 text-green-600 px-2 py-0.5 rounded-full">
+              {activeCallForConv.participantCount} {t('info.members', { count: activeCallForConv.participantCount })}
+            </span>
+          </div>
+          <p className="text-[12px] text-green-600/80 font-medium">Đang có cuộc gọi nhóm diễn ra.</p>
+          <button
+            onClick={() => joinMeeting(activeConvId!, activeCallForConv.callId, activeCallForConv.callType || 'video', {
+              email: user?.email || '',
+              fullName: user?.fullName || user?.email || '',
+              avatarUrl: user?.avatarUrl || ''
+            })}
+            className="mt-1 w-full py-2 bg-green-500 hover:bg-green-600 text-white font-bold text-[13px] rounded-xl transition-all shadow-lg shadow-green-500/20 active:scale-95"
+          >
+            Tham gia ngay
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto hide-scrollbar">
         <div className="py-2">
@@ -705,12 +780,12 @@ const ChatInfoSidebar: React.FC = () => {
                 {/* Media Preview */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-[13px] font-bold text-on-surface">Ảnh/Video</h4>
+                    <h4 className="text-[13px] font-bold text-on-surface">{t("info.media")}</h4>
                     <button 
                       onClick={() => { setViewMode("archive"); setActiveStorageTab("media"); }}
                       className="text-[12px] font-medium text-primary hover:underline"
                     >
-                      Xem tất cả
+                      {t("info.view_all")}
                     </button>
                   </div>
                   <div className="grid grid-cols-4 gap-1">
@@ -720,7 +795,7 @@ const ChatInfoSidebar: React.FC = () => {
                       </div>
                     ))}
                     {mediaPreview.length === 0 && !archiveAssets.media.loading && (
-                      <p className="text-[12px] italic opacity-50 col-span-4 py-2">Chưa có ảnh/video</p>
+                      <p className="text-[12px] italic opacity-50 col-span-4 py-2">{t("info.no_media")}</p>
                     )}
                     {archiveAssets.media.loading && mediaPreview.length === 0 && (
                       <div className="col-span-4 py-2 flex justify-center"><Loader2 size={16} className="animate-spin text-primary/40" /></div>
@@ -731,12 +806,12 @@ const ChatInfoSidebar: React.FC = () => {
                 {/* Files Preview */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-[13px] font-bold text-on-surface">File</h4>
+                    <h4 className="text-[13px] font-bold text-on-surface">{t("info.files")}</h4>
                     <button 
                       onClick={() => { setViewMode("archive"); setActiveStorageTab("file"); }}
                       className="text-[12px] font-medium text-primary hover:underline"
                     >
-                      Xem tất cả
+                      {t("info.view_all")}
                     </button>
                   </div>
                   <div className="space-y-2">
@@ -749,7 +824,7 @@ const ChatInfoSidebar: React.FC = () => {
                       </div>
                     ))}
                     {filePreview.length === 0 && !archiveAssets.file.loading && (
-                      <p className="text-[12px] italic opacity-50 py-2">Chưa có file</p>
+                      <p className="text-[12px] italic opacity-50 py-2">{t("info.no_files")}</p>
                     )}
                     {archiveAssets.file.loading && filePreview.length === 0 && (
                       <div className="py-2 flex justify-center"><Loader2 size={16} className="animate-spin text-primary/40" /></div>
@@ -760,12 +835,12 @@ const ChatInfoSidebar: React.FC = () => {
                 {/* Links Preview */}
                 <div className="space-y-3 pb-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-[13px] font-bold text-on-surface">Link</h4>
+                    <h4 className="text-[13px] font-bold text-on-surface">{t("info.links")}</h4>
                     <button 
                       onClick={() => { setViewMode("archive"); setActiveStorageTab("link"); }}
                       className="text-[12px] font-medium text-primary hover:underline"
                     >
-                      Xem tất cả
+                      {t("info.view_all")}
                     </button>
                   </div>
                   <div className="space-y-2">
@@ -778,7 +853,7 @@ const ChatInfoSidebar: React.FC = () => {
                       </a>
                     ))}
                     {linkPreview.length === 0 && !archiveAssets.link.loading && (
-                      <p className="text-[12px] italic opacity-50 py-2">Chưa có link</p>
+                      <p className="text-[12px] italic opacity-50 py-2">{t("info.no_links")}</p>
                     )}
                     {archiveAssets.link.loading && linkPreview.length === 0 && (
                       <div className="py-2 flex justify-center"><Loader2 size={16} className="animate-spin text-primary/40" /></div>
@@ -795,7 +870,7 @@ const ChatInfoSidebar: React.FC = () => {
                   >
                     <ChevronLeft size={20} />
                   </button>
-                  <span className="text-[14px] font-bold">Kho lưu trữ</span>
+                  <span className="text-[14px] font-bold">{t("info.archive")}</span>
                 </div>
 
                 <div className="flex px-4 pt-2 mb-3 border-b border-outline-variant/10">
@@ -803,19 +878,19 @@ const ChatInfoSidebar: React.FC = () => {
                     className={`flex-1 pb-2 text-[13px] font-semibold border-b-2 transition-colors ${activeStorageTab === "media" ? "border-primary text-primary" : "border-transparent text-on-surface-variant hover:text-on-surface"}`}
                     onClick={() => setActiveStorageTab("media")}
                   >
-                    Ảnh/Video
+                    {t("info.media")}
                   </button>
                   <button
                     className={`flex-1 pb-2 text-[13px] font-semibold border-b-2 transition-colors ${activeStorageTab === "file" ? "border-primary text-primary" : "border-transparent text-on-surface-variant hover:text-on-surface"}`}
                     onClick={() => setActiveStorageTab("file")}
                   >
-                    Files
+                    {t("info.files")}
                   </button>
                   <button
                     className={`flex-1 pb-2 text-[13px] font-semibold border-b-2 transition-colors ${activeStorageTab === "link" ? "border-primary text-primary" : "border-transparent text-on-surface-variant hover:text-on-surface"}`}
                     onClick={() => setActiveStorageTab("link")}
                   >
-                    Links
+                    {t("info.links")}
                   </button>
                 </div>
 
@@ -825,7 +900,7 @@ const ChatInfoSidebar: React.FC = () => {
                     onChange={(e) => setSenderFilter(e.target.value)}
                     className="flex-1 bg-surface-container-highest px-3 py-2 rounded-xl text-[12px] text-on-surface outline-none border border-transparent focus:border-primary/30 appearance-none cursor-pointer"
                   >
-                    <option value="all">Người gửi</option>
+                    <option value="all">{t("info.sender")}</option>
                     {uniqueSenders.map((email) => (
                       <option key={email} value={email}>
                         {getDisplayName(email, user, userProfiles)}
@@ -844,7 +919,7 @@ const ChatInfoSidebar: React.FC = () => {
                     }
                     onChange={(e) => setDateFilter(e.target.value || "all")}
                     className="flex-1 bg-surface-container-highest px-3 py-2 rounded-xl text-[12px] text-on-surface outline-none border border-transparent focus:border-primary/30 cursor-pointer"
-                    title="Chọn ngày"
+                    title={t("info.select_date")}
                   />
                 </div>
 
@@ -866,7 +941,7 @@ const ChatInfoSidebar: React.FC = () => {
               <div className="flex items-center justify-between mb-2 px-1">
                 <h4 className="text-[11px] font-extrabold text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
                   <Pin size={12} className="text-primary fill-primary/10" />
-                  Tin nhắn đã ghim ({pinnedIds.length})
+                  {t("info.pinned_messages", { count: pinnedIds.length })}
                 </h4>
               </div>
               <div className="space-y-2">
@@ -885,8 +960,8 @@ const ChatInfoSidebar: React.FC = () => {
                       </p>
                       <p className="text-[9px] text-on-surface-variant/70 font-bold uppercase mt-1">
                         {msg.createdAt
-                          ? new Date(msg.createdAt).toLocaleDateString("vi-VN")
-                          : "Ghim gần đây"}
+                          ? new Date(msg.createdAt).toLocaleDateString(language === "vi" ? "vi-VN" : "en-US")
+                          : t("info.recently_pinned")}
                       </p>
                     </div>
                     <button
@@ -901,7 +976,7 @@ const ChatInfoSidebar: React.FC = () => {
                         }
                       }}
                       className="opacity-0 group-hover/pin:opacity-100 p-1.5 hover:bg-error/10 text-error rounded-lg transition-all"
-                      title="Bỏ ghim"
+                      title={t("info.unpin_conversation")}
                     >
                       <X size={14} />
                     </button>
@@ -919,178 +994,213 @@ const ChatInfoSidebar: React.FC = () => {
             >
               <span className="flex items-center gap-3">
                 <Clock3 size={20} className="text-on-surface-variant" />
-                Tin nhắn tự xóa
+                {t("info.auto_delete_label")}
               </span>
               <span className="text-[12px] font-bold text-primary">
                 {autoDeleteLabel(currentAutoDeleteDays as 1 | 7 | 30 | null)}
               </span>
             </button>
 
-            {/* Mute Setting (HEAD Quick Toggle) */}
             <button
-              onClick={handleToggleMute}
-              className={`w-full flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-surface-container text-on-surface font-semibold text-[13px] transition-all ${muted ? "bg-surface-container/70" : ""}`}
+              onClick={handleTogglePin}
+              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container text-on-surface font-semibold text-[13px] transition-all"
             >
-              <span className="flex items-center gap-3">
-                <BellOff
-                  size={20}
-                  className={muted ? "text-primary" : "text-on-surface-variant"}
-                />
-                {muted ? "Bật lại thông báo" : "Tắt thông báo"}
-              </span>
-              <span
-                className={`text-[11px] font-bold ${muted ? "text-primary" : "text-on-surface-variant/70"}`}
-              >
-                {!isBot && getMuteStatusLabel()}
-              </span>
+              {(activeChat as any).isPinned ? (
+                <>
+                  <PinOff size={20} className="text-on-surface-variant" />
+                  {t("info.unpin_conversation")}
+                </>
+              ) : (
+                <>
+                  <Pin size={20} className="text-on-surface-variant" />
+                  {t("info.pin_conversation")}
+                </>
+              )}
             </button>
 
-            {!isBot && (
+            <button
+              onClick={() => setIsWallpaperModalOpen(true)}
+              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container text-on-surface font-semibold text-[13px] transition-all"
+            >
+              <ImageIcon size={20} className="text-on-surface-variant" />
+              {t("info.change_wallpaper")}
+            </button>
+
+            <div className="w-full">
               <button
-                onClick={() => setShowMutePanel((prev) => !prev)}
-                className="w-full flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-surface-container text-on-surface font-semibold text-[13px] transition-all"
+                onClick={handleClearHistoryClick}
+                className={`w-full flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-error/10 text-error font-semibold text-[13px] transition-all ${
+                  showClearHistoryPanel ? "bg-error/10" : ""
+                }`}
               >
                 <span className="flex items-center gap-3">
-                  <Bell size={20} className="text-on-surface-variant" />
-                  Khung giờ tắt thông báo
+                  <Trash2 size={20} />
+                  {t("info.delete_chat_history")}
                 </span>
-                <div className="flex items-center gap-1">
-                  {muteSummary && (
-                    <span className="text-[11px] font-medium text-primary">
-                      {muteSummary}
-                    </span>
-                  )}
+                {isGroupOwner && (
                   <ChevronDown
                     size={14}
-                    className={`text-on-surface-variant transition-transform ${showMutePanel ? "rotate-180" : ""}`}
+                    className={`text-error/70 transition-transform ${
+                      showClearHistoryPanel ? "rotate-180" : ""
+                    }`}
                   />
+                )}
+              </button>
+
+              {/* Expandable panel for leader */}
+              {isGroupOwner && showClearHistoryPanel && (
+                <div className="mt-2 pl-10 pr-3 flex flex-col gap-1 overflow-hidden animate-in slide-in-from-top-2 duration-200">
+                  <button
+                    onClick={handleClearHistoryForMe}
+                    className="w-full text-left py-2 px-3 rounded-lg hover:bg-error/10 text-error font-medium text-[12px] transition-colors"
+                  >
+                    {t("info.delete_chat_me_btn")}
+                  </button>
+                  <button
+                    onClick={handleClearHistoryForEveryone}
+                    className="w-full text-left py-2 px-3 rounded-lg hover:bg-error/10 text-error font-bold text-[12px] transition-colors"
+                  >
+                    {t("info.delete_chat_everyone_btn")}
+                  </button>
                 </div>
+              )}
+            </div>
+
+            {activeChat.type === "group" && (
+              <button
+                onClick={() => setIsGroupShareOpen(true)}
+                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container text-on-surface font-semibold text-[13px] transition-all"
+              >
+                <QrCode size={20} className="text-on-surface-variant" />
+                {t("info.share_link_qr")}
               </button>
             )}
 
-            {showMutePanel && (
-              <div className="mx-2 my-2 rounded-2xl border border-outline-variant/20 bg-surface-container/90 p-3 space-y-3 shadow-lg">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-[12px] font-semibold text-on-surface">
-                    <Bell size={16} className="text-primary" />
-                    Thiết lập khung giờ
-                  </div>
-                  <button
-                    onClick={handleClearMuteSchedule}
-                    className="inline-flex items-center justify-center gap-1 rounded-full border border-outline-variant/20 px-2.5 py-1 text-[11px] font-semibold text-on-surface"
-                  >
-                    <X size={14} />
-                    Xóa
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() =>
-                      applyMuteSchedule(
-                        createConversationMuteScheduleFromDuration(1),
-                      )
-                    }
-                    className="rounded-xl border border-outline-variant/20 bg-white dark:bg-surface-container-high px-2 py-2 text-[12px] font-semibold text-on-surface hover:border-primary/40 hover:bg-primary/5"
-                  >
-                    1 tiếng
-                  </button>
-                  <button
-                    onClick={() =>
-                      applyMuteSchedule(
-                        createConversationMuteScheduleFromDuration(4),
-                      )
-                    }
-                    className="rounded-xl border border-outline-variant/20 bg-white dark:bg-surface-container-high px-2 py-2 text-[12px] font-semibold text-on-surface hover:border-primary/40 hover:bg-primary/5"
-                  >
-                    4 tiếng
-                  </button>
-                  <button
-                    onClick={() =>
-                      applyMuteSchedule(
-                        createConversationMuteScheduleFromDuration(8),
-                      )
-                    }
-                    className="rounded-xl border border-outline-variant/20 bg-white dark:bg-surface-container-high px-2 py-2 text-[12px] font-semibold text-on-surface hover:border-primary/40 hover:bg-primary/5"
-                  >
-                    8 tiếng
-                  </button>
-                  <button
-                    onClick={() =>
-                      applyMuteSchedule(
-                        createConversationMuteScheduleUntilMorning(8),
-                      )
-                    }
-                    className="rounded-xl border border-outline-variant/20 bg-white dark:bg-surface-container-high px-2 py-2 text-[12px] font-semibold text-on-surface hover:border-primary/40 hover:bg-primary/5"
-                  >
-                    Đến 8:00 AM
-                  </button>
-                </div>
-
+            {/* Mute Setting */}
+            {!isBot && (
+              <div className="w-full">
+                {/* Main button */}
                 <button
-                  onClick={() => setShowCustomMuteInputs((prev) => !prev)}
-                  className="w-full rounded-xl bg-primary/10 px-3 py-2 text-[12px] font-semibold text-primary"
+                  onClick={handleToggleMute}
+                  className={`w-full flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-surface-container text-on-surface font-semibold text-[13px] transition-all ${
+                    (muted || !!muteSummary) ? "bg-surface-container/60" : ""
+                  }`}
                 >
-                  {showCustomMuteInputs
-                    ? "Ẩn khung giờ tuỳ chỉnh"
-                    : "Chọn khung giờ tuỳ chỉnh"}
+                  <span className="flex items-center gap-3">
+                    {(muted || !!muteSummary) ? (
+                      <BellOff size={20} className="text-primary" />
+                    ) : (
+                      <Bell size={20} className="text-on-surface-variant" />
+                    )}
+                    {t("info.mute_notifications")}
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    {(muted || !!muteSummary) && (
+                      <span className="text-[11px] font-bold text-primary">
+                        {muteSummary || t("info.mute_label_muted")}
+                      </span>
+                    )}
+                    <ChevronDown
+                      size={14}
+                      className={`text-on-surface-variant/50 transition-transform ${
+                        showMutePanel ? "rotate-180" : ""
+                      } ${(muted || !!muteSummary) ? "hidden" : ""}`}
+                    />
+                  </span>
                 </button>
 
-                {showCustomMuteInputs && (
-                  <div className="space-y-3 rounded-xl border border-outline-variant/20 bg-white dark:bg-surface-container-high p-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <label className="space-y-1">
-                        <span className="block text-[10px] text-on-surface-variant">
-                          Từ
-                        </span>
-                        <input
-                          type="time"
-                          value={muteStartTime}
-                          onChange={(event) =>
-                            setMuteStartTime(event.target.value)
-                          }
-                          className="w-full rounded-xl border border-outline-variant/20 bg-white dark:bg-surface-container px-2 py-1.5 text-[12px] outline-none focus:border-primary"
-                        />
-                      </label>
-                      <label className="space-y-1">
-                        <span className="block text-[10px] text-on-surface-variant">
-                          Đến
-                        </span>
-                        <input
-                          type="time"
-                          value={muteEndTime}
-                          onChange={(event) =>
-                            setMuteEndTime(event.target.value)
-                          }
-                          className="w-full rounded-xl border border-outline-variant/20 bg-white dark:bg-surface-container px-2 py-1.5 text-[12px] outline-none focus:border-primary"
-                        />
-                      </label>
+                {/* Duration picker panel (only when not muted) */}
+                {showMutePanel && !(muted || muteSummary) && (
+                  <div className="mx-1 mb-2 p-3 rounded-xl bg-surface-container border border-outline-variant/20 space-y-2 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <p className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider px-1">{t("info.mute_for")}</p>
+
+                    {/* Quick presets */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        { label: t("info.mute_1_hour"), ms: 60 * 60 * 1000 },
+                        { label: t("info.mute_4_hours"), ms: 4 * 60 * 60 * 1000 },
+                        { label: t("info.mute_12_hours"), ms: 12 * 60 * 60 * 1000 },
+                        {
+                          label: t("info.mute_until_8am"),
+                          ms: (() => {
+                            const now = new Date();
+                            const target = new Date(now);
+                            target.setHours(8, 0, 0, 0);
+                            if (target <= now) target.setDate(target.getDate() + 1);
+                            return target.getTime() - now.getTime();
+                          })(),
+                        },
+                      ].map(({ label, ms }) => (
+                        <button
+                          key={label}
+                          onClick={() => applyDurationMute(label, ms)}
+                          className="px-3 py-2 rounded-xl bg-surface hover:bg-primary/10 hover:text-primary border border-outline-variant/20 text-[12px] font-semibold text-on-surface transition-colors text-center"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => applyDurationMute(t("info.mute_permanent"), null)}
+                        className="col-span-2 px-3 py-2 rounded-xl bg-surface hover:bg-primary/10 hover:text-primary border border-outline-variant/20 text-[12px] font-semibold text-on-surface transition-colors"
+                      >
+                        {t("info.mute_permanent")}
+                      </button>
                     </div>
+
+                    {/* Custom time range collapsible */}
                     <button
-                      onClick={handleSaveMuteSchedule}
-                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 text-[12px] font-semibold text-white"
+                      onClick={() => setShowCustomTime((p) => !p)}
+                      className="w-full flex items-center justify-between px-1 py-1 text-[11px] font-bold text-on-surface-variant/70 hover:text-primary transition-colors"
                     >
-                      <Check size={16} />
-                      Lưu khung giờ
+                      <span>{t("info.mute_custom")}</span>
+                      <ChevronDown size={12} className={`transition-transform ${showCustomTime ? "rotate-180" : ""}`} />
                     </button>
+
+                    {showCustomTime && (
+                      <div className="space-y-2 pt-1">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1">
+                            <label className="block text-[10px] text-on-surface-variant mb-1">{t("info.mute_from")}</label>
+                            <input
+                              type="time"
+                              value={muteStartTime}
+                              onChange={(e) => setMuteStartTime(e.target.value)}
+                              className="w-full text-[12px] font-semibold bg-surface rounded-lg px-2 py-1.5 border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/30 text-on-surface"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-[10px] text-on-surface-variant mb-1">{t("info.mute_to")}</label>
+                            <input
+                              type="time"
+                              value={muteEndTime}
+                              onChange={(e) => setMuteEndTime(e.target.value)}
+                              className="w-full text-[12px] font-semibold bg-surface rounded-lg px-2 py-1.5 border border-outline-variant/30 focus:outline-none focus:ring-2 focus:ring-primary/30 text-on-surface"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-on-surface-variant/50">{t("info.mute_custom_desc")}</p>
+                        <button
+                          onClick={handleSaveMuteSchedule}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-white rounded-xl text-[12px] font-bold hover:bg-primary/90 transition-colors"
+                        >
+                          <Check size={13} />
+                          {t("info.mute_confirm_custom")}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
-            <button
-              onClick={handleClearConversationOneSide}
-              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface-container text-error dark:text-[#eef3fb] font-bold text-[13px] transition-all"
-            >
-              <Trash2 size={20} />
-              Xóa lịch sử trò chuyện
-            </button>
+
+
 
             {activeChat.type === "group" && !isBot && (
               <>
                 <div className="pt-4 pb-2">
                   <h4 className="px-3 text-[11px] font-extrabold text-on-surface-variant uppercase tracking-wider">
-                    Quản lý nhóm
+                    {t("info.group_mgmt")}
                   </h4>
                 </div>
 
@@ -1099,7 +1209,7 @@ const ChatInfoSidebar: React.FC = () => {
                   className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-error/10 text-error font-bold text-[13px] transition-all"
                 >
                   <LogOut size={20} />
-                  Rời nhóm
+                  {t("info.leave_group")}
                 </button>
 
                 {(activeChat.owner === user?.email ||
@@ -1109,34 +1219,40 @@ const ChatInfoSidebar: React.FC = () => {
                     className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-error/10 text-error font-extrabold text-[13px] transition-all"
                   >
                     <Trash2 size={20} />
-                    Giải tán nhóm
+                    {t("info.dissolve_group")}
                   </button>
                 )}
 
                 <div className="pt-6 pb-2 flex items-center justify-between px-3">
                   <h4 className="text-[11px] font-extrabold text-on-surface-variant uppercase tracking-wider">
-                    Thành viên ({activeChat.members?.length || 0})
+                    {t("info.members_count", { count: activeChat.members?.length || 0 })}
                   </h4>
-                  <button
-                    onClick={handleAddMembers}
-                    className="p-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-all"
-                  >
-                    <Plus size={16} />
-                  </button>
+                  {activeChat.type === "group" && (
+                    <button
+                      onClick={handleAddMembers}
+                      className="p-1.5 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  )}
                 </div>
+
 
                 <div className="space-y-1 mt-1">
                   {activeChat.members?.map((memberEmail) => {
+                    const memberEmailLower = String(memberEmail).trim().toLowerCase();
                     const isMe = memberEmail === user?.email;
                     const isOwner =
-                      activeChat.owner === memberEmail ||
-                      activeChat.admin === memberEmail;
-                    const isDeputy = (activeChat.deputies || []).includes(
-                      memberEmail,
+                      String(activeChat.owner || "").trim().toLowerCase() === memberEmailLower ||
+                      String(activeChat.admin || "").trim().toLowerCase() === memberEmailLower;
+                    const isDeputy = (activeChat.deputies || []).some(
+                      (d) => String(d).trim().toLowerCase() === memberEmailLower,
                     );
                     const myRole = isGroupOwner
                       ? "owner"
-                      : (activeChat.deputies || []).includes(user?.email || "")
+                      : (activeChat.deputies || []).some(
+                          (d) => String(d).trim().toLowerCase() === normalizedUserEmail
+                        )
                         ? "deputy"
                         : "member";
 
@@ -1164,64 +1280,50 @@ const ChatInfoSidebar: React.FC = () => {
                             {getDisplayName(memberEmail, user, userProfiles)}
                             {isMe && (
                               <span className="ml-1 opacity-50 font-medium">
-                                (Bạn)
+                                {t("info.you")}
                               </span>
                             )}
                           </p>
                           <div className="flex items-center gap-1">
                             {isOwner && (
                               <span className="flex items-center gap-0.5 text-[10px] font-extrabold text-primary uppercase">
-                                <ShieldCheck size={10} /> Trưởng nhóm
+                                <ShieldCheck size={10} /> {t("info.owner")}
                               </span>
                             )}
                             {isDeputy && (
                               <span className="flex items-center gap-0.5 text-[10px] font-extrabold text-secondary uppercase">
-                                <ShieldAlert size={10} /> CO_ADMIN
+                                <ShieldAlert size={10} /> {t("info.deputy")}
+                              </span>
+                            )}
+                            {!isOwner && !isDeputy && (
+                              <span className="flex items-center gap-0.5 text-[10px] font-bold text-on-surface-variant/70 uppercase">
+                                {t("info.member")}
                               </span>
                             )}
                           </div>
                         </div>
 
                         {!isMe && (
-                          <div className="flex items-center opacity-0 group-hover/member:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1">
                             {myRole === "owner" && (
                               <div className="flex items-center gap-1">
-                                {!isOwner && !isDeputy && (
-                                  <button
-                                    onClick={() =>
-                                      handleChangeRole(memberEmail, "deputy")
-                                    }
-                                    title="Chỉ định làm CO_ADMIN"
-                                    className="p-1.5 rounded-lg hover:bg-surface-container-highest text-on-surface-variant hover:text-primary"
-                                  >
-                                    <ShieldCheck size={16} />
-                                  </button>
-                                )}
-                                {isDeputy && (
-                                  <button
-                                    onClick={() =>
-                                      handleChangeRole(memberEmail, "member")
-                                    }
-                                    title="Gỡ vai trò CO_ADMIN"
-                                    className="p-1.5 rounded-lg hover:bg-surface-container-highest text-on-surface-variant hover:text-error"
-                                  >
-                                    <ShieldAlert size={16} />
-                                  </button>
-                                )}
-                                {!isOwner && (
-                                  <button
-                                    onClick={() =>
-                                      handleChangeRole(memberEmail, "owner")
-                                    }
-                                    title="Chuyển quyền trưởng nhóm"
-                                    className="p-1.5 rounded-lg hover:bg-surface-container-highest text-on-surface-variant hover:text-amber-500"
-                                  >
-                                    <Settings size={16} />
-                                  </button>
-                                )}
                                 <button
-                                  onClick={() => handleKickMember(memberEmail)}
-                                  title="Xóa khỏi nhóm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const currentTargetRole = isOwner ? "owner" : (isDeputy ? "deputy" : "member");
+                                    handleOpenChangeRoleDialog(memberEmail, currentTargetRole);
+                                  }}
+                                  title={t("info.change_role_btn_title")}
+                                  className="p-1.5 rounded-lg hover:bg-surface-container-highest text-on-surface-variant hover:text-primary"
+                                >
+                                  <Settings size={16} />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleKickMember(memberEmail);
+                                  }}
+                                  title={t("info.kick_btn_title")}
                                   className="p-1.5 rounded-lg hover:bg-error/10 text-error"
                                 >
                                   <UserMinus size={16} />
@@ -1230,8 +1332,11 @@ const ChatInfoSidebar: React.FC = () => {
                             )}
                             {myRole === "deputy" && !isOwner && !isDeputy && (
                               <button
-                                onClick={() => handleKickMember(memberEmail)}
-                                title="Xóa khỏi nhóm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleKickMember(memberEmail);
+                                }}
+                                title={t("info.kick_btn_title")}
                                 className="p-1.5 rounded-lg hover:bg-error/10 text-error"
                               >
                                 <UserMinus size={16} />
@@ -1254,7 +1359,7 @@ const ChatInfoSidebar: React.FC = () => {
           <button
             type="button"
             className="absolute inset-0 h-full w-full cursor-default"
-            aria-label="Đóng chuyển quyền trưởng nhóm"
+            aria-label={t("modal.back")}
             onClick={() => {
               if (!isTransferringOwnership) {
                 setShowTransferOwnerModal(false);
@@ -1266,10 +1371,10 @@ const ChatInfoSidebar: React.FC = () => {
             <div className="flex items-start justify-between gap-4 mb-4">
               <div>
                 <h3 className="text-[18px] font-extrabold text-on-surface">
-                  Bầu trưởng nhóm mới
+                  {t("info.appoint_owner_title")}
                 </h3>
                 <p className="mt-1 text-[12px] text-on-surface-variant">
-                  Chọn một thành viên để chuyển quyền ngay rồi rời nhóm.
+                  {t("info.appoint_owner_desc")}
                 </p>
               </div>
               <button
@@ -1289,7 +1394,7 @@ const ChatInfoSidebar: React.FC = () => {
               {transferOwnerCandidates.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-outline-variant/20 bg-surface-container-low px-4 py-8 text-center">
                   <p className="text-[13px] font-medium text-on-surface-variant">
-                    Không có thành viên nào khác để chuyển quyền.
+                    {t("info.no_candidates")}
                   </p>
                 </div>
               ) : (
@@ -1320,7 +1425,7 @@ const ChatInfoSidebar: React.FC = () => {
                           {getDisplayName(memberEmail, user, userProfiles)}
                         </p>
                         <p className="text-[12px] text-on-surface-variant">
-                          {isDeputy ? "CO_ADMIN" : "Thành viên"}
+                          {isDeputy ? t("info.deputy") : t("info.role_member")}
                         </p>
                       </div>
                       <div
@@ -1347,7 +1452,7 @@ const ChatInfoSidebar: React.FC = () => {
                 onClick={() => setShowTransferOwnerModal(false)}
                 className="rounded-xl bg-surface-container-high px-4 py-2 text-[13px] font-semibold text-on-surface disabled:opacity-60"
               >
-                Hủy
+                {t("inbox.cancel")}
               </button>
               <button
                 type="button"
@@ -1366,7 +1471,7 @@ const ChatInfoSidebar: React.FC = () => {
                 {isTransferringOwnership && (
                   <Loader2 size={16} className="animate-spin" />
                 )}
-                Bầu và rời nhóm
+                {t("info.appoint_leave_btn")}
               </button>
             </div>
           </div>
@@ -1378,7 +1483,7 @@ const ChatInfoSidebar: React.FC = () => {
           <div className="w-full max-w-115 rounded-2xl bg-white dark:bg-surface-container shadow-2xl border border-outline-variant/20 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20">
               <h3 className="text-[18px] font-extrabold text-on-surface">
-                Cài đặt tin nhắn tự xóa
+                {t("info.auto_delete_title")}
               </h3>
               <button
                 onClick={() => setShowAutoDeleteModal(false)}
@@ -1404,7 +1509,7 @@ const ChatInfoSidebar: React.FC = () => {
                     className="w-4 h-4"
                   />
                   <span className="text-[18px] text-on-surface">
-                    {days} ngày
+                    {t("info.auto_delete_days", { count: days })}
                   </span>
                 </label>
               ))}
@@ -1417,7 +1522,7 @@ const ChatInfoSidebar: React.FC = () => {
                   className="w-4 h-4"
                 />
                 <span className="text-[18px] text-on-surface">
-                  Không bao giờ
+                  {t("info.never")}
                 </span>
               </label>
             </div>
@@ -1428,7 +1533,7 @@ const ChatInfoSidebar: React.FC = () => {
                 className="px-6 py-3 rounded-lg bg-surface-container-high text-on-surface font-bold hover:opacity-90"
                 type="button"
               >
-                Hủy
+                {t("inbox.cancel")}
               </button>
               <button
                 onClick={confirmAutoDelete}
@@ -1439,19 +1544,35 @@ const ChatInfoSidebar: React.FC = () => {
                 className="px-6 py-3 rounded-lg bg-primary text-white font-bold disabled:opacity-50"
                 type="button"
               >
-                {savingAutoDelete ? "Đang lưu..." : "Xác nhận"}
+                {savingAutoDelete ? t("info.saving") : t("modal.confirm")}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <AddMembersModal
-        isOpen={isAddMembersModalOpen}
-        onClose={() => setIsAddMembersModalOpen(false)}
+      <ChatWallpaperModal
+        isOpen={isWallpaperModalOpen}
+        onClose={() => setIsWallpaperModalOpen(false)}
         conversationId={activeConvId || ""}
-        currentMembers={activeChat?.members || []}
       />
+
+      {isAddMembersModalOpen && (
+        <AddMembersModal
+          isOpen={isAddMembersModalOpen}
+          onClose={() => setIsAddMembersModalOpen(false)}
+          conversationId={activeConvId || ""}
+          currentMembers={activeChat?.members || []}
+        />
+      )}
+
+      {isGroupShareOpen && (
+        <GroupShareModal
+          isOpen={isGroupShareOpen}
+          onClose={() => setIsGroupShareOpen(false)}
+          conversationId={activeChat.id}
+        />
+      )}
     </div>
   );
 };

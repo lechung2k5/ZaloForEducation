@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { apiRequest } from '../utils/api';
 
 const DEFAULT_AVATAR =
-  'https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png';
+  'https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DEBOUNCE_MS = 400;

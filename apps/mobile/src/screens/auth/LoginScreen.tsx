@@ -123,7 +123,7 @@ export default function LoginScreen({ onNavigate }: LoginProps) {
                 resizeMode="cover"
               />
             </View>
-            <Text style={styles.brandTitle}>Zalo Education</Text>
+            <Text style={styles.brandTitle}>EnuNest</Text>
             <Text style={styles.brandSubtitle}>Khai phóng tiềm năng tri thức</Text>
           </View>
 
@@ -160,7 +160,7 @@ export default function LoginScreen({ onNavigate }: LoginProps) {
               </View>
 
               <View style={styles.footer}>
-                <Text style={styles.footerText}>Bạn mới sử dụng Zalo Education? </Text>
+                <Text style={styles.footerText}>Bạn mới sử dụng EnuNest? </Text>
                 <TouchableOpacity onPress={() => onNavigate && onNavigate('Register')}>
                   <Text style={styles.footerLink}>Đăng ký ngay</Text>
                 </TouchableOpacity>

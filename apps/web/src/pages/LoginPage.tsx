@@ -223,7 +223,7 @@ const LoginPage: React.FC = () => {
               <img src="/logo_blue.png" alt="Logo" className="w-full h-full object-cover" />
             </Link>
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tighter text-primary mb-1">Zalo Education</h1>
+          <h1 className="text-4xl font-extrabold tracking-tighter text-primary mb-1">EnuNest</h1>
           <p className="text-on-surface-variant font-medium tracking-tight">Khai phóng tiềm năng tri thức</p>
         </header>
 
@@ -406,7 +406,7 @@ const LoginPage: React.FC = () => {
           ) : (
             <div className="animate-slide-up flex flex-1 flex-col items-center justify-center py-4">
               <h2 className="text-2xl font-bold text-on-surface mb-2 tracking-tight">Đăng nhập bằng mã QR</h2>
-              <p className="text-on-surface-variant text-sm mb-8 font-medium">Sử dụng ứng dụng Zalo Education trên điện thoại để quét mã</p>
+              <p className="text-on-surface-variant text-sm mb-8 font-medium">Sử dụng ứng dụng EnuNest trên điện thoại để quét mã</p>
               <div className="relative p-6 bg-white rounded-[2rem] shadow-xl shadow-primary/5 ring-1 ring-slate-100 mb-6 group">
                 {qrLoading ? (
                   <div className="w-48 h-48 flex items-center justify-center bg-surface-container-low rounded-2xl">
@@ -459,7 +459,7 @@ const LoginPage: React.FC = () => {
 
         <footer className="mt-8 flex flex-col items-center gap-6">
           <p className="text-on-surface-variant font-medium">
-            Bạn mới sử dụng Zalo Education?
+            Bạn mới sử dụng EnuNest?
             <Link to="/register" className="text-primary font-bold hover:underline ml-1">Đăng ký ngay</Link>
           </p>
           <nav className="flex items-center gap-6 text-sm font-semibold text-outline">

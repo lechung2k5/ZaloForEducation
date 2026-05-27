@@ -280,7 +280,7 @@ const BotChatPanel: React.FC = () => {
             </div>
           </div>
           <div className="flex flex-col">
-            <h2 className="font-extrabold text-on-surface leading-tight text-[16px] tracking-tight">ZaloEdu AI</h2>
+            <h2 className="font-extrabold text-on-surface leading-tight text-[16px] tracking-tight">EnuNest AI</h2>
             <p className="text-[12px] text-primary font-bold flex items-center gap-1">
               <Bot size={12} />
               {isSending ? 'Đang soạn tin...' : 'Trợ lý giáo dục AI'}
@@ -309,7 +309,7 @@ const BotChatPanel: React.FC = () => {
               <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center">
                 <Bot size={40} className="text-primary" />
               </div>
-              <h3 className="font-extrabold text-on-surface text-lg">Chào bạn! Tôi là ZaloEdu AI</h3>
+              <h3 className="font-extrabold text-on-surface text-lg">Chào bạn! Tôi là EnuNest AI</h3>
               <p className="text-on-surface-variant text-sm text-center max-w-xs leading-relaxed">
                 Hỏi tôi về thông tin tài khoản, bạn bè, hoặc gửi ảnh/PDF bài học để tôi phân tích!
               </p>

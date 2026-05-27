@@ -96,13 +96,18 @@ export const ConversationList: React.FC<ConversationListProps> = ({
               : chat.avatar ? { uri: chat.avatar } : getDisplayAvatar();
           
           const isUnread = (chat.unreadCount || 0) > 0;
+          const hasMention = !!chat.hasUnreadMention || (chat.mentionCount || 0) > 0;
+          const preview = (chat as any).type === "system" ? (chat as any).lastMessageContent : getConversationPreview(chat);
+          const displayPreview = hasMention && typeof preview === 'string' && !preview.startsWith('@ Bạn')
+            ? `@ Bạn · ${preview}`
+            : preview;
           const partnerProfile = partnerEmail ? userProfiles[partnerEmail] : null;
           const isOnline = partnerProfile?.status === 'online';
 
           return (
             <TouchableOpacity
               key={chat.id}
-              style={styles.chatItem}
+              style={[styles.chatItem, hasMention && styles.chatItemMentioned]}
               onPress={() => onSelectChat(chat)}
             >
               <View style={styles.avatarContainer}>
@@ -126,6 +131,11 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                           })
                         : "--:--"}
                     </Text>
+                    {hasMention && (
+                      <View style={styles.mentionPill}>
+                        <Text style={styles.mentionPillText}>@ Bạn</Text>
+                      </View>
+                    )}
                     {chat.unreadCount > 0 && (
                       <View style={styles.unreadBadgeStatic}>
                         <Text style={styles.unreadBadgeText}>
@@ -138,11 +148,12 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                 <Text
                   style={[
                     styles.lastMsg,
-                    chat.unreadCount > 0 && { color: '#000', fontWeight: '700', fontSize: 14 }
+                    chat.unreadCount > 0 && { color: '#000', fontWeight: '700', fontSize: 14 },
+                    hasMention && styles.lastMsgMentioned,
                   ]}
                   numberOfLines={1}
                 >
-                  {(chat as any).type === "system" ? (chat as any).lastMessageContent : getConversationPreview(chat)}
+                  {displayPreview}
                 </Text>
               </View>
             </TouchableOpacity>

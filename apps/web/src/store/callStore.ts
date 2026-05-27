@@ -63,6 +63,12 @@ interface CallStore {
   isLocalScreenSharing: boolean;
   localScreenShareStream: MediaStream | null;
 
+  // Speaking states (VAD)
+  isLocalSpeaking: boolean;
+  isRemoteSpeaking: boolean;
+  setLocalSpeaking: (isSpeaking: boolean) => void;
+  setRemoteSpeaking: (isSpeaking: boolean) => void;
+
   // Actions
   setCallState: (state: CallState) => void;
   setConnecting: (isConnecting: boolean) => void;
@@ -152,6 +158,12 @@ export const useCallStore = create<CallStore>((set, get) => ({
   screenShares: {},
   isLocalScreenSharing: false,
   localScreenShareStream: null,
+
+  isLocalSpeaking: false,
+  isRemoteSpeaking: false,
+
+  setLocalSpeaking: (isLocalSpeaking) => set({ isLocalSpeaking }),
+  setRemoteSpeaking: (isRemoteSpeaking) => set({ isRemoteSpeaking }),
 
   setMinimized: (isMinimized) => set({ isMinimized }),
 
@@ -311,6 +323,15 @@ export const useCallStore = create<CallStore>((set, get) => ({
       startTime: Date.now(),
     });
 
+    // [PREMIUM] F5 auto-rejoin persistence for 1-1 calls
+    sessionStorage.setItem('active_call_session', JSON.stringify({
+      isGroup: false,
+      conversationId: state.conversationId,
+      callId: state.activeCallId,
+      callType: state.callType,
+      peerProfile: state.peerProfile
+    }));
+
     // Clear backend ghost hangup timer
     const socket = (window as any).socket;
     if (socket && state.conversationId && state.activeCallId) {
@@ -381,6 +402,7 @@ export const useCallStore = create<CallStore>((set, get) => ({
 
   resetCall: () => {
     clearInternalTimeout();
+    sessionStorage.removeItem('active_call_session');
     set({
       callState: "IDLE",
       conversationId: null,
@@ -408,6 +430,8 @@ export const useCallStore = create<CallStore>((set, get) => ({
       screenShares: {},
       isLocalScreenSharing: false,
       localScreenShareStream: null,
+      isLocalSpeaking: false,
+      isRemoteSpeaking: false,
     });
   },
  

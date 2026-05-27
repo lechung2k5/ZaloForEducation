@@ -7,7 +7,7 @@ import Swal from 'sweetalert2';
 const SessionsPage: React.FC = () => {
   const navigate = useNavigate();
   const { getSessions, logout, logoutAll, revokeSession, socket, deviceId, user } = useAuth();
-  const { isDark } = useTheme();
+  const { isDark, t } = useTheme();
   const [activeSessions, setActiveSessions] = useState<{ deviceId: string; deviceName?: string; deviceType?: string; loginAt?: string; lastActiveAt?: string }[]>([]);
   const [loginHistory, setLoginHistory] = useState<{ deviceId?: string; deviceName?: string; deviceType?: string; logoutAt?: string; updatedAt?: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,36 +49,36 @@ const SessionsPage: React.FC = () => {
 
   const handleRevoke = async (targetDeviceId: string, name: string) => {
     const result = await Swal.fire({
-      title: 'Đăng xuất thiết bị?',
-      text: `Bạn có chắc chắn muốn đăng xuất khỏi "${name || targetDeviceId}"?`,
+      title: t('sessions.revoke_title'),
+      text: t('sessions.revoke_text', { name: name || targetDeviceId }),
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
-      confirmButtonText: 'Đăng xuất',
-      cancelButtonText: 'Hủy'
+      confirmButtonText: t('sessions.logout'),
+      cancelButtonText: t('inbox.cancel')
     });
 
     if (result.isConfirmed) {
       try {
         await revokeSession(targetDeviceId);
-        Swal.fire('Đã đăng xuất', 'Thiết bị đã bị đăng xuất thành công.', 'success');
+        Swal.fire(t('sessions.logged_out'), t('sessions.revoke_success'), 'success');
         fetchSessions(); // Refresh list
       } catch {
-        Swal.fire('Lỗi', 'Không thể đăng xuất thiết bị lúc này.', 'error');
+        Swal.fire(t('modal.error'), t('sessions.revoke_error'), 'error');
       }
     }
   };
 
   const handleLogoutAll = async () => {
     const result = await Swal.fire({
-      title: 'Đăng xuất tất cả?',
-      text: 'Tất cả các phiên đăng nhập khác sẽ bị hủy bỏ.',
+      title: t('sessions.logout_all_title'),
+      text: t('sessions.logout_all_text'),
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
       cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Đăng xuất hết',
-      cancelButtonText: 'Hủy'
+      confirmButtonText: t('sessions.logout_all'),
+      cancelButtonText: t('inbox.cancel')
     });
 
     if (result.isConfirmed) {
@@ -88,13 +88,13 @@ const SessionsPage: React.FC = () => {
 
   const handleLogoutCurrent = async () => {
     const result = await Swal.fire({
-      title: 'Đăng xuất?',
-      text: 'Bạn có chắc chắn muốn đăng xuất khỏi thiết bị này?',
+      title: t('sessions.logout_title'),
+      text: t('sessions.logout_text'),
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#00418f',
-      confirmButtonText: 'Đăng xuất',
-      cancelButtonText: 'Hủy'
+      confirmButtonText: t('sessions.logout'),
+      cancelButtonText: t('inbox.cancel')
     });
 
     if (result.isConfirmed) {

@@ -26,6 +26,14 @@ export type Conversation = SharedConversation & {
   lastReadAt?: number;
   autoDeleteDays?: number | null;
   autoDeleteUpdatedAt?: string;
+  isMuted?: boolean;
+  isPinned?: boolean;
+  hasUnreadMention?: boolean;
+  mentionCount?: number;
+  lastMentionMessageId?: string;
+  lastMentionAt?: string;
+  lastMentionContent?: string;
+  lastMentionSenderId?: string;
 };
 
 const CONVERSATION_TAGS_KEY = "chat_conversation_tags";
@@ -54,35 +62,6 @@ const getCurrentUserEmail = (): string => {
   }
 };
 
-export type MuteSetting = true | "until-open" | number;
-
-const normalizeMutedConversations = (raw: any): Record<string, MuteSetting> => {
-  if (!raw || typeof raw !== "object") return {};
-  const normalized: Record<string, MuteSetting> = {};
-
-  Object.entries(raw).forEach(([convId, value]) => {
-    if (value === true || value === "until-open") {
-      normalized[convId] = value;
-      return;
-    }
-    if (
-      typeof value === "number" &&
-      Number.isFinite(value) &&
-      value > Date.now()
-    ) {
-      normalized[convId] = value;
-      return;
-    }
-    if (value === false) return;
-    // Backward compatibility for legacy payloads.
-    if (value === "manual") {
-      normalized[convId] = true;
-    }
-  });
-
-  return normalized;
-};
-
 const normalizeConversation = (
   conv: any,
   tags: Record<string, string>,
@@ -109,7 +88,6 @@ interface ChatState {
   highlightedMessageId: string | null;
   previewImage: { url: string; name: string } | null;
   hiddenConversations: Record<string, string>;
-  mutedConversations: Record<string, MuteSetting>;
   pinnedMessagesCache: Record<string, Message>;
   archiveAssets: {
     media: { items: Message[]; cursor: string | null; loading: boolean };
@@ -138,6 +116,7 @@ interface ChatState {
   unhideConversationWithPin: (convId: string, pin: string) => boolean;
   isConversationHidden: (convId: string) => boolean;
   setConversationMuted: (convId: string, muted: boolean) => void;
+  pinConversation: (convId: string, pinned: boolean) => Promise<void>;
   muteConversationFor: (
     convId: string,
     option: "1h" | "4h" | "until-8am" | "until-open" | "manual",
@@ -179,7 +158,7 @@ interface ChatState {
     avatar?: string,
   ) => Promise<any>;
   startDirectChat: (targetEmail: string) => Promise<void>;
-  clearHistory: (convId: string) => Promise<void>;
+  clearHistory: (convId: string, forEveryone?: boolean) => Promise<void>;
   localClearHistory: (convId: string) => void;
   setLocalRead: (convId: string) => void;
   deleteMessageOptimistic: (convId: string, messageId: string) => Promise<void>;
@@ -250,8 +229,52 @@ interface ChatState {
   dissolveGroup: (convId: string) => Promise<void>;
 }
 
-export const useChatStore = create<ChatState>((set, get) => ({
-  conversations: [],
+const readStoredConversations = (): Conversation[] => {
+  try {
+    return JSON.parse(localStorage.getItem("chat_conversations") || "[]");
+  } catch {
+    return [];
+  }
+};
+
+const saveConversations = (conversations: Conversation[]) => {
+  try {
+    localStorage.setItem("chat_conversations", JSON.stringify(conversations));
+  } catch (err) {
+    console.error("Failed to save conversations to localStorage", err);
+  }
+};
+
+const areConversationsEqual = (a: Conversation[], b: Conversation[]) => {
+  if (a.length !== b.length) return false;
+  return a.every((conv, i) => {
+    const other = b[i];
+    return (
+      conv && other &&
+      conv.id === other.id &&
+      conv.updatedAt === other.updatedAt &&
+      conv.unreadCount === other.unreadCount &&
+      conv.isPinned === other.isPinned &&
+      conv.isMuted === other.isMuted &&
+      conv.lastMessageContent === other.lastMessageContent &&
+      conv.lastMessageTimestamp === other.lastMessageTimestamp
+    );
+  });
+};
+
+export const useChatStore = create<ChatState>((originalSet, get) => {
+  const set = (args: any) => {
+    originalSet((state) => {
+      const next = typeof args === "function" ? args(state) : args;
+      if (next && next.conversations) {
+        saveConversations(next.conversations);
+      }
+      return next;
+    });
+  };
+
+  return {
+  conversations: readStoredConversations(),
   activeConvId: null,
   messages: [],
   isLoadingMessages: false,
@@ -272,9 +295,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   hiddenConversations: JSON.parse(
     localStorage.getItem("hidden_conversations") || "{}",
   ),
-  mutedConversations: normalizeMutedConversations(
-    JSON.parse(localStorage.getItem("muted_conversations") || "{}"),
-  ),
   pinnedMessagesCache: {},
   tags: JSON.parse(localStorage.getItem("chat_tags") || "[]"),
   messageFilter: "all",
@@ -287,21 +307,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setIsCreateGroupModalOpen: (val) => set({ isCreateGroupModalOpen: val }),
 
   setConversations: (updater) =>
-    set((state) => ({
-      conversations:
-        typeof updater === "function" ? updater(state.conversations) : updater,
-    })),
+    set((state) => {
+      const next = typeof updater === "function" ? updater(state.conversations) : updater;
+      saveConversations(next);
+      return { conversations: next };
+    }),
 
   updateConversationById: (convId, updater) =>
-    set((state) => ({
-      conversations: state.conversations.map((c) =>
+    set((state) => {
+      const next = state.conversations.map((c) =>
         c.id === convId
           ? typeof updater === "function"
             ? (updater as any)(c)
             : { ...c, ...updater }
-          : c,
-      ),
-    })),
+          : c
+      );
+      saveConversations(next);
+      return { conversations: next };
+    }),
 
   setUserProfiles: (updater) =>
     set((state) => ({
@@ -365,10 +388,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       !get().highlightedMessageId
     ) {
       return;
-    }
-
-    if (normalizedId && get().mutedConversations[normalizedId] === "until-open") {
-      get().clearConversationMuted(normalizedId);
     }
 
     if (normalizedId) {
@@ -531,7 +550,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       conversations: state.conversations.map((c) =>
         c.id.toLowerCase() === convId.toLowerCase() 
-          ? { ...c, lastReadAt: Date.now(), unreadCount: 0 } 
+          ? { ...c, lastReadAt: Date.now(), unreadCount: 0, hasUnreadMention: false, mentionCount: 0 } 
           : c,
       ),
     }));
@@ -718,7 +737,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return next;
       });
 
-      set({ conversations });
+      const current = get().conversations;
+      if (!areConversationsEqual(current, conversations)) {
+        saveConversations(conversations);
+        set({ conversations });
+      }
     } catch (err) {
       console.error("Failed to fetch conversations", err);
     }
@@ -1511,82 +1534,84 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   isConversationHidden: (convId) => !!get().hiddenConversations[convId],
 
-  setConversationMuted: (convId, muted) => {
+  setConversationMuted: async (convId, muted) => {
     if (!convId) return;
-    set((state) => {
-      const nextMuted: Record<string, MuteSetting> = {
-        ...state.mutedConversations,
-      };
-      if (muted) nextMuted[convId] = true;
-      else delete nextMuted[convId];
-      localStorage.setItem("muted_conversations", JSON.stringify(nextMuted));
-      return { mutedConversations: nextMuted };
-    });
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === convId ? { ...c, isMuted: muted } : c
+      ),
+    }));
+    try {
+      await api.patch(`/chat/conversations/${encodeURIComponent(convId)}/settings`, { isMuted: muted });
+    } catch (err) {
+      console.error("Failed to set conversation muted", err);
+      // Revert optimistic update
+      set((state) => ({
+        conversations: state.conversations.map((c) =>
+          c.id === convId ? { ...c, isMuted: !muted } : c
+        ),
+      }));
+    }
+  },
+
+  pinConversation: async (convId, pinned) => {
+    if (!convId) return;
+    if (pinned) {
+      const pinnedConvs = get().conversations.filter((c) => c.isPinned);
+      if (pinnedConvs.length >= 5) {
+        Swal.fire({
+          icon: "warning",
+          title: "Giới hạn ghim hội thoại",
+          text: "Bạn chỉ được ghim tối đa 5 cuộc hội thoại. Vui lòng bỏ ghim bớt trước khi ghim hội thoại mới.",
+          confirmButtonColor: "#00418f",
+        });
+        return;
+      }
+    }
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === convId ? { ...c, isPinned: pinned } : c
+      ),
+    }));
+    try {
+      await api.patch(`/chat/conversations/${encodeURIComponent(convId)}/settings`, { isPinned: pinned });
+    } catch (err) {
+      console.error("Failed to pin conversation", err);
+      // Revert optimistic update
+      set((state) => ({
+        conversations: state.conversations.map((c) =>
+          c.id === convId ? { ...c, isPinned: !pinned } : c
+        ),
+      }));
+      throw err;
+    }
   },
 
   muteConversationFor: (convId, option) => {
-    if (!convId) return;
-    const now = new Date();
-    let nextSetting: MuteSetting = true;
-    if (option === "1h") nextSetting = Date.now() + 60 * 60 * 1000;
-    else if (option === "4h") nextSetting = Date.now() + 4 * 60 * 60 * 1000;
-    else if (option === "until-8am") {
-      const until = new Date(now);
-      until.setHours(8, 0, 0, 0);
-      if (until.getTime() <= now.getTime()) until.setDate(until.getDate() + 1);
-      nextSetting = until.getTime();
-    } else if (option === "until-open") nextSetting = "until-open";
-
-    set((state) => {
-      const nextMuted: Record<string, MuteSetting> = {
-        ...state.mutedConversations,
-        [convId]: nextSetting,
-      };
-      localStorage.setItem("muted_conversations", JSON.stringify(nextMuted));
-      return { mutedConversations: nextMuted };
-    });
+    // Deprecated for MVP: fallback to permanent mute
+    get().setConversationMuted(convId, true);
   },
 
   clearConversationMuted: (convId) => {
     if (!convId) return;
-    set((state) => {
-      const nextMuted = { ...state.mutedConversations };
-      delete nextMuted[convId];
-      localStorage.setItem("muted_conversations", JSON.stringify(nextMuted));
-      return { mutedConversations: nextMuted };
-    });
+    get().setConversationMuted(convId, false);
   },
 
   toggleConversationMuted: (convId) => {
     if (!convId) return false;
-    let val = false;
-    set((state) => {
-      const nextMuted: Record<string, MuteSetting> = {
-        ...state.mutedConversations,
-      };
-      if (nextMuted[convId]) {
-        delete nextMuted[convId];
-        val = false;
-      } else {
-        nextMuted[convId] = true;
-        val = true;
-      }
-      localStorage.setItem("muted_conversations", JSON.stringify(nextMuted));
-      return { mutedConversations: nextMuted };
-    });
-    return val;
+    const conversation = get().conversations.find((c) => c.id === convId);
+    const newMutedState = !(conversation?.isMuted);
+    get().setConversationMuted(convId, newMutedState);
+    return newMutedState;
   },
 
   isConversationMuted: (convId) => {
     if (!convId) return false;
-    const setting = get().mutedConversations[convId];
-    if (!setting) return false;
-    if (setting === true || setting === "until-open") return true;
-    if (typeof setting === "number") {
-      if (Date.now() < setting) return true;
-      get().clearConversationMuted(convId);
-    }
-    return false;
+    const norm = (id: string) => id.toLowerCase().replace(/^conv#/, "");
+    const conversation = get().conversations.find(
+      (c) => norm(c.id) === norm(convId)
+    );
+    return !!(conversation?.isMuted);
   },
 
   setIsSearching: (val) => set({ isSearching: val }),
@@ -1674,11 +1699,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  clearHistory: async (convId) => {
+  clearHistory: async (convId, forEveryone = false) => {
     try {
-      await api.delete(
-        `/chat/conversations/${encodeURIComponent(convId)}/history`,
-      );
+      const url = `/chat/conversations/${encodeURIComponent(convId)}/history${forEveryone ? "?forEveryone=true" : ""}`;
+      await api.delete(url);
       get().localClearHistory(convId);
     } catch (err) {
       console.error("Failed to clear history", err);
@@ -1809,4 +1833,5 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }));
     }
   },
-}));
+  };
+});

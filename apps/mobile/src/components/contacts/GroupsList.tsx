@@ -40,7 +40,7 @@ export const GroupsList: React.FC<GroupsListProps> = ({
         >
           <View style={styles.avatarWrap}>
             <Image
-              source={{ uri: item.avatarUrl || "https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png" }}
+              source={{ uri: item.avatarUrl || "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true" }}
               style={styles.avatar}
             />
           </View>

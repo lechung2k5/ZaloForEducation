@@ -5,9 +5,11 @@ import api from "../../services/api";
 import Swal from "sweetalert2";
 import { useAuth } from "../../context/AuthContext";
 import type { SecurityAlertItem } from "../../utils/securityAlerts";
+import { useTheme } from "../../context/ThemeContext";
 
 const SecurityAlertsView: React.FC = () => {
   const { alerts, markAllRead, clearAll } = useSecurityAlerts();
+  const { t } = useTheme();
   const { user } = useAuth();
 
   React.useEffect(() => {
@@ -18,14 +20,14 @@ const SecurityAlertsView: React.FC = () => {
     try {
       // Show confirmation
       const res = await Swal.fire({
-        title: "Đăng xuất thiết bị",
-        text: "Bạn có chắc chắn muốn đăng xuất thiết bị này không?",
+        title: t("sessions.revoke_device"),
+        text: t("sessions.revoke_device_text"),
         icon: "warning",
         showCancelButton: true,
         confirmButtonColor: "#d33",
         cancelButtonColor: "#3085d6",
-        confirmButtonText: "Đăng xuất",
-        cancelButtonText: "Hủy",
+        confirmButtonText: t("sessions.logout"),
+        cancelButtonText: t("inbox.cancel"),
       });
 
       if (!res.isConfirmed) return;
@@ -35,8 +37,8 @@ const SecurityAlertsView: React.FC = () => {
 
       Swal.fire({
         icon: "success",
-        title: "Thành công",
-        text: "Thiết bị đã bị đăng xuất.",
+        title: t("info.success"),
+        text: t("sessions.revoke_success"),
         timer: 2000,
         showConfirmButton: false,
       });
@@ -47,8 +49,8 @@ const SecurityAlertsView: React.FC = () => {
       console.error(error);
       Swal.fire({
         icon: "error",
-        title: "Lỗi",
-        text: error.response?.data?.message || "Không thể đăng xuất thiết bị.",
+        title: t("modal.error"),
+        text: error.response?.data?.message || t("sessions.revoke_error"),
       });
     }
   };
@@ -70,14 +72,14 @@ const SecurityAlertsView: React.FC = () => {
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-error/10 text-error rounded-xl hover:bg-error hover:text-white transition-colors font-medium text-sm"
           >
             <LogOut size={16} />
-            Đăng xuất thiết bị đó
+            {t("sessions.logout_that_device")}
           </button>
           <button
             onClick={clearAll}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary hover:text-white transition-colors font-medium text-sm"
           >
             <Check size={16} />
-            Đây là tôi
+            {t("sessions.this_is_me")}
           </button>
         </div>
       );
@@ -117,7 +119,7 @@ const SecurityAlertsView: React.FC = () => {
           </div>
           <div>
             <h2 className="text-lg font-bold text-on-surface">Cảnh báo bảo mật</h2>
-            <p className="text-xs text-on-surface-variant font-medium">Hệ thống Zalo Education</p>
+            <p className="text-xs text-on-surface-variant font-medium">Hệ thống EnuNest</p>
           </div>
         </div>
       </div>
@@ -138,7 +140,7 @@ const SecurityAlertsView: React.FC = () => {
                   <span className="text-xs font-bold text-on-surface uppercase tracking-wider">Tin nhắn hệ thống</span>
                 </div>
                 <p className="text-sm text-on-surface-variant">
-                  Zalo Education không bao giờ yêu cầu mật khẩu hoặc mã OTP của bạn qua tin nhắn.
+                  EnuNest không bao giờ yêu cầu mật khẩu hoặc mã OTP của bạn qua tin nhắn.
                 </p>
               </div>
 

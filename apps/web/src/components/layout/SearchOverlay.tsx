@@ -160,8 +160,8 @@ const SearchOverlay: React.FC = () => {
                    <div className="w-16 h-16 bg-primary/5 rounded-3xl flex items-center justify-center mx-auto mb-4">
                       <span className="material-symbols-outlined text-primary text-[32px]">travel_explore</span>
                    </div>
-                   <p className="text-[16px] font-extrabold text-on-surface mb-1">ZaloEdu Global Search</p>
-                   <p className="text-[14px] text-on-surface-variant/60 max-w-[280px] mx-auto leading-relaxed">Tìm kiếm nhanh chóng mọi nội dung trong thế giới ZaloEdu của sếp.</p>
+                   <p className="text-[16px] font-extrabold text-on-surface mb-1">EnuNest Global Search</p>
+                   <p className="text-[14px] text-on-surface-variant/60 max-w-[280px] mx-auto leading-relaxed">Tìm kiếm nhanh chóng mọi nội dung trong thế giới EnuNest của sếp.</p>
                 </div>
              </div>
            ) : (

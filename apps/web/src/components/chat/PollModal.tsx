@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Settings, X, Plus, Trash2 } from "lucide-react";
 import Swal from "sweetalert2";
+import { useTheme } from "../../context/ThemeContext";
 
 interface PollModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ const PollModal: React.FC<PollModalProps> = ({
   onClose,
   onSendPoll,
 }) => {
+  const { t } = useTheme();
   const [topic, setTopic] = useState("");
   const [options, setOptions] = useState(["", ""]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,7 +32,7 @@ const PollModal: React.FC<PollModalProps> = ({
 
   const handleRemoveOption = (index: number) => {
     if (options.length <= 2) {
-      Swal.fire("Lỗi", "Bình chọn cần ít nhất 2 lựa chọn", "error");
+      Swal.fire(t("modal.error"), t("poll.min_options"), "error");
       return;
     }
     setOptions(options.filter((_, i) => i !== index));
@@ -44,13 +46,13 @@ const PollModal: React.FC<PollModalProps> = ({
 
   const handleSubmit = async () => {
     if (!topic.trim()) {
-      Swal.fire("Lỗi", "Vui lòng nhập chủ đề bình chọn", "error");
+      Swal.fire(t("modal.error"), t("poll.topic_required"), "error");
       return;
     }
 
     const validOptions = options.filter((o) => o.trim());
     if (validOptions.length < 2) {
-      Swal.fire("Lỗi", "Bình chọn cần ít nhất 2 lựa chọn", "error");
+      Swal.fire(t("modal.error"), t("poll.min_options"), "error");
       return;
     }
 
@@ -76,7 +78,7 @@ const PollModal: React.FC<PollModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-outline-variant/20 px-5 py-4">
           <h2 className="text-[18px] font-extrabold text-[#1f2f4a]">
-            Tạo bình chọn
+            {t("poll.create_title")}
           </h2>
           <button
             onClick={onClose}
@@ -91,13 +93,13 @@ const PollModal: React.FC<PollModalProps> = ({
           {/* Topic Input */}
           <div className="space-y-2">
             <label className="text-[13px] font-bold text-on-surface">
-              Chủ đề bình chọn
+              {t("poll.topic_label")}
             </label>
             <div className="relative">
               <textarea
                 value={topic}
                 onChange={(e) => setTopic(e.target.value.slice(0, 200))}
-                placeholder="Đặt câu hỏi bình chọn"
+                placeholder={t("poll.topic_placeholder")}
                 maxLength={200}
                 className="h-36 w-full resize-none rounded-md border border-[#98b5eb] bg-white px-4 py-3 pr-16 text-[14px] outline-none transition-all focus:ring-2 focus:ring-primary/20"
                 rows={3}
@@ -111,7 +113,7 @@ const PollModal: React.FC<PollModalProps> = ({
           {/* Options */}
           <div className="space-y-2">
             <label className="text-[13px] font-bold text-on-surface">
-              Các lựa chọn
+              {t("poll.options_label")}
             </label>
             <div className="max-h-52 space-y-2 overflow-y-auto">
               {options.map((option, index) => (
@@ -122,14 +124,14 @@ const PollModal: React.FC<PollModalProps> = ({
                     onChange={(e) =>
                       handleOptionChange(index, e.target.value.slice(0, 100))
                     }
-                    placeholder={`Lựa chọn ${index + 1}`}
+                    placeholder={t("poll.option_placeholder", { number: index + 1 })}
                     maxLength={100}
                     className="flex-1 rounded-md border border-outline-variant/20 bg-white px-3 py-2.5 text-[13px] outline-none transition-all focus:ring-2 focus:ring-primary/20"
                   />
                   <button
                     onClick={() => handleRemoveOption(index)}
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-error transition-colors hover:bg-error/10"
-                    title="Xóa lựa chọn"
+                    title={t("poll.remove_option")}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -143,7 +145,7 @@ const PollModal: React.FC<PollModalProps> = ({
               className="inline-flex items-center justify-center gap-2 rounded-md px-2 py-1 text-[14px] font-bold text-primary transition-colors hover:bg-primary/5"
             >
               <Plus size={16} />
-              Thêm lựa chọn
+              {t("poll.add_option")}
             </button>
           </div>
         </div>
@@ -153,7 +155,7 @@ const PollModal: React.FC<PollModalProps> = ({
           <button
             type="button"
             className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high"
-            title="Cài đặt"
+            title={t("sidebar.settings")}
           >
             <Settings size={19} />
           </button>
@@ -164,14 +166,14 @@ const PollModal: React.FC<PollModalProps> = ({
               disabled={isSubmitting}
               className="rounded-md bg-[#e0e4ea] px-6 py-2.5 text-[14px] font-bold text-[#24334f] transition-all hover:bg-[#d6dce4] disabled:opacity-50"
             >
-              Hủy
+              {t("inbox.cancel")}
             </button>
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
               className="rounded-md bg-primary px-6 py-2.5 text-[14px] font-bold text-white transition-all hover:bg-primary/90 disabled:opacity-50"
             >
-              {isSubmitting ? "Đang gửi..." : "Tạo bình chọn"}
+              {isSubmitting ? t("poll.sending") : t("poll.create_title")}
             </button>
           </div>
         </div>

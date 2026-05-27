@@ -152,7 +152,7 @@ const QRScannerScreen = ({ onNavigate, goBack }: QRScannerProps) => {
             ) : (
               <>
                 <Text style={styles.modalDesc}>
-                  Bạn có đồng ý đăng nhập tài khoản Zalo Education trên máy tính này không?
+                  Bạn có đồng ý đăng nhập tài khoản EnuNest trên máy tính này không?
                 </Text>
 
                 <View style={styles.modalActions}>

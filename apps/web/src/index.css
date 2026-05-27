@@ -197,3 +197,86 @@ body {
 .filter-gooey {
   filter: url('#gooey');
 }
+
+/* ─── Global Dark Mode Utility Overrides ─── */
+:root.dark {
+  /* Override standard white and light gray-blue background containers */
+  .bg-white,
+  [class*="bg-white/"] {
+    background-color: var(--color-surface) !important;
+  }
+
+  .bg-\[\#f7f9fb\] {
+    background-color: var(--color-background) !important;
+  }
+  
+  /* Override light surface container backgrounds */
+  .bg-surface-container-lowest,
+  .bg-slate-50,
+  .bg-gray-50 {
+    background-color: var(--color-surface-container-lowest) !important;
+  }
+
+  .bg-surface-container-low,
+  .bg-slate-100,
+  .bg-gray-100 {
+    background-color: var(--color-surface-container-low) !important;
+  }
+
+  .bg-surface-container,
+  .bg-slate-200,
+  .bg-gray-200 {
+    background-color: var(--color-surface-container) !important;
+  }
+
+  /* Override hardcoded text colors to maintain high contrast accessibility */
+  .text-slate-800,
+  .text-slate-900,
+  .text-gray-800,
+  .text-gray-900,
+  .text-zinc-800,
+  .text-zinc-900,
+  .text-neutral-800,
+  .text-neutral-900,
+  .text-\[\#00418f\] {
+    color: var(--color-on-surface) !important;
+  }
+
+  .text-slate-500,
+  .text-slate-600,
+  .text-gray-500,
+  .text-gray-600,
+  .text-zinc-500,
+  .text-zinc-600,
+  .text-neutral-500,
+  .text-neutral-600 {
+    color: var(--color-on-surface-variant) !important;
+  }
+
+  /* Override hardcoded borders */
+  .border-slate-100,
+  .border-slate-200,
+  .border-gray-100,
+  .border-gray-200,
+  .border-neutral-100,
+  .border-neutral-200 {
+    border-color: var(--color-outline-variant) !important;
+  }
+  
+  .border-slate-300,
+  .border-gray-300 {
+    border-color: var(--color-outline) !important;
+  }
+
+  /* Scrollbars in dark mode */
+  ::-webkit-scrollbar-track {
+    background: var(--color-surface-container-lowest) !important;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-outline-variant) !important;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-outline) !important;
+  }
+}

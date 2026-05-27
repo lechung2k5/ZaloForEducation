@@ -229,6 +229,12 @@ export class MessageService {
       }
     }
 
+    const mentionedEmails = new Set(
+      (Array.isArray(extraFields?.mentions) ? extraFields.mentions : [])
+        .map((mention: any) => String(typeof mention === 'string' ? mention : mention?.email || '').replace(/^USER#/i, '').trim().toLowerCase())
+        .filter(Boolean),
+    );
+
     const transactItems: any[] = [
       // 1. Save Message
       {
@@ -313,19 +319,34 @@ export class MessageService {
       },
     ];
 
+
     // 4. Update other members' mappings (updatedAt & Atomic unreadCount)
     for (const member of members) {
       if (member === senderEmail) continue;
+      const normalizedMember = String(member).replace(/^USER#/i, '').trim().toLowerCase();
+      const isMentioned = mentionedEmails.has(normalizedMember) || mentionedEmails.has("all");
       transactItems.push({
         Update: {
           TableName: this.db.tableName,
-          Key: { PK: `USER#${String(member).toLowerCase()}`, SK: prefixedConvId },
+          Key: { PK: `USER#${normalizedMember}`, SK: prefixedConvId },
           // [PRODUCTION] Atomic increment unreadCount
-          UpdateExpression: "SET updatedAt = :ts ADD unreadCount :inc",
-          ExpressionAttributeValues: {
-            ":ts": timestamp,
-            ":inc": 1,
-          },
+          UpdateExpression: isMentioned
+            ? "SET updatedAt = :ts, hasUnreadMention = :mentioned, lastMentionMessageId = :messageId, lastMentionAt = :time, lastMentionContent = :mentionContent, lastMentionSenderId = :mentionSenderId ADD unreadCount :inc, mentionCount :inc"
+            : "SET updatedAt = :ts ADD unreadCount :inc",
+          ExpressionAttributeValues: isMentioned
+            ? {
+                ":ts": timestamp,
+                ":inc": 1,
+                ":mentioned": true,
+                ":messageId": SK,
+                ":time": timestamp,
+                ":mentionContent": content,
+                ":mentionSenderId": senderEmail,
+              }
+            : {
+                ":ts": timestamp,
+                ":inc": 1,
+              },
         },
       });
     }
@@ -369,7 +390,7 @@ export class MessageService {
     }
 
     // [SENIOR] STRICT PARTITION VALIDATION
-    if (existing.conversationId !== prefixedConvId) {
+    if (existing.conversationId !== prefixedConvId && existing.conversationId !== rawConvId) {
       throw new BadRequestException("Message does not belong to this conversation partition");
     }
 
@@ -848,25 +869,61 @@ export class MessageService {
   }
 
   /**
-   * CLEAR HISTORY FOR A CONVERSATION (SOFT DELETE FOR ME)
+   * CLEAR HISTORY FOR A CONVERSATION
    */
-  async clearHistory(convId: string, userEmail: string) {
+  async clearHistory(convId: string, userEmail: string, forEveryone: boolean = false) {
     const { raw: rawConvId, prefixed: prefixedConvId } = this.normalizeConvId(convId);
     await this.ensureConversationMember(prefixedConvId, userEmail);
 
     const timestamp = new Date().toISOString();
 
-    // Update the User-Conversation mapping with lastClearedAt
-    await this.db.docClient.send(
-      new UpdateCommand({
-        TableName: this.db.tableName,
-        Key: { PK: `USER#${userEmail.toLowerCase()}`, SK: prefixedConvId },
-        UpdateExpression: "SET lastClearedAt = :ts",
-        ExpressionAttributeValues: {
-          ":ts": timestamp,
-        },
-      }),
-    );
+    if (forEveryone) {
+      // Fetch metadata to check if user is the owner
+      const metadataRes = await this.db.docClient.send(
+        new GetCommand({
+          TableName: this.db.tableName,
+          Key: { PK: prefixedConvId, SK: "METADATA" },
+        }),
+      );
+      const metadata = metadataRes.Item;
+      if (!metadata) {
+        throw new BadRequestException("Conversation metadata not found");
+      }
+
+      // Permission check: Only owner or admin can clear for everyone
+      const ownerLower = String(metadata.owner || metadata.admin || "").toLowerCase();
+      const actorLower = userEmail.toLowerCase();
+      if (ownerLower !== actorLower) {
+        throw new BadRequestException("Only the group owner can clear history for everyone");
+      }
+
+      const members: string[] = metadata.members || [];
+      // Update User-Conversation mapping for ALL members
+      for (const member of members) {
+        await this.db.docClient.send(
+          new UpdateCommand({
+            TableName: this.db.tableName,
+            Key: { PK: `USER#${member.toLowerCase()}`, SK: prefixedConvId },
+            UpdateExpression: "SET lastClearedAt = :ts",
+            ExpressionAttributeValues: {
+              ":ts": timestamp,
+            },
+          }),
+        );
+      }
+    } else {
+      // Update the User-Conversation mapping with lastClearedAt for the caller only
+      await this.db.docClient.send(
+        new UpdateCommand({
+          TableName: this.db.tableName,
+          Key: { PK: `USER#${userEmail.toLowerCase()}`, SK: prefixedConvId },
+          UpdateExpression: "SET lastClearedAt = :ts",
+          ExpressionAttributeValues: {
+            ":ts": timestamp,
+          },
+        }),
+      );
+    }
 
     // Call background cleanup (Deep Cleanup)
     this.performDeepCleanup(prefixedConvId).catch((err) =>
@@ -1180,32 +1237,39 @@ export class MessageService {
       expAttrValues[":textType"] = "text";
     }
 
-    const command = new QueryCommand({
-      TableName: this.db.tableName,
-      KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
-      FilterExpression: filterExp,
-      ExpressionAttributeNames: Object.keys(expAttrNames).length > 0 ? expAttrNames : undefined,
-      ExpressionAttributeValues: expAttrValues,
-      Limit: limit * 5, // Overshoot limit to account for filtered items
-      ScanIndexForward: false, // Newer first
-      ExclusiveStartKey: cursor ? { PK: prefId, SK: cursor } : undefined,
-    });
+    let items: any[] = [];
+    let currentCursor = cursor ? { PK: prefId, SK: cursor } : undefined;
+    let maxIterations = 5;
 
-    const res = await this.db.docClient.send(command);
-    let items = res.Items || [];
+    do {
+      const command = new QueryCommand({
+        TableName: this.db.tableName,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+        FilterExpression: filterExp,
+        ExpressionAttributeNames: Object.keys(expAttrNames).length > 0 ? expAttrNames : undefined,
+        ExpressionAttributeValues: expAttrValues,
+        Limit: limit * 5, // Overshoot limit to account for filtered items
+        ScanIndexForward: false, // Newer first
+        ExclusiveStartKey: currentCursor,
+      });
 
-    // Final filtering for links to avoid system messages or false positives
-    if (type === "link") {
-      const urlRegex = /https?:\/\/[^\s]+/;
-      items = items.filter(i => urlRegex.test(i.content || ""));
-    }
+      const res = await this.db.docClient.send(command);
+      let batch = res.Items || [];
 
-    // Limit to requested count
-    const sliced = items.slice(0, limit);
+      // Final filtering for links to avoid system messages or false positives
+      if (type === "link") {
+        const urlRegex = /https?:\/\/[^\s]+/;
+        batch = batch.filter(i => urlRegex.test(i.content || ""));
+      }
+
+      items.push(...batch);
+      currentCursor = res.LastEvaluatedKey as any;
+      maxIterations--;
+    } while (items.length < limit && currentCursor && maxIterations > 0);
 
     return {
-      items: sliced.map(m => ({ ...m, id: m.id || m.SK })),
-      nextCursor: res.LastEvaluatedKey ? res.LastEvaluatedKey.SK : null,
+      items: items.map(m => ({ ...m, id: m.id || m.SK })),
+      nextCursor: currentCursor ? currentCursor.SK : null,
     };
   }
 

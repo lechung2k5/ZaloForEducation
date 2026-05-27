@@ -24,20 +24,20 @@ import {
   Clock,
 } from "lucide-react";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Swal from "sweetalert2";
 import { useAuth } from "../../context/AuthContext";
 import { useFriendships } from "../../hooks/useFriendships";
 import { chatService } from "../../services/chatService";
 import { useChatStore } from "../../store/chatStore";
-import type { Attachment } from "../../utils/chatUtils";
+import { type Attachment, getDisplayName, getDisplayAvatar } from "../../utils/chatUtils";
 import { compressImage } from "../../utils/imageUtils";
 import GifPicker from "./GifPicker";
 import StickerPicker from "./StickerPicker";
 
 interface ChatInputProps {
-  onSendMessage: (text: string, attachments: Attachment[]) => Promise<void>;
+  onSendMessage: (text: string, attachments: Attachment[], mentions?: any[]) => Promise<void>;
   onSendContactCard: (card: {
     email: string;
     fullName?: string;
@@ -110,7 +110,101 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const liveLocationUpdatesRef = useRef(0);
 
   const { socket, user } = useAuth();
-  const { activeConvId, userProfiles, loadUserProfile } = useChatStore();
+  const { activeConvId, userProfiles, loadUserProfile, conversations } = useChatStore();
+
+  // Mentions feature states
+  const [showMentionList, setShowMentionList] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [mentionTriggerIndex, setMentionTriggerIndex] = useState(-1);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+
+  const activeChat = conversations.find((c) => c.id === activeConvId);
+
+  // Preload group member profiles for mentions
+  useEffect(() => {
+    if (activeChat?.type === "group" && activeChat.members) {
+      activeChat.members.forEach((email) => {
+        if (email) {
+          loadUserProfile(email);
+        }
+      });
+    }
+  }, [activeChat?.id, activeChat?.members, loadUserProfile]);
+
+  const mentionCandidates = useMemo(() => {
+    if (activeChat?.type !== "group" || !activeChat.members) return [];
+    
+    // Add "all" option at the start
+    const members = activeChat.members.filter(Boolean);
+    const candidates = [
+      { email: "all", displayName: "Cả nhóm", isAll: true },
+      ...members.map(email => ({
+        email,
+        displayName: getDisplayName(email, user, userProfiles),
+        isAll: false
+      }))
+    ];
+
+    // Filter by query
+    if (!mentionQuery) return candidates;
+    const q = mentionQuery.toLowerCase();
+    return candidates.filter(
+      c => 
+        c.displayName.toLowerCase().includes(q) || 
+        c.email.toLowerCase().includes(q)
+    );
+  }, [activeChat, user, userProfiles, mentionQuery]);
+
+  const checkForMentionTrigger = (val: string, cursor: number) => {
+    if (activeChat?.type !== "group") {
+      setShowMentionList(false);
+      return;
+    }
+
+    const textBeforeCursor = val.substring(0, cursor);
+    const lastAtIdx = textBeforeCursor.lastIndexOf("@");
+
+    if (lastAtIdx === -1) {
+      setShowMentionList(false);
+      return;
+    }
+
+    const charBeforeAt = lastAtIdx > 0 ? textBeforeCursor[lastAtIdx - 1] : "";
+    const isTriggered = lastAtIdx === 0 || /\s/.test(charBeforeAt);
+
+    const textAfterAt = textBeforeCursor.substring(lastAtIdx + 1);
+    const hasSpaceAfterAt = /\s/.test(textAfterAt);
+
+    if (isTriggered && !hasSpaceAfterAt) {
+      setShowMentionList(true);
+      setMentionQuery(textAfterAt);
+      setMentionTriggerIndex(lastAtIdx);
+      setSelectedMentionIndex(0);
+    } else {
+      setShowMentionList(false);
+    }
+  };
+
+  const selectMentionMember = (candidate: { email: string; displayName: string }) => {
+    const val = text;
+    const beforeTrigger = val.substring(0, mentionTriggerIndex);
+    const afterCursor = val.substring(textareaRef.current?.selectionEnd || val.length);
+
+    const mentionString = `@${candidate.displayName} `;
+    const newText = beforeTrigger + mentionString + afterCursor;
+
+    setText(newText);
+    setShowMentionList(false);
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const newCursorPos = mentionTriggerIndex + mentionString.length;
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 10);
+  };
+
   const { acceptedFriends } = useFriendships();
 
   const contactCandidates = acceptedFriends
@@ -193,7 +287,42 @@ const ChatInput: React.FC<ChatInputProps> = ({
         }),
       );
 
-      await onSendMessage(currentText, uploadedAttachments);
+      // Scan text for mentions
+      const mentions: Array<{ email: string; displayName: string; start: number; end: number }> = [];
+      if (activeChat?.type === "group" && activeChat.members) {
+        const candidates = [
+          { email: "all", displayName: "Cả nhóm" },
+          ...activeChat.members.filter(Boolean).map((email) => ({
+            email,
+            displayName: getDisplayName(email, user, userProfiles),
+          })),
+        ];
+        // Sort candidates by length descending to match longer names first
+        candidates.sort((a, b) => b.displayName.length - a.displayName.length);
+
+        let idx = currentText.indexOf("@");
+        while (idx !== -1) {
+          const match = candidates.find(
+            (c) =>
+              currentText.substring(idx + 1, idx + 1 + c.displayName.length) ===
+              c.displayName,
+          );
+
+          if (match) {
+            mentions.push({
+              email: match.email,
+              displayName: match.displayName,
+              start: idx,
+              end: idx + 1 + match.displayName.length,
+            });
+            idx = currentText.indexOf("@", idx + 1 + match.displayName.length);
+          } else {
+            idx = currentText.indexOf("@", idx + 1);
+          }
+        }
+      }
+
+      await onSendMessage(currentText, uploadedAttachments, mentions.length > 0 ? mentions : undefined);
     } catch (err) {
       console.error("Send message failed", err);
       // Restore text if it failed significantly?
@@ -609,7 +738,51 @@ const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <div className="p-2 bg-white/80 dark:bg-surface-container/90 backdrop-blur-xl border-t border-outline-variant/10 dark:border-outline-variant/30 space-y-1.5 shadow-[0_-4px_24px_rgba(0,0,0,0.03)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.25)] z-10 transition-all duration-300">
+    <div className="relative p-2 bg-white/80 dark:bg-surface-container/90 backdrop-blur-xl border-t border-outline-variant/10 dark:border-outline-variant/30 space-y-1.5 shadow-[0_-4px_24px_rgba(0,0,0,0.03)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.25)] z-10 transition-all duration-300">
+      {/* Mention Suggestion List */}
+      {showMentionList && mentionCandidates.length > 0 && (
+        <div className="absolute bottom-full left-4 mb-2 z-[200] max-h-60 w-72 bg-white/90 dark:bg-surface-container/95 backdrop-blur-md border border-outline-variant/20 dark:border-outline-variant/40 rounded-2xl shadow-2xl overflow-y-auto flex flex-col p-1.5 custom-scrollbar animate-in slide-in-from-bottom-2 fade-in duration-300">
+          <div className="px-3 py-1.5 text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest border-b border-outline-variant/10 mb-1">
+            Gợi ý nhắc tên
+          </div>
+          {mentionCandidates.map((candidate, idx) => {
+            const isSelected = idx === selectedMentionIndex;
+            return (
+              <button
+                key={candidate.email}
+                type="button"
+                onClick={() => selectMentionMember(candidate)}
+                onMouseEnter={() => setSelectedMentionIndex(idx)}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all duration-200 ${
+                  isSelected
+                    ? "bg-primary text-white shadow-md scale-[1.01]"
+                    : "hover:bg-surface-container-high text-on-surface"
+                }`}
+              >
+                {candidate.isAll ? (
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-[16px] ${isSelected ? "bg-white/20 text-white" : "bg-primary/10 text-primary"}`}>
+                    @
+                  </div>
+                ) : (
+                  <img
+                    src={getDisplayAvatar(candidate.email, user, userProfiles)}
+                    className="w-8 h-8 rounded-full object-cover border border-outline-variant/10 shadow-sm"
+                    alt=""
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-extrabold truncate leading-snug">
+                    {candidate.displayName}
+                  </p>
+                  <p className={`text-[11px] truncate leading-none ${isSelected ? "text-white/70" : "text-on-surface-variant/70"}`}>
+                    {candidate.isAll ? "Nhắc tất cả mọi người" : candidate.email}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {/* Reply Preview */}
       {replyTarget && (
         <div className="flex items-center justify-between p-2 bg-primary/5 rounded-xl border-l-[3px] border-primary animate-in slide-in-from-bottom-3 fade-in duration-300 shadow-sm overflow-hidden relative group">
@@ -900,17 +1073,47 @@ const ChatInput: React.FC<ChatInputProps> = ({
             rows={1}
             value={text}
             onChange={(e) => {
-              setText(e.target.value);
+              const val = e.target.value;
+              setText(val);
               handleTyping();
               e.target.style.height = "auto";
               e.target.style.height =
                 Math.min(e.target.scrollHeight, 120) + "px";
+              checkForMentionTrigger(val, e.target.selectionStart);
             }}
             onKeyDown={(e) => {
+              if (showMentionList && mentionCandidates.length > 0) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setSelectedMentionIndex((prev) => (prev + 1) % mentionCandidates.length);
+                  return;
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setSelectedMentionIndex((prev) => (prev - 1 + mentionCandidates.length) % mentionCandidates.length);
+                  return;
+                }
+                if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  selectMentionMember(mentionCandidates[selectedMentionIndex]);
+                  return;
+                }
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setShowMentionList(false);
+                  return;
+                }
+              }
+
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();
               }
+            }}
+            onBlur={() => {
+              setTimeout(() => {
+                setShowMentionList(false);
+              }, 200);
             }}
             placeholder={isBot ? "Nhập tin nhắn cho AI..." : "Nhập @, tin nhắn tới đồng nghiệp"}
             className="flex-1 bg-transparent border-none focus:ring-0 outline-none text-[14px] font-medium py-0.5 px-0.5 resize-none max-h-28 hide-scrollbar text-on-surface placeholder:text-on-surface-variant/70 leading-relaxed transition-all"

@@ -2,8 +2,10 @@ import React, { useEffect, useRef } from 'react';
 import { Phone, PhoneOff } from 'lucide-react';
 import { useGroupCallStore } from '../../store/groupCallStore';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 const IncomingGroupCallModal: React.FC = () => {
+  const { t } = useTheme();
   const { user, socket } = useAuth();
   const { 
     callState, 
@@ -49,7 +51,7 @@ const IncomingGroupCallModal: React.FC = () => {
         });
       }
     } catch (e) {
-      alert('Không thể tham gia cuộc gọi nhóm');
+      alert(t('call.join_group_error'));
       resetGroupCall();
     }
   };
@@ -74,11 +76,11 @@ const IncomingGroupCallModal: React.FC = () => {
               <Phone size={14} className="text-white" />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-white">{groupName || peerProfile?.fullName || 'Nhóm ZaloEdu'}</h2>
-          <p className="text-blue-400 font-semibold text-sm mt-1">Cuộc gọi nhóm mới...</p>
+          <h2 className="text-2xl font-bold text-white">{groupName || peerProfile?.fullName || t('call.default_group_name')}</h2>
+          <p className="text-blue-400 font-semibold text-sm mt-1">{t('call.incoming_group_call')}</p>
         </div>
         
-        <p className="text-white/50 mb-8 text-sm">Bạn có một lời mời tham gia cuộc gọi video nhóm</p>
+        <p className="text-white/50 mb-8 text-sm">{t('call.group_invite_desc')}</p>
         
         <div className="flex justify-center gap-8">
           <div className="flex flex-col items-center gap-2">
@@ -88,7 +90,7 @@ const IncomingGroupCallModal: React.FC = () => {
             >
               <PhoneOff size={28} />
             </button>
-            <span className="text-[11px] text-white/40 font-bold uppercase tracking-wider">Từ chối</span>
+            <span className="text-[11px] text-white/40 font-bold uppercase tracking-wider">{t('call.decline')}</span>
           </div>
           
           <div className="flex flex-col items-center gap-2">
@@ -98,7 +100,7 @@ const IncomingGroupCallModal: React.FC = () => {
             >
               <Phone size={28} />
             </button>
-            <span className="text-[11px] text-white/40 font-bold uppercase tracking-wider">Tham gia</span>
+            <span className="text-[11px] text-white/40 font-bold uppercase tracking-wider">{t('call.join')}</span>
           </div>
         </div>
       </div>

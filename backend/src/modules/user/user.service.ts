@@ -1,4 +1,4 @@
-import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, UpdateCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/dynamodb.service';
 import { S3Service } from '../../infrastructure/s3.service';
@@ -86,6 +86,45 @@ export class UserService {
       profile.status = 'online' as any;
     }
 
+    return { profile };
+  }
+
+  async getUserByPhone(phone: string) {
+    let cleanPhone = (phone || '').trim().replace(/[\s-()]/g, '');
+    if (cleanPhone.startsWith('+84')) {
+      cleanPhone = '0' + cleanPhone.slice(3);
+    } else if (cleanPhone.startsWith('84') && cleanPhone.length > 9) {
+      cleanPhone = '0' + cleanPhone.slice(2);
+    }
+
+    if (!cleanPhone) return null;
+
+    const res = await this.db.docClient.send(
+      new ScanCommand({
+        TableName: this.db.tableName,
+        FilterExpression: 'begins_with(PK, :userPrefix) AND SK = :sk AND phone = :phone',
+        ExpressionAttributeValues: {
+          ':userPrefix': 'USER#',
+          ':sk': 'METADATA',
+          ':phone': cleanPhone,
+        },
+      })
+    );
+
+    if (!res.Items || res.Items.length === 0) {
+      return null;
+    }
+
+    const record = res.Items[0];
+    const profile = this.normalizeProfile(record);
+    
+    // Check presence
+    const presenceKey = `presence:${profile.email.toLowerCase()}`;
+    const isOnline = await this.redisService.get(presenceKey);
+    if (isOnline === 'online') {
+      profile.status = 'online' as any;
+    }
+    
     return { profile };
   }
 

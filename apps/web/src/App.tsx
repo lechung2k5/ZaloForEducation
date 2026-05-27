@@ -11,6 +11,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import IncomingCallModal from "./components/call/IncomingCallModal";
 import CallOverlay from "./components/call/CallOverlay";
 import ChimeSessionManager from "./components/call/ChimeSessionManager";
+import AutoRejoinManager from "./components/call/AutoRejoinManager";
 
 import SplashScreen from "./components/SplashScreen";
 import LoginPage from "./pages/LoginPage";
@@ -21,6 +22,7 @@ import SessionsPage from "./pages/SessionsPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import ContactsPage from "./pages/contacts/ContactPage";
+import GroupJoinPage from "./pages/GroupJoinPage";
 import "./App.css";
 
 // Component bảo vệ Route
@@ -46,7 +48,6 @@ import ContactPage from "./pages/contacts/ContactPage";
 import GroupPage from "./pages/group/GroupPage";
 import {
   NotificationPage,
-  CloudPage,
 } from "./pages/notifications/NotificationPage";
 import BotChatPage from "./pages/chat/bot/BotChatPage";
 
@@ -111,13 +112,13 @@ const AppContent: React.FC = () => {
             <Route path="/contacts" element={<ContactsPage />} />
             <Route path="/friends" element={<Navigate to="/contacts" />} />
             <Route path="/notifications" element={<NotificationPage />} />
-            <Route path="/cloud" element={<CloudPage />} />
             <Route path="/bot" element={<BotChatPage />} />
 
             {/* These pages now have the Sidebar too */}
             <Route path="/sessions" element={<SessionsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/join/:id" element={<GroupJoinPage />} />
           </Route>
 
           {/* Fallback */}
@@ -127,6 +128,7 @@ const AppContent: React.FC = () => {
 
       {/* Call UI — Luôn có trong DOM để Chime audio/video có thể bind bất cứ lúc nào */}
       <ChimeSessionManager />
+      <AutoRejoinManager />
       <IncomingCallModal />
       <CallOverlay />
       <audio

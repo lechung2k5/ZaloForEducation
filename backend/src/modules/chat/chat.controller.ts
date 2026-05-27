@@ -190,6 +190,17 @@ export class ChatController {
     return res;
   }
 
+  @Get("conversations/:id/preview")
+  async getGroupPreview(@Param("id") id: string) {
+    return await this.chatService.getGroupPreview(id);
+  }
+
+  @Post("conversations/:id/join")
+  async joinGroup(@Param("id") id: string, @Req() req: any) {
+    const email = req.user.email;
+    return await this.chatService.joinGroupByLink(id, email);
+  }
+
   @Delete("conversations/:id/members/:targetEmail")
   async removeMember(
     @Param("id") id: string,
@@ -383,6 +394,7 @@ export class ChatController {
       type?: any;
       media?: any[];
       files?: any[];
+      mentions?: Array<{ email: string; displayName?: string; start?: number; end?: number }>;
       replyTo?: any;
       contactCard?: {
         email: string;
@@ -450,6 +462,8 @@ export class ChatController {
         ...(body.contactCard ? { contactCard: body.contactCard } : {}),
         ...(body.location ? { location: body.location } : {}),
         ...(body.payload ? { payload: body.payload } : {}),
+        ...(body.mentions?.length ? { mentions: body.mentions } : {}),
+        ...(body.mentions?.length ? { mentions: body.mentions } : {}),
       },
     );
 
@@ -685,36 +699,65 @@ export class ChatController {
   }
 
   @Get("friends/search")
-  async searchFriend(@Req() req: any, @Query("email") email?: string) {
+  async searchFriend(
+    @Req() req: any,
+    @Query("email") email?: string,
+    @Query("phone") phone?: string,
+  ) {
     const myEmail = req.user.email;
     const targetEmail = (email || "").trim().toLowerCase();
+    const targetPhone = (phone || "").trim();
 
-    if (!targetEmail) {
-      throw new BadRequestException("Email is required");
-    }
-
-    if (targetEmail === myEmail.toLowerCase()) {
-      const me = await this.userService.getUserProfile(myEmail);
-      return {
-        found: true,
-        isSelf: true,
-        user: me.profile,
-        friendship: null,
-      };
+    if (!targetEmail && !targetPhone) {
+      throw new BadRequestException("Email or Phone is required");
     }
 
     try {
-      const profile = await this.userService.getUserProfile(targetEmail);
+      let profileData: any = null;
+
+      if (targetEmail) {
+        if (targetEmail === myEmail.toLowerCase()) {
+          const me = await this.userService.getUserProfile(myEmail);
+          return {
+            found: true,
+            isSelf: true,
+            user: me.profile,
+            friendship: null,
+          };
+        }
+        profileData = await this.userService.getUserProfile(targetEmail);
+      } else if (targetPhone) {
+        profileData = await this.userService.getUserByPhone(targetPhone);
+        if (!profileData) {
+          return {
+            found: false,
+            isSelf: false,
+            user: null,
+            friendship: null,
+          };
+        }
+        if (profileData.profile.email.toLowerCase() === myEmail.toLowerCase()) {
+          return {
+            found: true,
+            isSelf: true,
+            user: profileData.profile,
+            friendship: null,
+          };
+        }
+      }
+
+      const foundUserEmailLower = String(profileData.profile.email).trim().toLowerCase();
       const friendships = await this.friendshipService.getFriendships(myEmail);
       const friendship = friendships.find(
         (item) =>
-          item.sender_id === targetEmail || item.receiver_id === targetEmail,
+          (item.sender_id && String(item.sender_id).trim().toLowerCase() === foundUserEmailLower) ||
+          (item.receiver_id && String(item.receiver_id).trim().toLowerCase() === foundUserEmailLower),
       );
 
       return {
         found: true,
         isSelf: false,
-        user: profile.profile,
+        user: profileData.profile,
         friendship: friendship
           ? {
               senderEmail: friendship.sender_id,
@@ -755,10 +798,24 @@ export class ChatController {
   }
 
   @Delete("conversations/:id/history")
-  async deleteChatHistory(@Param("id") id: string, @Req() req: any) {
+  async deleteChatHistory(
+    @Param("id") id: string,
+    @Req() req: any,
+    @Query("forEveryone") forEveryone?: string,
+  ) {
     const email = req.user.email;
-    const result = await this.messageService.clearHistory(id, email);
-    this.chatGateway.notifyHistoryCleared(email, id);
+    const isForEveryone = forEveryone === "true";
+    const result = await this.messageService.clearHistory(id, email, isForEveryone);
+    if (isForEveryone) {
+      const metadata = await this.chatService.getConversationMetadata(id);
+      if (metadata?.members) {
+        for (const member of metadata.members) {
+          this.chatGateway.notifyHistoryCleared(member, id);
+        }
+      }
+    } else {
+      this.chatGateway.notifyHistoryCleared(email, id);
+    }
     return result;
   }
 
@@ -884,5 +941,17 @@ export class ChatController {
   async getFriendSuggestions(@Req() req: any) {
     const email = req.user.email;
     return await this.friendshipService.getFriendSuggestions(email);
+  }
+
+  @Post("friends/suggestions/dismiss")
+  async dismissFriendSuggestion(
+    @Req() req: any,
+    @Body("targetEmail") targetEmail: string,
+  ) {
+    const email = req.user.email;
+    if (!targetEmail) {
+      throw new BadRequestException("targetEmail is required");
+    }
+    return await this.friendshipService.dismissSuggestion(email, targetEmail);
   }
 }

@@ -6,6 +6,7 @@ import { useChatStore } from '../store/chatStore';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { useTheme } from '../context/ThemeContext';
 
 type ProfileState = {
   fullName: string;
@@ -58,15 +59,17 @@ const buildDate = (day: string, month: string, year: string) => {
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 };
 
-const formatBirthDate = (value: string) => {
+const formatBirthDate = (value: string, language: 'vi' | 'en', fallback: string) => {
   const { day, month, year } = toDateParts(value);
-  if (!day || !month || !year) return 'Chưa cập nhật';
+  if (!day || !month || !year) return fallback;
+  if (language === 'en') return `${month}/${day}/${year}`;
   return `${Number(day)} tháng ${month}, ${year}`;
 };
 
 const ProfilePage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { user, refreshUser } = useAuth();
+  const { language, t } = useTheme();
 
   const targetEmail = (searchParams.get('email') || '').trim().toLowerCase();
   const currentEmail = (user?.email || '').trim().toLowerCase();
@@ -105,10 +108,22 @@ const ProfilePage: React.FC = () => {
           setDraft(nextProfile);
           
           // Set friend status from search response
-          if (res.data.isFriend) setFriendStatus('friend');
-          else if (res.data.isPending) setFriendStatus('pending');
-          else if (res.data.isSent) setFriendStatus('sent');
-          else setFriendStatus('none');
+          const friendship = res.data.friendship;
+          if (friendship) {
+            if (friendship.status === 'accepted') {
+              setFriendStatus('friend');
+            } else if (friendship.status === 'pending') {
+              if (String(friendship.senderEmail).trim().toLowerCase() === currentEmail) {
+                setFriendStatus('sent');
+              } else {
+                setFriendStatus('pending');
+              }
+            } else {
+              setFriendStatus('none');
+            }
+          } else {
+            setFriendStatus('none');
+          }
 
           return;
         }
@@ -132,7 +147,7 @@ const ProfilePage: React.FC = () => {
 
   const displayAvatar = String(profile.avatarUrl || user?.avatarUrl || user?.urlAvatar || '');
   const displayBackground = String(profile.backgroundUrl || user?.backgroundUrl || user?.urlBackground || COVER_IMAGE);
-  const displayName = String(profile.fullName || user?.fullName || user?.fullname || 'Người dùng');
+  const displayName = String(profile.fullName || user?.fullName || user?.fullname || t('profile.default_user'));
   const displayInitial = displayName.charAt(0).toUpperCase();
   const dateParts = toDateParts(draft.dataOfBirth);
 
@@ -169,8 +184,8 @@ const ProfilePage: React.FC = () => {
 
       await Swal.fire({
         icon: 'success',
-        title: 'Đã lưu hồ sơ',
-        text: 'Thông tin cá nhân đã được cập nhật.',
+        title: t('profile.save_success_title'),
+        text: t('profile.save_success_text'),
         timer: 1500,
         showConfirmButton: false,
       });
@@ -179,8 +194,8 @@ const ProfilePage: React.FC = () => {
       console.error('Update profile error', error);
       await Swal.fire({
         icon: 'error',
-        title: 'Không thể lưu hồ sơ',
-        text: error?.response?.data?.message || 'Vui lòng thử lại sau.',
+        title: t('profile.save_error_title'),
+        text: error?.response?.data?.message || t('info.retry_later'),
       });
     } finally {
       setSaving(false);
@@ -205,8 +220,8 @@ const ProfilePage: React.FC = () => {
     } catch (error: any) {
       await Swal.fire({
         icon: 'error',
-        title: 'Không thể tải ảnh lên',
-        text: error?.response?.data?.message || 'Vui lòng thử lại sau.',
+        title: t('profile.avatar_upload_error'),
+        text: error?.response?.data?.message || t('info.retry_later'),
       });
     } finally {
       setUploading(false);
@@ -232,8 +247,8 @@ const ProfilePage: React.FC = () => {
     } catch (error: any) {
       await Swal.fire({
         icon: 'error',
-        title: 'Không thể tải ảnh nền lên',
-        text: error?.response?.data?.message || 'Vui lòng thử lại sau.',
+        title: t('profile.cover_upload_error'),
+        text: error?.response?.data?.message || t('info.retry_later'),
       });
     } finally {
       setUploading(false);
@@ -254,18 +269,35 @@ const ProfilePage: React.FC = () => {
       setFriendStatus('sent');
       Swal.fire({
         icon: 'success',
-        title: 'Đã gửi lời mời',
-        text: `Lời mời kết bạn đã được gửi tới ${displayName}`,
+        title: t('profile.friend_request_sent_title'),
+        text: t('profile.friend_request_sent_text', { name: displayName }),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error: any) {
-      Swal.fire('Lỗi', error?.response?.data?.message || 'Không thể gửi lời mời kết bạn.', 'error');
+      Swal.fire(t('modal.error'), error?.response?.data?.message || t('profile.friend_request_error'), 'error');
+    }
+  };
+
+  const handleAcceptFriend = async () => {
+    if (!targetEmail) return;
+    try {
+      await api.post('/chat/friends/accept', { senderEmail: targetEmail });
+      setFriendStatus('friend');
+      Swal.fire({
+        icon: 'success',
+        title: t('info.success'),
+        text: t('profile.friend_accept_success', { name: displayName }),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      Swal.fire(t('modal.error'), error?.response?.data?.message || t('profile.friend_accept_error'), 'error');
     }
   };
 
   const handleCall = () => {
-    Swal.fire('Thông báo', 'Tính năng gọi điện đang được phát triển trên trình duyệt.', 'info');
+    Swal.fire(t('profile.notice'), t('profile.call_developing'), 'info');
   };
 
   return (
@@ -275,9 +307,9 @@ const ProfilePage: React.FC = () => {
           <Link to="/chat" className="w-[38px] h-[38px] rounded-full hover:bg-slate-100 transition-colors inline-flex items-center justify-center text-slate-700">
             <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           </Link>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Trang cá nhân</h1>
+          <h1 className="text-xl font-bold text-slate-800 tracking-tight">{t('profile.title')}</h1>
         </div>
-        {isViewingOther && notFound && <span className="text-sm font-semibold text-red-600 bg-red-50 px-3 py-1 rounded-full">Không tìm thấy</span>}
+        {isViewingOther && notFound && <span className="text-sm font-semibold text-red-600 bg-red-50 px-3 py-1 rounded-full">{t('profile.not_found')}</span>}
       </div>
 
       <div className="flex-1 overflow-y-auto hide-scrollbar bg-white">
@@ -288,63 +320,63 @@ const ProfilePage: React.FC = () => {
         ) : editing ? (
           <form onSubmit={handleSave} className="w-full max-w-4xl mx-auto py-10 px-6">
             <div className="border border-slate-200 rounded-2xl shadow-sm p-8 space-y-6">
-              <h2 className="text-xl font-bold text-slate-800 mb-6">Cập nhật thông tin</h2>
+              <h2 className="text-xl font-bold text-slate-800 mb-6">{t('profile.update_info')}</h2>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Tên hiển thị</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t('profile.display_name')}</label>
                 <input
                   value={draft.fullName}
                   onChange={(event) => setDraft((current) => ({ ...current, fullName: event.target.value }))}
                   className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  placeholder="Nhập tên hiển thị"
+                  placeholder={t('profile.display_name_placeholder')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Giới tính</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t('profile.gender')}</label>
                 <div className="flex items-center gap-8">
                   <button type="button" onClick={() => setDraft((current) => ({ ...current, gender: true }))} className="flex items-center gap-3 group">
                     <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${draft.gender ? 'border-primary' : 'border-slate-300 group-hover:border-slate-400'}`}>
                       {draft.gender && <span className="w-2.5 h-2.5 rounded-full bg-primary" />}
                     </span>
-                    <span className="text-base text-slate-700 font-medium">Nam</span>
+                    <span className="text-base text-slate-700 font-medium">{t('profile.male')}</span>
                   </button>
                   <button type="button" onClick={() => setDraft((current) => ({ ...current, gender: false }))} className="flex items-center gap-3 group">
                     <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${!draft.gender ? 'border-primary' : 'border-slate-300 group-hover:border-slate-400'}`}>
                       {!draft.gender && <span className="w-2.5 h-2.5 rounded-full bg-primary" />}
                     </span>
-                    <span className="text-base text-slate-700 font-medium">Nữ</span>
+                    <span className="text-base text-slate-700 font-medium">{t('profile.female')}</span>
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Ngày sinh</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t('profile.birthdate')}</label>
                 <div className="grid grid-cols-3 gap-4">
-                  <input value={dateParts.day} onChange={(event) => setDraft((current) => ({ ...current, dataOfBirth: buildDate(event.target.value.replace(/\D/g, '').slice(0, 2), dateParts.month, dateParts.year) }))} placeholder="Ngày (24)" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
-                  <input value={dateParts.month} onChange={(event) => setDraft((current) => ({ ...current, dataOfBirth: buildDate(dateParts.day, event.target.value.replace(/\D/g, '').slice(0, 2), dateParts.year) }))} placeholder="Tháng (06)" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
-                  <input value={dateParts.year} onChange={(event) => setDraft((current) => ({ ...current, dataOfBirth: buildDate(dateParts.day, dateParts.month, event.target.value.replace(/\D/g, '').slice(0, 4)) }))} placeholder="Năm (2004)" className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
+                  <input value={dateParts.day} onChange={(event) => setDraft((current) => ({ ...current, dataOfBirth: buildDate(event.target.value.replace(/\D/g, '').slice(0, 2), dateParts.month, dateParts.year) }))} placeholder={t('profile.day_placeholder')} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
+                  <input value={dateParts.month} onChange={(event) => setDraft((current) => ({ ...current, dataOfBirth: buildDate(dateParts.day, event.target.value.replace(/\D/g, '').slice(0, 2), dateParts.year) }))} placeholder={t('profile.month_placeholder')} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
+                  <input value={dateParts.year} onChange={(event) => setDraft((current) => ({ ...current, dataOfBirth: buildDate(dateParts.day, dateParts.month, event.target.value.replace(/\D/g, '').slice(0, 4)) }))} placeholder={t('profile.year_placeholder')} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
                 </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Điện thoại</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">{t('profile.phone')}</label>
                   <input value={draft.phone} onChange={(event) => setDraft((current) => ({ ...current, phone: event.target.value }))} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Địa chỉ</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">{t('profile.address')}</label>
                   <input value={draft.address} onChange={(event) => setDraft((current) => ({ ...current, address: event.target.value }))} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Giới thiệu</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">{t('profile.bio')}</label>
                 <textarea value={draft.bio} onChange={(event) => setDraft((current) => ({ ...current, bio: event.target.value }))} rows={4} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
               </div>
 
               <div className="pt-6 flex justify-end gap-3 border-t border-slate-200">
-                <button type="button" onClick={handleCancelEdit} className="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-sm font-bold text-slate-700 transition-colors">Hủy</button>
-                <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-sm font-bold text-white disabled:opacity-70 transition-colors shadow-sm">{saving ? 'Đang lưu' : 'Cập nhật'}</button>
+                <button type="button" onClick={handleCancelEdit} className="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-sm font-bold text-slate-700 transition-colors">{t('inbox.cancel')}</button>
+                <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-sm font-bold text-white disabled:opacity-70 transition-colors shadow-sm">{saving ? t('info.saving') : t('profile.update')}</button>
               </div>
             </div>
           </form>
@@ -359,7 +391,7 @@ const ProfilePage: React.FC = () => {
                     disabled={uploading}
                     className="absolute bottom-6 right-6 px-4 py-2.5 rounded-xl bg-black/50 hover:bg-black/70 backdrop-blur-md text-white text-sm font-semibold disabled:opacity-60 flex items-center gap-2 transition-all shadow-lg"
                   >
-                    <Camera size={16} /> Đổi ảnh bìa
+                    <Camera size={16} /> {t('profile.change_cover')}
                   </button>
                   <input ref={backgroundInputRef} type="file" accept="image/*" className="hidden" onChange={handleBackgroundUpload} />
                 </>
@@ -367,7 +399,7 @@ const ProfilePage: React.FC = () => {
             </div>
 
             <div className="max-w-5xl mx-auto px-6 lg:px-8">
-              <div className="relative flex flex-col sm:flex-row items-center sm:items-end justify-between -mt-16 sm:-mt-20 sm:mb-8 mb-6 sm:gap-6 z-10">
+              <div className="relative flex flex-col sm:flex-row items-center sm:items-end justify-between -mt-10 sm:-mt-12 sm:mb-8 mb-6 sm:gap-6 z-10">
                 <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5 w-full sm:w-auto">
                   <div className="relative w-32 h-32 sm:w-40 sm:h-40 rounded-full border-[4px] border-white bg-white shadow-md shrink-0">
                     {displayAvatar ? (
@@ -385,10 +417,10 @@ const ProfilePage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="pb-2 text-center sm:text-left flex-1">
+                  <div className="pb-2 text-center sm:text-left flex-1 mt-6 sm:mt-4">
                     <h2 className="text-3xl sm:text-4xl leading-tight font-extrabold text-slate-900 tracking-tight">{displayName}</h2>
                     <p className="text-slate-500 font-medium text-base mt-2">{profile.email || targetEmail || user?.email}</p>
-                    {notFound && <p className="text-sm text-red-600 mt-2 font-medium bg-red-50 text-center sm:text-left rounded-lg py-1 px-3 inline-block">Không tìm thấy hồ sơ người dùng này.</p>}
+                    {notFound && <p className="text-sm text-red-600 mt-2 font-medium bg-red-50 text-center sm:text-left rounded-lg py-1 px-3 inline-block">{t('profile.not_found_detail')}</p>}
                   </div>
                 </div>
 
@@ -398,14 +430,14 @@ const ProfilePage: React.FC = () => {
                       onClick={handleSendMessage}
                       className="flex items-center gap-2 text-white bg-primary hover:bg-primary/90 px-5 py-2 rounded-xl transition-all text-sm font-bold shadow-sm"
                     >
-                      <MessageSquare size={16} /> Nhắn tin
+                      <MessageSquare size={16} /> {t('profile.message')}
                     </button>
                     
                     <button 
                       onClick={handleCall}
                       className="flex items-center gap-2 text-slate-700 bg-slate-100 hover:bg-slate-200 px-5 py-2 rounded-xl transition-all text-sm font-bold shadow-sm border border-slate-200"
                     >
-                      <PhoneCall size={16} /> Gọi điện
+                      <PhoneCall size={16} /> {t('profile.call')}
                     </button>
 
                     {friendStatus === 'none' && (
@@ -413,7 +445,16 @@ const ProfilePage: React.FC = () => {
                         onClick={handleAddFriend}
                         className="flex items-center gap-2 text-white bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-xl transition-all text-sm font-bold shadow-sm"
                       >
-                        <UserPlus size={16} /> Kết bạn
+                        <UserPlus size={16} /> {t('profile.add_friend')}
+                      </button>
+                    )}
+
+                    {friendStatus === 'pending' && (
+                      <button 
+                        onClick={handleAcceptFriend}
+                        className="flex items-center gap-2 text-white bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-xl transition-all text-sm font-bold shadow-sm"
+                      >
+                        <UserPlus size={16} /> {t('profile.accept_friend')}
                       </button>
                     )}
 
@@ -422,20 +463,20 @@ const ProfilePage: React.FC = () => {
                         disabled
                         className="flex items-center gap-2 text-emerald-700 bg-emerald-50 px-5 py-2 rounded-xl text-sm font-bold border border-emerald-100 opacity-80"
                       >
-                        <Check size={16} /> Đã gửi lời mời
+                        <Check size={16} /> {t('profile.request_sent')}
                       </button>
                     )}
 
                     {friendStatus === 'friend' && (
                       <div className="flex items-center gap-2 text-primary bg-primary/5 px-5 py-2 rounded-xl text-sm font-bold border border-primary/10">
-                        <User size={16} /> Bạn bè
+                        <User size={16} /> {t('profile.friends')}
                       </div>
                     )}
                   </div>
                 ) : (
                   <div className="mt-4 sm:mt-0 pb-2">
                     <button onClick={handleStartEdit} className="w-full sm:w-auto flex items-center justify-center gap-2 text-white bg-primary hover:bg-primary/90 px-6 py-2.5 rounded-xl transition-all text-sm font-bold shadow-sm">
-                      <Edit3 size={16} /> Chỉnh sửa
+                      <Edit3 size={16} /> {t('profile.edit')}
                     </button>
                   </div>
                 )}
@@ -443,49 +484,49 @@ const ProfilePage: React.FC = () => {
 
               <div className="w-full pt-4">
                 <div className="bg-white border text-left border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                  <h3 className="font-bold text-lg text-slate-800 mb-6 pb-4 border-b border-slate-100">Thông tin cá nhân</h3>
+                  <h3 className="font-bold text-lg text-slate-800 mb-6 pb-4 border-b border-slate-100">{t('profile.personal_info')}</h3>
                   
                   <div className="grid md:grid-cols-2 gap-x-12 gap-y-8">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0"><User size={24} /></div>
                       <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Giới tính</p>
-                        <p className="font-bold text-slate-800 text-base">{profile.gender ? 'Nam' : 'Nữ'}</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('profile.gender')}</p>
+                        <p className="font-bold text-slate-800 text-base">{profile.gender ? t('profile.male') : t('profile.female')}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0"><Cake size={24} /></div>
                       <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Ngày sinh</p>
-                        <p className="font-bold text-slate-800 text-base">{profile.dataOfBirth ? formatBirthDate(profile.dataOfBirth) : 'Chưa cập nhật'}</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('profile.birthdate')}</p>
+                        <p className="font-bold text-slate-800 text-base">{profile.dataOfBirth ? formatBirthDate(profile.dataOfBirth, language, t('profile.not_updated')) : t('profile.not_updated')}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0"><Phone size={24} /></div>
                       <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Điện thoại</p>
-                        <p className="font-bold text-slate-800 text-base">{profile.phone || 'Chưa cập nhật'}</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('profile.phone')}</p>
+                        <p className="font-bold text-slate-800 text-base">{profile.phone || t('profile.not_updated')}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center text-orange-600 shrink-0"><MapPin size={24} /></div>
                       <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Địa chỉ</p>
-                        <p className="font-bold text-slate-800 text-base">{profile.address || 'Chưa cập nhật'}</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('profile.address')}</p>
+                        <p className="font-bold text-slate-800 text-base">{profile.address || t('profile.not_updated')}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-4 md:col-span-2">
                       <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 shrink-0"><Mail size={24} /></div>
                       <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Giới thiệu</p>
-                        <p className="font-bold text-slate-800 text-base whitespace-pre-wrap">{profile.bio || 'Chưa cập nhật'}</p>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{t('profile.bio')}</p>
+                        <p className="font-bold text-slate-800 text-base whitespace-pre-wrap">{profile.bio || t('profile.not_updated')}</p>
                       </div>
                     </div>
                   </div>
                   
                   <div className="mt-8 p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
                     <span className="material-symbols-outlined text-slate-400">info</span>
-                    <p className="text-sm font-medium text-slate-500">Chỉ bạn bè có lưu số của bạn trong danh bạ máy xem được số này</p>
+                    <p className="text-sm font-medium text-slate-500">{t('profile.phone_privacy_note')}</p>
                   </div>
                 </div>
               </div>

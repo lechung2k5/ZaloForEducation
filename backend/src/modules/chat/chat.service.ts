@@ -18,6 +18,7 @@ import { v4 as uuidv4 } from "uuid";
 import { DynamoDBService } from "../../infrastructure/dynamodb.service";
 import { ChatGateway } from "./chat.gateway";
 import { FriendshipService } from "./friendship.service";
+import { UserService } from "../user/user.service";
 
 @Injectable()
 export class ChatService {
@@ -27,6 +28,7 @@ export class ChatService {
     private readonly chatGateway: ChatGateway,
     @Inject(forwardRef(() => FriendshipService))
     private readonly friendshipService: FriendshipService,
+    private readonly userService: UserService,
   ) {}
 
   private normalizeConvId(id: string): { raw: string; prefixed: string; original: string; veryRaw: string } {
@@ -51,6 +53,40 @@ export class ChatService {
       original: id.startsWith("CONV#") ? id : `CONV#${id}`,
       veryRaw: id,
     };
+  }
+
+  /**
+   * Check that all given emails exist as users in the DB.
+   * Returns a list of emails that do NOT exist.
+   */
+  private async checkUsersExist(emails: string[]): Promise<string[]> {
+    const nonExistent: string[] = [];
+    for (const email of emails) {
+      try {
+        await this.userService.getUserProfile(email);
+      } catch {
+        nonExistent.push(email);
+      }
+    }
+    return nonExistent;
+  }
+
+  /**
+   * Get the set of accepted-friend emails for a given actor.
+   */
+  private async getAcceptedFriendEmails(actorEmail: string): Promise<Set<string>> {
+    const friendships = await this.friendshipService.getFriendships(actorEmail);
+    const accepted = friendships.filter((f) => f.status === "accepted");
+    const friendEmails = new Set<string>();
+    for (const f of accepted) {
+      const other =
+        String(f.sender_id || "").trim().toLowerCase() ===
+        String(actorEmail).trim().toLowerCase()
+          ? String(f.receiver_id || "").trim().toLowerCase()
+          : String(f.sender_id || "").trim().toLowerCase();
+      if (other) friendEmails.add(other);
+    }
+    return friendEmails;
   }
 
   /**
@@ -172,6 +208,19 @@ export class ChatService {
     if (allMembers.length < 3)
       throw new BadRequestException("Group must have at least 3 members");
 
+    // Validate: all members (except admin) must exist in the system
+    const othersToCheck = allMembers.filter(
+      (m) => m.toLowerCase() !== adminEmail.toLowerCase(),
+    );
+    const nonExistent = await this.checkUsersExist(othersToCheck);
+    if (nonExistent.length > 0) {
+      throw new BadRequestException(
+        `Không tìm thấy người dùng: ${nonExistent.join(", ")}`,
+      );
+    }
+
+    // Validation for friends has been removed as per requirements.
+
     const rawId = uuidv4();
     const convId = `CONV#GROUP#${rawId}`;
     const now = new Date().toISOString();
@@ -246,8 +295,7 @@ export class ChatService {
     if (!metadata || metadata.type !== "group")
       throw new BadRequestException("Group not found");
 
-    // Permission check: Actor must be a member of the group (any member can add members)
-    // Compare membership case-insensitively to avoid issues with email casing
+    // Permission check: Only owner or deputy can add members
     const membersLower = (metadata.members || []).map((m) =>
       String(m).trim().toLowerCase(),
     );
@@ -256,11 +304,31 @@ export class ChatService {
     if (!membersLower.includes(actorLower))
       throw new BadRequestException("You are not a member of this group");
 
+    const ownerLower = String(metadata.owner || metadata.admin || "")
+      .trim()
+      .toLowerCase();
+    const deputiesLower = (metadata.deputies || []).map((m) =>
+      String(m).trim().toLowerCase(),
+    );
+    const isOwner = ownerLower === actorLower;
+    const isDeputy = deputiesLower.includes(actorLower);
+    // Any group member can add new members. Permission check has been removed as per requirements.
+
+
     const uniqueNewMembers = newMembers.filter((m) => {
       const lower = String(m).trim().toLowerCase();
       return !membersLower.includes(lower);
     });
     if (uniqueNewMembers.length === 0) return metadata;
+
+    // Validate: all new members must exist in the system
+    const nonExistent = await this.checkUsersExist(uniqueNewMembers);
+    if (nonExistent.length > 0) {
+      throw new BadRequestException(
+        `Không tìm thấy người dùng: ${nonExistent.join(", ")}`,
+      );
+    }
+
 
     const updatedMembers = [...metadata.members, ...uniqueNewMembers];
     const now = new Date().toISOString();
@@ -305,6 +373,77 @@ export class ChatService {
       members: updatedMembers,
       addedMembers: uniqueNewMembers,
       actor: actorEmail,
+    });
+
+    return { ...metadata, members: updatedMembers };
+  }
+
+  async getGroupPreview(convId: string) {
+    const metadata = await this.getConversationMetadata(convId);
+    if (!metadata || metadata.type !== "group")
+      throw new NotFoundException("Group not found");
+
+    return {
+      id: metadata.id,
+      name: metadata.name,
+      avatarUrl: metadata.avatar,
+      memberCount: metadata.members.length,
+      isGroup: true,
+    };
+  }
+
+  async joinGroupByLink(convId: string, userEmail: string) {
+    const metadata = await this.getConversationMetadata(convId);
+    if (!metadata || metadata.type !== "group")
+      throw new BadRequestException("Group not found");
+
+    const emailLower = userEmail.toLowerCase();
+    const isAlreadyMember = metadata.members.some(
+      (m) => String(m).trim().toLowerCase() === emailLower,
+    );
+
+    if (isAlreadyMember) {
+      return { success: true, message: "Đã là thành viên" };
+    }
+
+    const updatedMembers = [...metadata.members, userEmail];
+    const now = new Date().toISOString();
+
+    const transactItems: any[] = [
+      {
+        Update: {
+          TableName: this.db.tableName,
+          Key: { PK: "CONVERSATION", SK: convId },
+          UpdateExpression: "SET members = :m, updatedAt = :updatedAt",
+          ExpressionAttributeValues: {
+            ":m": updatedMembers,
+            ":updatedAt": now,
+          },
+        },
+      },
+      {
+        Put: {
+          TableName: this.db.tableName,
+          Item: {
+            PK: `USER#${emailLower}`,
+            SK: convId,
+            joinedAt: now,
+            updatedAt: now,
+          },
+        },
+      },
+    ];
+
+    await this.db.docClient.send(
+      new TransactWriteCommand({
+        TransactItems: transactItems,
+      }),
+    );
+
+    this.chatGateway.emitGroupUpdated(convId, {
+      members: updatedMembers,
+      addedMembers: [userEmail],
+      actor: userEmail,
     });
 
     return { ...metadata, members: updatedMembers };
@@ -744,7 +883,7 @@ export class ChatService {
     const convs =
       (batchResult.Responses?.[this.db.tableName] as Conversation[]) || [];
 
-    // Create lookups for mapping data (now includes unreadCount from Mapping)
+    // Create lookups for mapping data
     const countMap = new Map(
       mappings.map((m) => [m.SK as string, m.unreadCount || 0]),
     );
@@ -754,6 +893,25 @@ export class ChatService {
     const readMap = new Map(
       mappings.map((m) => [m.SK as string, m.lastReadAt || 0]),
     );
+    const mutedMap = new Map(
+      mappings.map((m) => [m.SK as string, m.isMuted || false]),
+    );
+    const pinnedMap = new Map(
+      mappings.map((m) => [m.SK as string, m.isPinned || false]),
+    );
+    const mentionMap = new Map(
+      mappings.map((m) => [
+        m.SK as string,
+        {
+          hasUnreadMention: !!m.hasUnreadMention,
+          mentionCount: m.mentionCount || 0,
+          lastMentionMessageId: m.lastMentionMessageId,
+          lastMentionAt: m.lastMentionAt,
+          lastMentionContent: m.lastMentionContent,
+          lastMentionSenderId: m.lastMentionSenderId,
+        },
+      ]),
+    );
 
     // Map with latest message details and return sorted
     return convs
@@ -761,8 +919,17 @@ export class ChatService {
         const lastClearedAt = clearMap.get(c.id);
         const lastReadAt = readMap.get(c.id) || 0;
         const unreadCount = countMap.get(c.id) || 0;
+        const isMuted = mutedMap.get(c.id) || false;
+        const isPinned = pinnedMap.get(c.id) || false;
 
-        const sanitizedConv = { ...c, lastReadAt, unreadCount };
+        const mentionState = mentionMap.get(c.id) || {
+          hasUnreadMention: false,
+          mentionCount: 0,
+          lastMentionMessageId: undefined,
+          lastMentionAt: undefined,
+        };
+
+        const sanitizedConv = { ...c, lastReadAt, unreadCount, isMuted, isPinned, ...mentionState };
 
         if (
           sanitizedConv.autoDeleteDays &&
@@ -830,10 +997,11 @@ export class ChatService {
                 Update: {
                   TableName: this.db.tableName,
                   Key: { PK: `USER#${email.toLowerCase()}`, SK: prefId },
-                  UpdateExpression: "SET lastReadAt = :ts, unreadCount = :zero",
+                  UpdateExpression: "SET lastReadAt = :ts, unreadCount = :zero, hasUnreadMention = :mentioned, mentionCount = :zero REMOVE lastMentionMessageId, lastMentionAt, lastMentionContent, lastMentionSenderId",
                   ExpressionAttributeValues: {
                     ":ts": timestamp,
                     ":zero": 0,
+                    ":mentioned": false,
                   },
                 },
               },

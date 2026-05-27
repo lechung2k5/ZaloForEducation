@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTheme } from '../../context/ThemeContext';
 import {
   clearSecurityAlerts,
   getSecurityAlerts,
@@ -17,13 +18,14 @@ const alertIcon = (type: SecurityAlertItem['type']) => {
   return 'key';
 };
 
-const alertBadge = (type: SecurityAlertItem['type']) => {
-  if (type === 'NEW_DEVICE_LOGIN') return 'Đăng nhập thiết bị lạ';
-  return 'Thay đổi mật khẩu';
-};
-
 export const NotificationPage: React.FC = () => {
+  const { t } = useTheme();
   const [alerts, setAlerts] = useState<SecurityAlertItem[]>([]);
+
+  const alertBadge = (type: SecurityAlertItem['type']) => {
+    if (type === 'NEW_DEVICE_LOGIN') return t('notif_page.login_device');
+    return t('notif_page.pw_changed');
+  };
 
   const unreadCount = useMemo(() => alerts.filter((item) => !item.read).length, [alerts]);
 
@@ -39,8 +41,10 @@ export const NotificationPage: React.FC = () => {
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold text-on-surface">Thông báo bảo mật</h2>
-            <p className="text-sm text-on-surface-variant">{unreadCount > 0 ? `${unreadCount} cảnh báo chưa đọc` : 'Không có cảnh báo mới'}</p>
+            <h2 className="text-xl font-bold text-on-surface">{t('notif_page.title')}</h2>
+            <p className="text-sm text-on-surface-variant">
+              {unreadCount > 0 ? t('notif_page.unread', { count: unreadCount }) : t('notif_page.empty_unread')}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -51,7 +55,7 @@ export const NotificationPage: React.FC = () => {
               }}
               className="rounded-lg border border-outline px-3 py-1.5 text-sm text-on-surface hover:bg-surface-container"
             >
-              Đánh dấu đã đọc
+              {t('notif_page.mark_read')}
             </button>
             <button
               type="button"
@@ -61,7 +65,7 @@ export const NotificationPage: React.FC = () => {
               }}
               className="rounded-lg border border-error/40 px-3 py-1.5 text-sm text-error hover:bg-error/10"
             >
-              Xóa tất cả
+              {t('notif_page.clear_all')}
             </button>
           </div>
         </div>
@@ -69,7 +73,7 @@ export const NotificationPage: React.FC = () => {
         {alerts.length === 0 ? (
           <div className="rounded-2xl border border-outline/40 bg-surface p-8 text-center">
             <span className="material-symbols-outlined text-[56px] text-primary/25">shield</span>
-            <p className="mt-3 text-sm text-on-surface-variant">Chưa có cảnh báo bảo mật.</p>
+            <p className="mt-3 text-sm text-on-surface-variant">{t('notif_page.empty')}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -98,12 +102,15 @@ export const NotificationPage: React.FC = () => {
   );
 };
 
-export const CloudPage: React.FC = () => (
-  <div className="flex-1 h-full flex items-center justify-center bg-surface-container-lowest">
-    <div className="text-center">
-      <span className="material-symbols-outlined text-[64px] text-primary/20 mb-4">cloud</span>
-      <h2 className="text-xl font-bold text-on-surface opacity-30">My Cloud</h2>
-      <p className="text-sm text-on-surface-variant opacity-40">Kho lưu trữ cá nhân đang chờ sếp Chung hoàn thiện.</p>
+export const CloudPage: React.FC = () => {
+  const { t } = useTheme();
+  return (
+    <div className="flex-1 h-full flex items-center justify-center bg-surface-container-lowest">
+      <div className="text-center">
+        <span className="material-symbols-outlined text-[64px] text-primary/20 mb-4">cloud</span>
+        <h2 className="text-xl font-bold text-on-surface opacity-30">My Cloud</h2>
+        <p className="text-sm text-on-surface-variant opacity-40">{t('notif_page.cloud_pending')}</p>
+      </div>
     </div>
-  </div>
-);
+  );
+};

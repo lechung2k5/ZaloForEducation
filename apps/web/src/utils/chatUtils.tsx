@@ -19,10 +19,10 @@ export interface ConversationMuteSchedule {
 
 const MUTE_SCHEDULE_STORAGE_PREFIX = "chat_notification_mute_schedule:";
 export const DEFAULT_GROUP_AVATAR =
-  "https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png";
+  "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true";
 
 const getMuteScheduleStorageKey = (convId: string) =>
-  `${MUTE_SCHEDULE_STORAGE_PREFIX}${convId}`;
+  `${MUTE_SCHEDULE_STORAGE_PREFIX}${convId.toLowerCase().replace(/^conv#/, "")}`;
 
 const timeToMinutes = (time: string) => {
   const [hours, minutes] = String(time || "00:00")
@@ -439,20 +439,28 @@ export const getConversationPreviewText = (
 ) => {
   if (!conv) return "";
 
-  const rawContent = String(conv.lastMessageContent || conv.lastMessage || "");
-  const senderId = conv.lastMessageSenderId || conv.senderId;
-  const messageType = String(conv.lastMessageType || "").toLowerCase();
+  const showMention = conv.hasUnreadMention && conv.lastMentionContent;
+
+  const rawContent = showMention
+    ? String(conv.lastMentionContent)
+    : String(conv.lastMessageContent || conv.lastMessage || "");
+  const senderId = showMention
+    ? conv.lastMentionSenderId
+    : (conv.lastMessageSenderId || conv.senderId);
+  const messageType = showMention
+    ? "text"
+    : String(conv.lastMessageType || "").toLowerCase();
 
   if (messageType === "system" || rawContent.trim().startsWith("{")) {
     return formatSystemPreview(rawContent, senderId, currentUser, userProfiles);
   }
 
   const preview = getMessagePreview({
-    type: conv.lastMessageType,
+    type: showMention ? "text" : conv.lastMessageType,
     content: rawContent,
-    media: conv.lastMessageMedia,
-    files: conv.lastMessageFiles,
-    recalled: conv.recalled,
+    media: showMention ? undefined : conv.lastMessageMedia,
+    files: showMention ? undefined : conv.lastMessageFiles,
+    recalled: showMention ? false : conv.recalled,
   });
 
   if (!senderId) return preview;
@@ -477,7 +485,7 @@ export const normalizeAttachment = (item: any) => {
     item?.mimeType || item?.fileType || "application/octet-stream";
   const size = Number(item?.size || 0);
   const dataUrl = item?.dataUrl || item?.fileUrl || item?.url || "";
-  return { name, mimeType, size, dataUrl };
+  return { name, mimeType, size, dataUrl, isSticker: item?.isSticker === true };
 };
 
 export const truncateFileName = (name: string, maxLength: number = 35) => {
@@ -497,6 +505,7 @@ export const isUnread = (
   currentUserEmail: string | undefined,
 ): boolean => {
   if (!conv || !currentUserEmail) return false;
+  if (conv.isMuted) return false;
 
   const normalize = (email: string) =>
     (email || "")

@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { useChatStore } from "../../store/chatStore";
 import { PlusCircle, Edit3, Trash2, Check } from "lucide-react";
+import { useTheme } from "../../context/ThemeContext";
 
 const TagManagerModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useTheme();
   const { tags, addTag, editTag, deleteTag } = useChatStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -38,7 +40,7 @@ const TagManagerModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Xác nhận xóa thẻ?")) return;
+    if (!confirm(t("tags.confirm_delete"))) return;
     await deleteTag(id);
   };
 
@@ -52,16 +54,16 @@ const TagManagerModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-extrabold">Quản lý thẻ phân loại</h3>
+          <h3 className="text-lg font-extrabold">{t("tags.manage")}</h3>
           <div className="flex items-center gap-2">
             <button
               onClick={startCreate}
               className="flex items-center gap-2 px-3 py-1 rounded-md bg-primary text-white"
             >
-              <PlusCircle size={16} /> Thêm
+              <PlusCircle size={16} /> {t("tags.add")}
             </button>
             <button onClick={onClose} className="px-3 py-1 rounded-md border">
-              Đóng
+              {t("tags.close")}
             </button>
           </div>
         </div>
@@ -106,14 +108,14 @@ const TagManagerModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
           </div>
           <div>
             <div className="p-3 border rounded-md">
-              <label className="block text-sm font-bold mb-1">Tên thẻ</label>
+              <label className="block text-sm font-bold mb-1">{t("tags.name")}</label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Nhập tên thẻ"
+                placeholder={t("tags.name_placeholder")}
                 className="w-full px-3 py-2 border rounded-md mb-3"
               />
-              <label className="block text-sm font-bold mb-1">Màu</label>
+              <label className="block text-sm font-bold mb-1">{t("tags.color")}</label>
               <input
                 type="color"
                 value={color}
@@ -127,19 +129,18 @@ const TagManagerModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                   disabled={!name.trim()}
                   className="flex items-center gap-2 px-3 py-1 rounded-md bg-primary text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Check size={16} /> Lưu
+                  <Check size={16} /> {t("tags.save")}
                 </button>
                 <button
                   onClick={startCreate}
                   className="px-3 py-1 rounded-md border"
                 >
-                  Mới
+                  {t("tags.new")}
                 </button>
               </div>
 
               <div className="mt-4 text-xs text-on-surface-variant">
-                Lưu ý: Thẻ chỉ được lưu cục bộ trên trình duyệt (local). Bạn có
-                thể nâng cấp để lưu lên server sau.
+                {t("tags.local_note")}
               </div>
             </div>
           </div>

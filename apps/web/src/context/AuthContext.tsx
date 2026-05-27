@@ -16,6 +16,7 @@ interface UserProfile {
   fullName?: string;
   fullname?: string;
   avatarUrl?: string;
+  urlAvatar?: string;
   backgroundUrl?: string;
   gender?: boolean;
   dataOfBirth?: string;
@@ -23,6 +24,7 @@ interface UserProfile {
   address?: string;
   bio?: string;
   status?: string;
+  activeSessions?: number;
   [key: string]: unknown;
 }
 

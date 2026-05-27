@@ -13,7 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import PollMessage from './PollMessage';
 import ReminderMessage from './ReminderMessage';
 
-const DEFAULT_AVATAR = { uri: "https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png" };
+const DEFAULT_AVATAR = { uri: "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true" };
 
 const getDisplayAvatar = (userId: string) => {
   return DEFAULT_AVATAR;
@@ -214,6 +214,39 @@ const HighlightText = ({ text, keyword, style }: { text: string; keyword?: strin
           part
         ),
       )}
+    </Text>
+  );
+};
+
+const MentionText = ({ text, mentions, keyword, style }: { text: string; mentions?: any[]; keyword?: string; style: any }) => {
+  const validMentions = Array.isArray(mentions)
+    ? mentions
+        .map((mention) => ({ ...mention, start: Number(mention.start), end: Number(mention.end) }))
+        .filter((mention) => Number.isFinite(mention.start) && Number.isFinite(mention.end) && mention.start >= 0 && mention.end > mention.start && mention.end <= text.length)
+        .sort((a, b) => a.start - b.start)
+    : [];
+
+  if (!validMentions.length) {
+    return <HighlightText text={text} keyword={keyword} style={style} />;
+  }
+
+  const parts: Array<{ text: string; mention?: boolean }> = [];
+  let cursor = 0;
+  validMentions.forEach((mention) => {
+    if (mention.start < cursor) return;
+    if (mention.start > cursor) parts.push({ text: text.slice(cursor, mention.start) });
+    parts.push({ text: text.slice(mention.start, mention.end), mention: true });
+    cursor = mention.end;
+  });
+  if (cursor < text.length) parts.push({ text: text.slice(cursor) });
+
+  return (
+    <Text style={style}>
+      {parts.map((part, index) => part.mention ? (
+        <Text key={index} style={styles.mentionText}>{part.text}</Text>
+      ) : (
+        <HighlightText key={index} text={part.text} keyword={keyword} style={style} />
+      ))}
     </Text>
   );
 };
@@ -511,8 +544,9 @@ export default function MessageBubble({
       ) : (
         <>
           {message.content && !isMediaOnly ? (
-            <HighlightText
+            <MentionText
               text={message.content}
+              mentions={message.mentions || message.payload?.mentions}
               keyword={highlightKeyword}
               style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}
             />
@@ -984,6 +1018,10 @@ const styles = StyleSheet.create({
   },
   messageTextOther: {
     color: '#1f2937',
+  },
+  mentionText: {
+    color: Colors.primary,
+    fontWeight: '900',
   },
   recalledText: {
     fontStyle: 'italic',

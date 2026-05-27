@@ -68,21 +68,31 @@ const BotChatPage: React.FC = () => {
   useEffect(() => {
     if (!user?.email) return;
 
+    const cachedKey = `bot_conversation_id_${user.email.toLowerCase()}`;
+    const cachedId = localStorage.getItem(cachedKey);
+    if (cachedId) {
+      setBotConvId(cachedId);
+      setActiveConversation(cachedId);
+    }
+
     const init = async () => {
       try {
         const res = await botPost('/conversation', {});
         const convId = res.data?.convId;
         if (!convId) return;
 
-        setBotConvId(convId);
-        setActiveConversation(convId);
+        if (convId !== cachedId) {
+          localStorage.setItem(cachedKey, convId);
+          setBotConvId(convId);
+          setActiveConversation(convId);
+        }
       } catch (err) {
         console.error('Failed to init bot conversation', err);
       }
     };
 
     init();
-  }, [user?.email]);
+  }, [user?.email, setActiveConversation]);
 
   // Socket listeners for bot replies
   useEffect(() => {
@@ -339,7 +349,7 @@ const BotChatPage: React.FC = () => {
           </div>
         </div>
         <div className="flex flex-col">
-          <h2 className="font-extrabold text-on-surface leading-tight text-[16px] tracking-tight">ZaloEdu AI</h2>
+          <h2 className="font-extrabold text-on-surface leading-tight text-[16px] tracking-tight">EnuNest AI</h2>
           <p className="text-[12px] text-on-surface-variant font-bold flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
             {isBotTyping ? 'AI đang soạn tin...' : 'Trợ lý giáo dục AI'}
@@ -393,7 +403,7 @@ const BotChatPage: React.FC = () => {
             <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center">
               <Bot size={40} className="text-primary" />
             </div>
-            <h3 className="font-extrabold text-on-surface text-lg">Chào bạn! Tôi là ZaloEdu AI</h3>
+            <h3 className="font-extrabold text-on-surface text-lg">Chào bạn! Tôi là EnuNest AI</h3>
             <p className="text-on-surface-variant text-sm text-center max-w-xs leading-relaxed">
               Hỏi tôi về thông tin tài khoản, bạn bè, hoặc gửi ảnh/PDF bài học để tôi phân tích!
             </p>
@@ -464,7 +474,7 @@ const BotChatPage: React.FC = () => {
                 <div className="w-1.5 h-1.5 bg-primary/60 rounded-full animate-bounce" />
               </div>
               <span className="text-[12px] font-bold text-on-surface-variant italic">
-                ZaloEdu AI đang soạn tin...
+                EnuNest AI đang soạn tin...
               </span>
             </div>
           </div>
@@ -479,6 +489,7 @@ const BotChatPage: React.FC = () => {
         onSendLocation={handleSendLocation}
         replyTarget={replyTarget}
         onClearReply={() => setReplyTarget(null)}
+        isBot={true}
       />
 
       </div>

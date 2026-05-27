@@ -316,7 +316,7 @@ interface ProfileData {
   const displayName = profile.fullName || 'Người dùng';
   const avatarUrl   = profile.avatarUrl
     ? `${profile.avatarUrl}?v=${profileVersion}`
-    : 'https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png';
+    : 'https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true';
   const parts       = toDateParts(draft.dataOfBirth);
   const dayValue    = draft.dayInput   !== undefined ? draft.dayInput   : parts.day;
   const monthValue  = draft.monthInput !== undefined ? draft.monthInput : parts.month;

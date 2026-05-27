@@ -114,6 +114,20 @@ const getNotificationBody = (reminder: ReminderPayload, dueAt: Date) => {
 const showReminderNotification = async (record: StoredReminderRecord) => {
   const { useChatStore } = await import("../store/chatStore");
   const state = useChatStore.getState();
+  
+  if (state.isConversationMuted(record.convId)) {
+    console.log("[reminder] Skipping notification for muted chat:", record.convId);
+    return;
+  }
+
+  try {
+    const { isConversationMutedNow } = await import("./chatUtils");
+    if (isConversationMutedNow(record.convId)) {
+      console.log("[reminder] Skipping notification for scheduled muted chat:", record.convId);
+      return;
+    }
+  } catch (e) {}
+
   const isActiveChat = state.activeConvId === record.convId;
   const isTabVisible = document.visibilityState === "visible";
 

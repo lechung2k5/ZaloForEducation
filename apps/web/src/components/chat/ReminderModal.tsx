@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, Clock, Calendar } from "lucide-react";
 import Swal from "sweetalert2";
+import { useTheme } from "../../context/ThemeContext";
 
 interface ReminderModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
   onClose,
   onSendReminder,
 }) => {
+  const { t } = useTheme();
   const [content, setContent] = useState("");
   const [time, setTime] = useState("13:00");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
@@ -28,7 +30,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
 
   const handleSubmit = async () => {
     if (!content.trim()) {
-      Swal.fire("Lỗi", "Vui lòng nhập nội dung nhắc hẹn", "error");
+      Swal.fire(t("modal.error"), t("reminder.content_required"), "error");
       return;
     }
 
@@ -37,7 +39,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
     today.setHours(0, 0, 0, 0);
 
     if (reminderDate < today) {
-      Swal.fire("Lỗi", "Vui lòng chọn ngày trong tương lai", "error");
+      Swal.fire(t("modal.error"), t("reminder.future_date_required"), "error");
       return;
     }
 
@@ -67,7 +69,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10 dark:border-outline-variant/20">
           <h2 className="text-[18px] font-extrabold text-on-surface">
-            Tạo nhắc hẹn
+            {t("reminder.create_title")}
           </h2>
           <button
             onClick={onClose}
@@ -82,12 +84,12 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
           {/* Content Input */}
           <div className="space-y-2">
             <label className="text-[13px] font-bold text-on-surface uppercase tracking-wider">
-              Nhập nội dung
+              {t("reminder.content_label")}
             </label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value.slice(0, 200))}
-              placeholder="Nhập nội dung mới hoặc dán link"
+              placeholder={t("reminder.content_placeholder")}
               maxLength={200}
               className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[14px] resize-none"
               rows={3}
@@ -100,7 +102,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
           {/* Time Selection */}
           <div className="space-y-2">
             <label className="text-[13px] font-bold text-on-surface uppercase tracking-wider">
-              Chọn thời gian
+              {t("reminder.time_label")}
             </label>
             <div className="grid grid-cols-3 gap-2">
               <button
@@ -111,7 +113,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
                     : "bg-surface-container-high text-on-surface hover:bg-surface-container-highest"
                 }`}
               >
-                9:00 sáng
+                {t("reminder.morning_time")}
               </button>
               <button
                 onClick={() => setTime("13:00")}
@@ -121,7 +123,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
                     : "bg-surface-container-high text-on-surface hover:bg-surface-container-highest"
                 }`}
               >
-                1:00 chiều
+                {t("reminder.afternoon_time")}
               </button>
               <button
                 onClick={() => setTime("18:00")}
@@ -131,7 +133,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
                     : "bg-surface-container-high text-on-surface hover:bg-surface-container-highest"
                 }`}
               >
-                6:00 tối
+                {t("reminder.evening_time")}
               </button>
             </div>
             <div className="flex items-center gap-2 bg-surface-container-low border border-outline-variant/20 rounded-xl px-3 py-2">
@@ -148,7 +150,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
           {/* Date Selection */}
           <div className="space-y-2">
             <label className="text-[13px] font-bold text-on-surface uppercase tracking-wider">
-              Chọn ngày nhắc hẹn
+              {t("reminder.date_label")}
             </label>
             <div className="flex items-center gap-2 bg-surface-container-low border border-outline-variant/20 rounded-xl px-3 py-2">
               <Calendar size={16} className="text-on-surface-variant" />
@@ -164,17 +166,17 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
           {/* Repeat Type */}
           <div className="space-y-2">
             <label className="text-[13px] font-bold text-on-surface uppercase tracking-wider">
-              Chọn kiểu lập lại
+              {t("reminder.repeat_label")}
             </label>
             <select
               value={repeatType}
               onChange={(e) => setRepeatType(e.target.value as any)}
               className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[13px] text-on-surface cursor-pointer"
             >
-              <option value="none">Không lập lại</option>
-              <option value="daily">Hàng ngày</option>
-              <option value="weekly">Hàng tuần</option>
-              <option value="monthly">Hàng tháng</option>
+              <option value="none">{t("reminder.repeat_none")}</option>
+              <option value="daily">{t("reminder.repeat_daily")}</option>
+              <option value="weekly">{t("reminder.repeat_weekly")}</option>
+              <option value="monthly">{t("reminder.repeat_monthly")}</option>
             </select>
           </div>
         </div>
@@ -186,14 +188,14 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
             disabled={isSubmitting}
             className="flex-1 px-4 py-2.5 bg-surface-container-high text-on-surface rounded-full hover:bg-surface-container-highest font-bold text-[13px] transition-all disabled:opacity-50"
           >
-            Hủy
+            {t("inbox.cancel")}
           </button>
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
             className="flex-1 px-4 py-2.5 bg-primary text-white rounded-full hover:bg-primary/90 font-bold text-[13px] transition-all disabled:opacity-50 active:scale-95"
           >
-            {isSubmitting ? "Đang gửi..." : "Tạo nhắc hẹn"}
+            {isSubmitting ? t("poll.sending") : t("reminder.create_title")}
           </button>
         </div>
       </div>

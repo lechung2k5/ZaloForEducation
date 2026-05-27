@@ -60,6 +60,11 @@ export default StyleSheet.create({
     borderBottomWidth: Platform.OS === "android" ? 1 : 0.5,
     borderBottomColor: "#eceef0",
   },
+  chatItemMentioned: {
+    backgroundColor: "#eef6ff",
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.primary,
+  },
   avatar: {
     width: 54,
     height: 54,
@@ -109,6 +114,22 @@ export default StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 6,
     marginTop: 4,
+  },
+  mentionPill: {
+    backgroundColor: "#d9ecff",
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    marginTop: 4,
+  },
+  mentionPillText: {
+    color: Colors.primary,
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  lastMsgMentioned: {
+    color: Colors.primary,
+    fontWeight: "800",
   },
   chatInfo: { flex: 1 },
   chatHeader: {

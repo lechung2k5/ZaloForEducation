@@ -479,7 +479,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   }, [conversationId, partnerEmail]);
 
   const chatName = chat.alias || profile?.nickname || profile?.fullName || profile?.fullname || partnerEmail || chat.name || "Hội thoại";
-  const chatAvatar = profile?.avatarUrl || profile?.urlAvatar || chat.avatar || (chat.type === 'group' ? 'https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png' : 'https://via.placeholder.com/150');
+  const chatAvatar = profile?.avatarUrl || profile?.urlAvatar || chat.avatar || (chat.type === 'group' ? 'https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true' : 'https://via.placeholder.com/150');
   const isMuted = isConversationMuted(conversationId);
   const wallpaper = WALLPAPERS.find((item) => item.key === wallpaperKey) || WALLPAPERS[0];
   const isPinned = !!chat?.pinned;

@@ -23,7 +23,7 @@ export const ContactRequests: React.FC<ContactRequestsProps> = ({
   onSendSuggestionRequest,
   sendingRequestMap,
 }) => {
-  const DEFAULT_AVATAR = "https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png";
+  const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true";
 
   return (
     <View>

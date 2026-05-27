@@ -255,10 +255,16 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
         };
         const senderName = getProfileName(data.senderId);
         const content = data.content || 'Đã gửi một tin nhắn';
-        
+        const mentions = data.mentions || data.payload?.mentions || [];
+        const normalizedUserEmail = String(user?.email || '').replace(/^USER#/i, '').trim().toLowerCase();
+        const isMentioned = Array.isArray(mentions) && mentions.some((mention: any) => {
+          const email = typeof mention === 'string' ? mention : mention?.email;
+          return String(email || '').replace(/^USER#/i, '').trim().toLowerCase() === normalizedUserEmail;
+        });
+
         Notifications.scheduleNotificationAsync({
           content: {
-            title: `Tin nhắn từ ${senderName}`,
+            title: isMentioned ? `${senderName} đã nhắc đến bạn` : `Tin nhắn từ ${senderName}`,
             body: content,
             sound: true,
             data: { convId },

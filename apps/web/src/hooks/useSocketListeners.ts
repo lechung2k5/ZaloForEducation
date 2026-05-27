@@ -18,6 +18,7 @@ import {
 } from "../utils/reminderNotifications";
 import { pushSecurityAlert } from "../utils/securityAlerts";
 import Swal from "sweetalert2";
+import { translateKey } from "../context/ThemeContext";
 
 type PresenceStatus = "online" | "offline";
 
@@ -55,6 +56,36 @@ type CallEventData = {
   fromProfile?: { email?: string };
   toEmail?: string;
   offer?: any;
+};
+
+const playNotificationChime = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.type = "sine";
+    const now = ctx.currentTime;
+    
+    // Play D5 (587.33Hz) then A5 (880Hz) for a sweet notification chime
+    osc.frequency.setValueAtTime(587.33, now);
+    osc.frequency.setValueAtTime(880, now + 0.08);
+    
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.12, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+    
+    osc.start(now);
+    osc.stop(now + 0.3);
+  } catch (err) {
+    console.warn("Failed to play synthesized sound", err);
+  }
 };
 
 export const useSocketListeners = () => {
@@ -103,10 +134,25 @@ export const useSocketListeners = () => {
     if (!msg?.id || notifiedMessageIdsRef.current.has(msg.id)) return;
     if (!msg.senderId || msg.senderId === user.email) return;
     if (isConversationMutedNow(convId)) return;
+    if (useChatStore.getState().isConversationMuted(convId)) return;
 
     const shouldNotify =
       document.visibilityState !== "visible" || convId !== activeConvId;
     if (!shouldNotify) return;
+
+    // Check notifications setting from mobile_settings
+    try {
+      const raw = localStorage.getItem("mobile_settings");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.notifications === false) {
+          return;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to parse notifications setting", e);
+    }
+
     if (Notification.permission !== "granted") return;
 
     notifiedMessageIdsRef.current.add(msg.id);
@@ -165,6 +211,21 @@ export const useSocketListeners = () => {
         markAsRead(incomingConvId).catch((error) => {
           console.error("Failed to mark conversation as read", error);
         });
+      }
+
+      // Play sound if messageSound is enabled and message not from me
+      const isFromMe = msg.senderId === user?.email;
+      const shouldPlaySound = !isFromMe && (normIncoming !== normActive || document.visibilityState !== "visible");
+      if (shouldPlaySound) {
+        try {
+          const raw = localStorage.getItem("mobile_settings");
+          const parsed = raw ? JSON.parse(raw) : {};
+          if (parsed.messageSound !== false) {
+            playNotificationChime();
+          }
+        } catch (e) {
+          playNotificationChime();
+        }
       }
 
       if (msg.payload?.reminder && msg.status !== "sending") {
@@ -675,7 +736,7 @@ export const useSocketListeners = () => {
       if (data.callId === activeCallId) {
         console.log("[Socket] call:upgrade_declined — Peer declined.");
         setUpgradeRequestPending(false);
-        alert("Đối phương đã từ chối yêu cầu bật Video hoặc không phản hồi.");
+        alert(translateKey("call.video_upgrade_declined"));
       }
     };
 

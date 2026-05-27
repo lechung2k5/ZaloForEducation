@@ -1,5 +1,5 @@
 /**
- * Centralized asset constants for the ZaloEdu Mobile App.
+ * Centralized asset constants for the EnuNest Mobile App.
  * Using this file ensures consistent fallbacks across all components.
  */
 

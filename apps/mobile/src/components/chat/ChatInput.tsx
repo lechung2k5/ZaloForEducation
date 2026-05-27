@@ -27,24 +27,48 @@ import { useChatStore } from '../../store/chatStore';
 import { useContacts } from '../../hooks/queries/useContacts';
 import { friendEmailOf } from '../../utils/contactUtils';
 
+interface MentionDraft {
+  email: string;
+  displayName: string;
+  label: string;
+  start?: number;
+  end?: number;
+}
+
 interface ChatInputProps {
-  onSendMessage: (text: string, attachments: any[]) => Promise<void>;
+  onSendMessage: (text: string, attachments: any[], mentions?: MentionDraft[]) => Promise<void>;
   replyTarget?: any;
   onClearReply?: () => void;
   onTyping?: () => void;
   onOpenPollModal?: () => void;
   onOpenReminderModal?: () => void;
   isBot?: boolean;
+  conversationType?: 'direct' | 'group';
+  members?: string[];
+  userProfiles?: Record<string, any>;
+  currentUserEmail?: string | null;
 }
 
-export default function ChatInput({ 
-  onSendMessage, 
-  replyTarget, 
-  onClearReply, 
-  onTyping, 
-  onOpenPollModal, 
+const normalizeEmail = (email?: string | null) => String(email || '').replace(/^USER#/i, '').trim().toLowerCase();
+
+const getProfileDisplayName = (email: string, profiles?: Record<string, any>) => {
+  const normalized = normalizeEmail(email);
+  const profile = profiles?.[normalized] || profiles?.[email] || {};
+  return profile?.nickname || profile?.fullName || profile?.fullname || normalized;
+};
+
+export default function ChatInput({
+  onSendMessage,
+  replyTarget,
+  onClearReply,
+  onTyping,
+  onOpenPollModal,
   onOpenReminderModal,
-  isBot
+  isBot,
+  conversationType,
+  members = [],
+  userProfiles: providedUserProfiles,
+  currentUserEmail: providedCurrentUserEmail,
 }: ChatInputProps) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
@@ -56,6 +80,11 @@ export default function ChatInput({
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactSearchText, setContactSearchText] = useState("");
   const { conversations, userProfiles, currentUserEmail, loadUserProfile } = useChatStore();
+  const mentionProfiles = providedUserProfiles || userProfiles;
+  const mentionCurrentUserEmail = normalizeEmail(providedCurrentUserEmail || currentUserEmail);
+  const [mentions, setMentions] = useState<MentionDraft[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
   const { data: contactsData } = useContacts();
   const inputRef = useRef<TextInput>(null);
 
@@ -65,8 +94,78 @@ export default function ChatInput({
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingTimer = useRef<any>(null);
 
+  const mentionableMembers = members
+    .map(normalizeEmail)
+    .filter((email, index, arr) => email && email !== mentionCurrentUserEmail && arr.indexOf(email) === index);
+
+  const mentionSuggestions = mentionQuery === null || conversationType !== 'group'
+    ? []
+    : mentionableMembers
+        .map((email) => ({ email, displayName: getProfileDisplayName(email, mentionProfiles) }))
+        .filter((member) => {
+          const query = mentionQuery.trim().toLowerCase();
+          if (!query) return true;
+          return member.displayName.toLowerCase().includes(query) || member.email.toLowerCase().includes(query);
+        })
+        .slice(0, 6);
+
+  const updateMentionQuery = (value: string) => {
+    if (conversationType !== 'group') {
+      setMentionQuery(null);
+      setMentionStart(null);
+      return;
+    }
+
+    const cursor = value.length;
+    const beforeCursor = value.slice(0, cursor);
+    const match = beforeCursor.match(/(^|\s)@([^@\s]*)$/);
+    if (!match) {
+      setMentionQuery(null);
+      setMentionStart(null);
+      return;
+    }
+
+    const start = cursor - match[2].length - 1;
+    setMentionQuery(match[2]);
+    setMentionStart(start);
+  };
+
+  const buildMentionsForText = (value: string) => {
+    const usedRanges: Array<{ start: number; end: number }> = [];
+    return mentions.reduce<MentionDraft[]>((acc, mention) => {
+      const searchFrom = usedRanges.length ? usedRanges[usedRanges.length - 1].end : 0;
+      const start = value.indexOf(mention.label, searchFrom);
+      if (start === -1) return acc;
+      const end = start + mention.label.length;
+      usedRanges.push({ start, end });
+      acc.push({
+        email: mention.email,
+        displayName: mention.displayName,
+        label: mention.label,
+        start,
+        end,
+      });
+      return acc;
+    }, []);
+  };
+
+  const handleSelectMention = (member: { email: string; displayName: string }) => {
+    if (mentionStart === null) return;
+    const label = `@${member.displayName}`;
+    const before = text.slice(0, mentionStart);
+    const after = text.slice((mentionStart + (mentionQuery?.length || 0) + 1));
+    const nextText = `${before}${label} ${after}`;
+    setText(nextText);
+    setMentions((prev) => [...prev.filter((m) => m.email !== member.email), { email: member.email, displayName: member.displayName, label }]);
+    setMentionQuery(null);
+    setMentionStart(null);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   const handleTextChange = (t: string) => {
     setText(t);
+    updateMentionQuery(t);
+    setMentions((prev) => prev.filter((mention) => t.includes(mention.label)));
     if (onTyping) onTyping();
   };
 
@@ -74,6 +173,7 @@ export default function ChatInput({
     if (!text.trim() && attachments.length === 0) return;
     const currentText = text;
     const currentAttachments = [...attachments];
+    const currentMentions = buildMentionsForText(currentText);
 
     // Clear input immediately for better UX
     setText('');
@@ -81,12 +181,15 @@ export default function ChatInput({
     setSendImageAsHD(false);
     setShowStickers(false);
     setShowExtraTools(false);
+    setMentions([]);
+    setMentionQuery(null);
+    setMentionStart(null);
     if (onTyping) onTyping();
     if (onClearReply) onClearReply();
 
     setIsUploading(true);
     try {
-      await onSendMessage(currentText, currentAttachments);
+      await onSendMessage(currentText, currentAttachments, currentMentions);
     } catch (err) {
       console.error("Failed to send message", err);
       Alert.alert("Lỗi", "Không thể gửi tin nhắn.");
@@ -535,7 +638,7 @@ export default function ChatInput({
                     onPress={() => handleContactSend(f)}
                   >
                     <Image
-                      source={{ uri: f.avatarUrl || f.urlAvatar || 'https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png' }}
+                      source={{ uri: f.avatarUrl || f.urlAvatar || 'https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true' }}
                       style={styles.contactAvatar}
                     />
                     <View style={{ flex: 1 }}>
@@ -552,6 +655,23 @@ export default function ChatInput({
           </View>
         </Pressable>
       </Modal>
+
+      {mentionSuggestions.length > 0 && (
+        <View style={styles.mentionSuggestions}>
+          {mentionSuggestions.map((member) => (
+            <TouchableOpacity key={member.email} style={styles.mentionSuggestionItem} onPress={() => handleSelectMention(member)}>
+              <View style={styles.mentionAvatar}>
+                <Text style={styles.mentionAvatarText}>{member.displayName.charAt(0).toUpperCase()}</Text>
+              </View>
+              <View style={styles.mentionInfo}>
+                <Text style={styles.mentionName} numberOfLines={1}>{member.displayName}</Text>
+                <Text style={styles.mentionEmail} numberOfLines={1}>{member.email}</Text>
+              </View>
+              <Text style={styles.mentionAt}>@</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Main Input Row */}
       <View style={styles.inputRow}>
@@ -620,6 +740,60 @@ export default function ChatInput({
 }
 
 const styles = StyleSheet.create({
+  mentionSuggestions: {
+    marginBottom: 8,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: 'rgba(0,104,255,0.16)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  mentionSuggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#eef2f7',
+  },
+  mentionAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0,104,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  mentionAvatarText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: Colors.primary,
+  },
+  mentionInfo: {
+    flex: 1,
+  },
+  mentionName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1f2631',
+  },
+  mentionEmail: {
+    fontSize: 11,
+    color: '#7b8794',
+    marginTop: 2,
+  },
+  mentionAt: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: Colors.primary,
+    marginLeft: 10,
+  },
   container: {
     backgroundColor: '#fff',
     borderTopWidth: 1,

@@ -21,7 +21,7 @@ export class EmailService {
     try {
       console.log(`Attempting to send email to ${to}...`);
       const info = await this.transporter.sendMail({
-        from: `"ZaloEdu System" <${process.env.SMTP_USER}>`,
+        from: `"EnuNest System" <${process.env.SMTP_USER}>`,
         to,
         subject,
         html,
@@ -39,22 +39,22 @@ export class EmailService {
     let title = '';
 
     if (type === 'register') {
-      subject = 'Mã xác thực đăng ký ZaloEdu';
+      subject = 'Mã xác thực đăng ký EnuNest';
       title = 'Xác thực đăng ký';
     } else if (type === 'forgot_password') {
-      subject = 'Mã đặt lại mật khẩu ZaloEdu';
+      subject = 'Mã đặt lại mật khẩu EnuNest';
       title = 'Đặt lại mật khẩu';
     } else if (type === 'change_password') {
-      subject = 'Mã xác thực đổi mật khẩu ZaloEdu';
+      subject = 'Mã xác thực đổi mật khẩu EnuNest';
       title = 'Đổi mật khẩu';
     } else {
-      subject = 'Cảnh báo đăng nhập ZaloEdu';
+      subject = 'Cảnh báo đăng nhập EnuNest';
       title = 'Xác thực đăng nhập';
     }
     
     const html = `
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
-        <h2 style="color: #135bec; text-align: center;">ZaloEdu</h2>
+        <h2 style="color: #135bec; text-align: center;">EnuNest</h2>
         <p>Chào bạn, đây là mã OTP của bạn để <strong>${title}</strong>:</p>
         <div style="background: #f4f7ff; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #135bec; border-radius: 8px;">
           ${code}

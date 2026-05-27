@@ -34,6 +34,7 @@ import { BOT_EMAIL } from "../../constants/bot";
 const TAB_ALIAS: Record<string, string> = {
   messages: "chat",
   chat: "chat",
+  contacts: "contacts",
   ai: "ai",
   notifications: "notifications",
   profile: "profile",
@@ -41,7 +42,7 @@ const TAB_ALIAS: Record<string, string> = {
 
 const normalizeHomeTab = (tab: string) => TAB_ALIAS[String(tab || "").trim().toLowerCase()] || "chat";
 
-const DEFAULT_AVATAR = { uri: "https://fptupload.s3.ap-southeast-1.amazonaws.com/Zalo_Edu_Logo_2e176b6b7f.png" };
+const DEFAULT_AVATAR = { uri: "https://ui-avatars.com/api/?name=EnuNest&background=0052AA&color=fff&bold=true" };
 
 export default function HomeScreen({
   navigation,

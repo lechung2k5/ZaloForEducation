@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useAuth } from "../../context/AuthContext";
 import { useCallStore } from "../../store/callStore";
 import { useChatStore } from "../../store/chatStore";
@@ -171,6 +172,89 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   const { startCall, joinGroupCall } = useCallActions();
   const [isReactionDockOpen, setIsReactionDockOpen] = useState(false);
   const reactionDockRef = useRef<HTMLDivElement | null>(null);
+
+  // Load autoDownload settings once
+  const [autoDownload, setAutoDownload] = useState(true);
+  const [revealedMedia, setRevealedMedia] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("mobile_settings");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.autoDownloadMedia === false) {
+          setAutoDownload(false);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to parse settings in MessageBubble", e);
+    }
+  }, []);
+
+  const renderTextWithMentions = (
+    text: string,
+    mentions?: Array<{ email: string; displayName?: string; start?: number; end?: number }>,
+  ) => {
+    if (!mentions || mentions.length === 0) return text;
+
+    const nameMap = new Map<string, string>();
+    mentions.forEach((m) => {
+      const name = m.displayName || getDisplayName(m.email, user, userProfiles);
+      if (name) {
+        nameMap.set(name, m.email);
+      }
+    });
+
+    const sortedNames = Array.from(nameMap.keys()).sort((a, b) => b.length - a.length);
+    if (sortedNames.length === 0) return text;
+
+    const escapedNames = sortedNames.map((name) =>
+      name.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&"),
+    );
+    const regex = new RegExp(`@(${escapedNames.join("|")})(?=$|[\\s.,!?;:])`, "g");
+
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      const matchIndex = match.index;
+      const matchedName = match[1];
+      const email = nameMap.get(matchedName);
+
+      if (matchIndex > lastIndex) {
+        parts.push(text.substring(lastIndex, matchIndex));
+      }
+
+      const isAllMention = email === "all";
+      const isMe = isAllMention || email === user?.email;
+      parts.push(
+        <span
+          key={`mention-${matchIndex}`}
+          onClick={() => {
+            if (email && email !== "all") {
+              navigate(`/profile?email=${encodeURIComponent(email)}`);
+            }
+          }}
+          className={`font-extrabold rounded-md px-1 cursor-pointer transition-all hover:underline inline-block ${
+            isMe
+              ? "bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 ring-1 ring-amber-300/30"
+              : "text-primary hover:text-primary-dark"
+          }`}
+        >
+          @{matchedName}
+        </span>,
+      );
+
+      lastIndex = regex.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+
+    return parts.length > 0 ? parts : text;
+  };
 
   // Use state to track conversation/message changes and reset reaction dock
   // This is a safe way to handle state resets based on prop changes
@@ -471,8 +555,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           }
         `}
       </style>
-      <div
+      <motion.div
         id={`msg-${message.id}`}
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
         className={`flex items-end gap-3 group relative mb-4 transition-all duration-500 ${isMe ? "flex-row-reverse" : "flex-row"} ${isHighlighted ? "scale-[1.02] z-10" : ""}`}
       >
         <div className="shrink-0 mb-1">
@@ -542,6 +629,35 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 />
               </button>
 
+              <div className="relative" ref={reactionDockRef}>
+                <button
+                  onClick={() => setIsReactionDockOpen(!isReactionDockOpen)}
+                  className="w-8 h-8 flex items-center justify-center bg-white dark:bg-surface-container border border-outline-variant/30 dark:border-outline-variant/40 rounded-full shadow-lg hover:bg-surface-container active:scale-90 transition-all text-on-surface-variant group/btn"
+                  title="Thả cảm xúc"
+                >
+                  <ThumbsUp
+                    size={18}
+                    className={`group-hover/btn:text-primary transition-colors ${isReactionDockOpen ? "text-primary" : ""}`}
+                  />
+                </button>
+                {isReactionDockOpen && (
+                  <div className={`absolute top-full mt-2 flex items-center gap-1.5 p-1.5 bg-white dark:bg-surface-container border border-outline-variant/20 shadow-xl rounded-full z-[100] animate-in zoom-in-95 duration-200 ${isMe ? "right-0" : "left-0"}`}>
+                    {["👍", "❤️", "😄", "😮", "😭", "😡"].map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => {
+                          handleReact(emoji, "add");
+                          setIsReactionDockOpen(false);
+                        }}
+                        className="w-8 h-8 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-transform hover:scale-110 active:scale-90"
+                      >
+                        <FluentEmoji emoji={emoji} className="w-6 h-6" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={() => onForward?.(message)}
                 className="w-8 h-8 flex items-center justify-center bg-white dark:bg-surface-container border border-outline-variant/30 dark:border-outline-variant/40 rounded-full shadow-lg hover:bg-surface-container active:scale-90 transition-all text-on-surface-variant group/btn"
@@ -610,7 +726,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                       if (textBefore) {
                         parts.push(
                           <p key={`text-${lastIndex}`} className="text-[15px] leading-[1.6] whitespace-pre-wrap font-medium text-on-surface">
-                            {textBefore}
+                            {renderTextWithMentions(textBefore, message.mentions)}
                           </p>
                         );
                       }
@@ -670,17 +786,38 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                   if (lastIndex < message.content.length) {
                     parts.push(
                       <p key={`text-${lastIndex}`} className="text-[15px] leading-[1.6] whitespace-pre-wrap font-medium text-on-surface">
-                        {message.content.substring(lastIndex)}
+                        {renderTextWithMentions(message.content.substring(lastIndex), message.mentions)}
                       </p>
                     );
                   }
 
                   return parts.length > 0 ? parts : (
                     <p className="text-[15px] leading-[1.6] whitespace-pre-wrap font-medium text-on-surface">
-                      {message.content}
+                      {renderTextWithMentions(message.content, message.mentions)}
                     </p>
                   );
                 })()}
+              </div>
+            )}
+
+            {hasReactions && (
+              <div className={`absolute -bottom-3 ${isMe ? "right-2" : "left-2"} flex items-center gap-1 bg-white dark:bg-surface-container shadow-sm border border-outline-variant/20 rounded-full px-1.5 py-0.5 z-[20]`}>
+                {Object.entries(message.reactions || {}).map(([emoji, users]: [string, any]) => {
+                  const userCount = Array.isArray(users) ? users.length : 0;
+                  if (userCount === 0) return null;
+                  const hasMyReact = Array.isArray(users) && users.includes(user?.email);
+                  
+                  return (
+                    <button
+                      key={emoji}
+                      onClick={() => handleReact(emoji, hasMyReact ? "remove" : "add")}
+                      className={`flex items-center gap-1 px-1 py-0.5 rounded-full text-[11px] font-bold transition-all ${hasMyReact ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-black/5 dark:hover:bg-white/5 text-on-surface-variant"}`}
+                    >
+                      <FluentEmoji emoji={emoji} className="w-3.5 h-3.5" />
+                      {userCount > 1 && <span className="ml-0.5">{userCount}</span>}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -839,6 +976,37 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                           ? "max-w-full max-h-[300px] object-contain rounded-2xl"
                           : "w-full aspect-square object-cover rounded-[10px]"
                       } border border-outline-variant/10 shadow-sm transition-opacity backdrop-blur-sm bg-surface-container`;
+
+                      // Data saver blur container
+                      const isBlur = !autoDownload && !isSticker && !revealedMedia[i];
+                      if (isBlur) {
+                        return (
+                          <div 
+                            key={i} 
+                            onClick={() => setRevealedMedia(prev => ({ ...prev, [i]: true }))}
+                            className={`${
+                              message.media.length === 1
+                                ? "w-[260px] h-[180px]"
+                                : "w-full aspect-square"
+                            } relative rounded-2xl border border-outline-variant/20 overflow-hidden cursor-pointer flex flex-col items-center justify-center bg-surface-container-highest/20 dark:bg-surface-container-highest/10 backdrop-blur-md shadow-sm group/blur hover:bg-surface-container-highest/30 transition-all select-none`}
+                          >
+                            <div className="absolute inset-0 bg-primary/5 filter blur-lg opacity-40 group-hover/blur:scale-110 transition-transform duration-500"></div>
+                            <div className="relative flex flex-col items-center gap-2 p-3 text-center">
+                              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover/blur:scale-105 transition-transform duration-300">
+                                <span className="material-symbols-outlined text-[20px]">
+                                  {isVideo ? "play_circle" : "download_for_offline"}
+                                </span>
+                              </div>
+                              <span className="text-[11px] font-extrabold text-on-surface leading-tight">
+                                {isVideo ? "Tải video" : "Tải hình ảnh"}
+                              </span>
+                              <span className="text-[9px] font-bold text-on-surface-variant/70 uppercase tracking-wider block">
+                                Tiết kiệm dữ liệu
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
 
                       if (isVideo) {
                         return (
@@ -1127,11 +1295,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               )}
             </div>
           )}
+          </div>
         </div>
-      </div>
+      </motion.div>
     </div>
-  </div>
-);
+  );
 };
 
 export default MessageBubble;

@@ -1,4 +1,4 @@
-# 🚀 ZaloEdu - Nền tảng Giáo dục Trực tuyến (Monorepo)
+# 🚀 EnuNest - Nền tảng Giáo dục Trực tuyến (Monorepo)
 
 Dự án này là hệ thống học tập và liên lạc trực tuyến đa nền tảng, được chia thành phần **Web App**, **Mobile App**, và **Backend** chạy trên cùng một Repository sử dụng kiến trúc Monorepo (NPM Workspaces). Hệ thống đã được tích hợp đầy đủ môi trường Cloud AWS và được thiết kế Single-Table DynamoDB.
 
@@ -40,7 +40,7 @@ PORT=3000
 AWS_REGION=ap-southeast-1
 AWS_ACCESS_KEY_ID=***** (Điền key thực)
 AWS_SECRET_ACCESS_KEY=***** (Điền key thực)
-DYNAMODB_TABLE_NAME=ZaloEdu-Table
+DYNAMODB_TABLE_NAME=EnuNest-Table
 REDIS_HOST=*** (Điền host Redis)
 REDIS_PORT=*** 
 REDIS_PASSWORD=***
@@ -64,7 +64,7 @@ EXPO_PUBLIC_API_URL=http://<IP_MANG_CUA_BAN>:3000
 Dự án sử dụng mô hình **Single-Table Design** (không tách từng bảng rời rạc như SQL). Mọi dữ liệu (Users, Sessions, Messages, v.v.) đều nằm chung một bảng duy nhất để tối ưu hiệu năng Query và tiết kiệm chi phí trên Cloud.
 
 Các thành viên khi setup hạ tầng trên AWS Console cần tạo đúng một bảng duy nhất với cấu hình cốt lõi sau:
-- **Table name**: `ZaloEdu-Table` (tương ứng với biến `DYNAMODB_TABLE_NAME` trong `.env`)
+- **Table name**: `EnuNest-Table` (tương ứng với biến `DYNAMODB_TABLE_NAME` trong `.env`)
 - **Partition key**: Nhập tên là `PK` (Chọn kiểu dữ liệu `String`)
 - **Sort key**: Nhập tên là `SK` (Chọn kiểu dữ liệu `String`)
 - **Capacity mode**: Đề xuất chọn `On-demand` trong giai đoạn phát triển.

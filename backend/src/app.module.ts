@@ -23,13 +23,8 @@ import { AiModule } from './infrastructure/ai/ai.module';
     ChatModule,
     OtpModule,
     CallModule,
-    InfrastructureModule,
     AiModule,
-    AuthModule,
-    UserModule,
-    ChatModule,
-    BotModule,
-    OtpModule
+    BotModule
   ],
   controllers: [],
   providers: [],

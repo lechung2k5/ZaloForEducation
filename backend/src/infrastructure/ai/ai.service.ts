@@ -55,7 +55,7 @@ export class AiService {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': 'https://zaloedu.app',
-          'X-Title': 'ZaloEdu Bot',
+          'X-Title': 'EnuNest Bot',
         },
         body: JSON.stringify({
           model: this.model,

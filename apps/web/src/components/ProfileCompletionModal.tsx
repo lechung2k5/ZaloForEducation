@@ -8,6 +8,7 @@ import {
   EyeOff, 
   Loader2
 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 interface ProfileCompletionModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface ProfileCompletionModalProps {
 }
 
 const ProfileCompletionModal: React.FC<ProfileCompletionModalProps> = ({ isOpen, onClose, email }) => {
+  const { t } = useTheme();
   const { completeGoogleProfile, requestGoogleCompletionOtp, pendingGoogleUser } = useAuth();
   
   const [formData, setFormData] = useState({
@@ -47,7 +49,7 @@ const ProfileCompletionModal: React.FC<ProfileCompletionModalProps> = ({ isOpen,
 
   const handleSendOtp = async () => {
     if (!validatePhone(formData.phone)) {
-      Swal.fire('Lỗi', 'Số điện thoại không hợp lệ (Bắt đầu bằng 0, đủ 10 số).', 'error');
+      Swal.fire(t('modal.error'), t('profile_completion.invalid_phone'), 'error');
       return;
     }
 
@@ -58,8 +60,8 @@ const ProfileCompletionModal: React.FC<ProfileCompletionModalProps> = ({ isOpen,
       startCountdown();
       Swal.fire({
         icon: 'success',
-        title: 'Đã gửi mã',
-        text: 'Vui lòng kiểm tra Gmail của bạn để lấy mã xác thực.',
+        title: t('profile_completion.otp_sent_title'),
+        text: t('profile_completion.otp_sent_text'),
         timer: 3000,
         showConfirmButton: false
       });
@@ -68,7 +70,7 @@ const ProfileCompletionModal: React.FC<ProfileCompletionModalProps> = ({ isOpen,
       if (error.response?.status === 429 && error.response?.data?.retryAfter) {
         syncWithServer(error.response.data.retryAfter);
       }
-      Swal.fire('Lỗi', error.response?.data?.message || 'Không thể gửi OTP.', 'error');
+      Swal.fire(t('modal.error'), error.response?.data?.message || t('profile_completion.otp_send_error'), 'error');
     } finally {
       setLoading(false);
     }
@@ -78,12 +80,12 @@ const ProfileCompletionModal: React.FC<ProfileCompletionModalProps> = ({ isOpen,
     const dob = `${dobParts.day}-${dobParts.month}-${dobParts.year}`;
     
     if (!formData.password || !formData.fullName || !formData.otp || !validatePhone(formData.phone)) {
-      Swal.fire('Thông báo', 'Vui lòng điền đầy đủ và chính xác thông tin bắt buộc.', 'warning');
+      Swal.fire(t('profile.notice'), t('profile_completion.required_info'), 'warning');
       return;
     }
 
     if (!dobParts.day || !dobParts.month || !dobParts.year) {
-      Swal.fire('Thông báo', 'Vui lòng nhập ngày sinh hợp lệ.', 'warning');
+      Swal.fire(t('profile.notice'), t('profile_completion.invalid_birthdate'), 'warning');
       return;
     }
 
@@ -96,8 +98,8 @@ const ProfileCompletionModal: React.FC<ProfileCompletionModalProps> = ({ isOpen,
       });
       Swal.fire({
         icon: 'success',
-        title: 'Chào mừng!',
-        text: 'Tài khoản của bạn đã được khởi tạo thành công.',
+        title: t('profile_completion.welcome_title'),
+        text: t('profile_completion.complete_success'),
         timer: 2000,
         showConfirmButton: false
       }).then(() => {
@@ -105,7 +107,7 @@ const ProfileCompletionModal: React.FC<ProfileCompletionModalProps> = ({ isOpen,
       });
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      Swal.fire('Lỗi', error.response?.data?.message || 'Hoàn thiện hồ sơ thất bại.', 'error');
+      Swal.fire(t('modal.error'), error.response?.data?.message || t('profile_completion.complete_error'), 'error');
     } finally {
       setLoading(false);
     }
@@ -119,7 +121,7 @@ const ProfileCompletionModal: React.FC<ProfileCompletionModalProps> = ({ isOpen,
         
         <div className="bg-primary p-8 text-white relative">
           <h2 className="text-3xl font-black tracking-tight">Hoàn thiện hồ sơ</h2>
-          <p className="text-white/80 font-medium mt-2">Chỉ còn một bước nữa để bắt đầu với ZaloEdu</p>
+          <p className="text-white/80 font-medium mt-2">Chỉ còn một bước nữa để bắt đầu với EnuNest</p>
           <div className="absolute top-0 right-0 p-8 opacity-10">
             <ShieldCheck size={64} strokeWidth={1} />
           </div>
@@ -155,7 +157,7 @@ const ProfileCompletionModal: React.FC<ProfileCompletionModalProps> = ({ isOpen,
                 className="w-full bg-surface-container rounded-2xl border-2 border-transparent focus:border-primary/20 focus:bg-white px-4 py-3 outline-none transition-all font-bold text-on-surface pr-12"
                 value={formData.password}
                 onChange={e => setFormData({...formData, password: e.target.value})}
-                placeholder="Đặt mật khẩu riêng cho ZaloEdu"
+                placeholder="Đặt mật khẩu riêng cho EnuNest"
               />
               <button 
                 type="button"

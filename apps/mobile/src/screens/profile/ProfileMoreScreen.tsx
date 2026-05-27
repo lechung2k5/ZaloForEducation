@@ -18,7 +18,7 @@ const INFORMATION_ITEMS = [
   'Change your avatar',
   'Change your cover',
   'Update Bio',
-  'My ZaloPay',
+  'Ví EnuNest',
 ];
 
 const SETTINGS_ITEMS = [

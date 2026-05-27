@@ -8,12 +8,16 @@ import React, {
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import api from "../../services/api";
 import type {
   Conversation,
   FriendSuggestion,
   Friendship,
 } from "@zalo-edu/shared";
+import ConfirmDialog from "../../components/contacts/ConfirmDialog";
+import PromptDialog from "../../components/contacts/PromptDialog";
+import UserProfileModal from "../../components/contacts/UserProfileModal";
 
 type ContactsFilter = "all" | "with-nickname" | "without-nickname" | "blocked";
 type SidebarSection = "friends" | "groups" | "requests" | "invitations";
@@ -60,18 +64,43 @@ const escapeHtml = (value: string) =>
 
 const ContactsPage: React.FC = () => {
   const { user } = useAuth();
+  const { t } = useTheme();
   const navigate = useNavigate();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const profileLoadingRef = useRef<Set<string>>(new Set());
 
   const [sidebarSection, setSidebarSection] =
     useState<SidebarSection>("friends");
-  const [friendships, setFriendships] = useState<Friendship[]>([]);
+  const [friendships, setFriendships] = useState<Friendship[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("contact_friendships") || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [requests, setRequests] = useState<
     Array<Friendship & { senderProfile?: ChatUserProfile }>
-  >([]);
-  const [suggestions, setSuggestions] = useState<FriendSuggestion[]>([]);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  >(() => {
+    try {
+      return JSON.parse(localStorage.getItem("contact_requests") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [suggestions, setSuggestions] = useState<FriendSuggestion[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("contact_suggestions") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [conversations, setConversations] = useState<Conversation[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("contact_conversations") || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [userProfiles, setUserProfiles] = useState<
     Record<string, ChatUserProfile>
   >({});
@@ -80,10 +109,10 @@ const ContactsPage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [filter, setFilter] = useState<ContactsFilter>("all");
   const FILTER_LABELS: Record<ContactsFilter, string> = {
-    all: "Tất cả",
-    "with-nickname": "Có biệt danh",
-    "without-nickname": "Không có biệt danh",
-    blocked: "Đã chặn",
+    all: t("contacts.filter_all"),
+    "with-nickname": t("contacts.filter_nickname"),
+    "without-nickname": t("contacts.filter_no_nickname"),
+    blocked: t("contacts.filter_blocked"),
   };
   const [hiddenSuggestionEmails, setHiddenSuggestionEmails] = useState<
     string[]
@@ -116,6 +145,17 @@ const ContactsPage: React.FC = () => {
     x: number;
     y: number;
   } | null>(null);
+
+  // --- NEW MODAL STATES ---
+  const [profileModal, setProfileModal] = useState<{ isOpen: boolean; email?: string } | null>(null);
+  const [nicknameModal, setNicknameModal] = useState<{ isOpen: boolean; email?: string; current?: string } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    type: "block" | "unblock" | "unfriend";
+    email?: string;
+  } | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  // ------------------------
 
   const myEmail = user?.email || "";
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
@@ -186,10 +226,24 @@ const ContactsPage: React.FC = () => {
         ? conversationRes.data
         : [];
 
-      setFriendships(nextFriendships);
-      setRequests(nextRequests);
-      setSuggestions(nextSuggestions);
-      setConversations(nextConversations);
+      const serialize = (val: any) => JSON.stringify(val);
+
+      if (serialize(friendships) !== serialize(nextFriendships)) {
+        localStorage.setItem("contact_friendships", serialize(nextFriendships));
+        setFriendships(nextFriendships);
+      }
+      if (serialize(requests) !== serialize(nextRequests)) {
+        localStorage.setItem("contact_requests", serialize(nextRequests));
+        setRequests(nextRequests);
+      }
+      if (serialize(suggestions) !== serialize(nextSuggestions)) {
+        localStorage.setItem("contact_suggestions", serialize(nextSuggestions));
+        setSuggestions(nextSuggestions);
+      }
+      if (serialize(conversations) !== serialize(nextConversations)) {
+        localStorage.setItem("contact_conversations", serialize(nextConversations));
+        setConversations(nextConversations);
+      }
 
       nextFriendships
         .filter((item: Friendship) => item.status === "accepted")
@@ -204,10 +258,7 @@ const ContactsPage: React.FC = () => {
       });
     } catch (error) {
       console.error("Failed to load contacts", error);
-      setFriendships([]);
-      setRequests([]);
-      setSuggestions([]);
-      setConversations([]);
+      // Preserve current cached state on network failure rather than clearing it out
     } finally {
       setLoading(false);
     }
@@ -473,103 +524,68 @@ const ContactsPage: React.FC = () => {
   };
 
   const handleViewProfile = async (email: string) => {
-    try {
-      const res = await chatGet("/friends/search", { email });
-      const profile = res.data?.user;
-
-      await Swal.fire({
-        title: profile?.fullName || profile?.fullname || "Hồ sơ người dùng",
-        html: `
-          <div style="text-align:left; display:grid; gap:8px;">
-            <img src="${profile?.avatarUrl || "/logo_blue.png"}" alt="${escapeHtml(email)}" style="width:96px;height:96px;border-radius:9999px;object-fit:cover;margin:0 auto 8px;" />
-            <div><strong>Email:</strong> ${escapeHtml(email)}</div>
-            <div><strong>Tiểu sử:</strong> ${escapeHtml(String(profile?.bio || "Chưa cập nhật"))}</div>
-          </div>
-        `,
-        confirmButtonText: "Đóng",
-      });
-    } catch (error) {
-      console.error("Failed to view profile", error);
+    setActionMenu(null);
+    setProfileModal({ isOpen: true, email });
+    const normalized = String(email).trim().toLowerCase();
+    if (!userProfiles[normalized]) {
+      await loadUserProfile(email);
     }
   };
 
-  const handleSetNickname = async (email: string, currentNickname?: string) => {
-    const result = await Swal.fire({
-      title: "Đặt biệt danh",
-      input: "text",
-      inputValue: currentNickname || "",
-      inputPlaceholder: "Nhập biệt danh mới",
-      showCancelButton: true,
-      confirmButtonText: "Lưu",
-    });
+  const handleSetNickname = (email: string, currentNickname?: string) => {
+    setActionMenu(null);
+    setNicknameModal({ isOpen: true, email, current: currentNickname });
+  };
 
-    if (!result.isConfirmed) return;
-
+  const handleSaveNickname = async (newNickname: string) => {
+    if (!nicknameModal?.email) return;
+    setActionLoading(true);
     try {
       await chatPatch("/friends/nickname", {
-        friendEmail: email,
-        nickname: String(result.value || "").trim(),
+        friendEmail: nicknameModal.email,
+        nickname: newNickname.trim(),
       });
       await refreshContacts();
+      setNicknameModal(null);
     } catch (error) {
       console.error("Failed to set nickname", error);
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  const handleBlockUser = async (email: string) => {
-    const result = await Swal.fire({
-      title: "Chặn người dùng?",
-      text: "Người này sẽ không thể kết bạn hoặc nhắn tin với bạn.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Chặn",
-    });
-
-    if (!result.isConfirmed) return;
-
-    try {
-      await chatPost("/friends/block", { targetEmail: email });
-      await refreshContacts();
-    } catch (error) {
-      console.error("Failed to block user", error);
-    }
+  const handleBlockUser = (email: string) => {
+    setActionMenu(null);
+    setConfirmModal({ isOpen: true, type: "block", email });
   };
 
-  const handleUnblockUser = async (email: string) => {
-    const result = await Swal.fire({
-      title: "Bỏ chặn người dùng?",
-      text: "Người này sẽ có thể nhắn tin lại với bạn.",
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Bỏ chặn",
-    });
-
-    if (!result.isConfirmed) return;
-
-    try {
-      await chatPost("/friends/unblock", { targetEmail: email });
-      await refreshContacts();
-    } catch (error) {
-      console.error("Failed to unblock user", error);
-    }
+  const handleUnblockUser = (email: string) => {
+    setActionMenu(null);
+    setConfirmModal({ isOpen: true, type: "unblock", email });
   };
 
-  const handleUnfriend = async (email: string) => {
-    const result = await Swal.fire({
-      title: "Xóa bạn bè?",
-      text: "Quan hệ bạn bè sẽ bị xóa ở cả hai phía.",
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Xóa",
-    });
+  const handleUnfriend = (email: string) => {
+    setActionMenu(null);
+    setConfirmModal({ isOpen: true, type: "unfriend", email });
+  };
 
-    if (!result.isConfirmed) return;
-
+  const handleConfirmAction = async () => {
+    if (!confirmModal?.email) return;
+    setActionLoading(true);
     try {
-      await chatPost("/friends/unfriend", { friendEmail: email });
+      if (confirmModal.type === "block") {
+        await chatPost("/friends/block", { targetEmail: confirmModal.email });
+      } else if (confirmModal.type === "unblock") {
+        await chatPost("/friends/unblock", { targetEmail: confirmModal.email });
+      } else if (confirmModal.type === "unfriend") {
+        await chatPost("/friends/unfriend", { friendEmail: confirmModal.email });
+      }
       await refreshContacts();
+      setConfirmModal(null);
     } catch (error) {
-      console.error("Failed to unfriend user", error);
+      console.error(`Failed to ${confirmModal.type} user`, error);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -610,13 +626,18 @@ const ContactsPage: React.FC = () => {
   const activeFriendCount = acceptedContacts.length;
   const activeGroupCount = groupConversations.length;
 
-  const handleSkipSuggestion = (email: string) => {
+  const handleSkipSuggestion = async (email: string) => {
     setHiddenSuggestionEmails((prev) =>
       prev.includes(email) ? prev : [...prev, email],
     );
     setSuggestions((prev) =>
       prev.filter((suggestion) => suggestion.email !== email),
     );
+    try {
+      await chatPost("/friends/suggestions/dismiss", { targetEmail: email });
+    } catch (error) {
+      console.error("Failed to dismiss suggestion", error);
+    }
   };
 
   const handleOpenFriendChat = (email: string) => {
@@ -735,7 +756,7 @@ const ContactsPage: React.FC = () => {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Tìm bạn bè"
+                placeholder={t("contacts.search_placeholder")}
                 className="w-full bg-transparent text-[13px] outline-none placeholder:text-outline"
               />
             </div>
@@ -753,21 +774,21 @@ const ContactsPage: React.FC = () => {
 
         <div className="p-4 space-y-3">
           <div className="space-y-2">
-            {renderSidebarItem("Danh bạ", "friends", "group")}
+            {renderSidebarItem(t("contacts.title"), "friends", "group")}
             {renderSidebarItem(
-              "Nhóm đã tham gia",
+              t("contacts.groups"),
               "groups",
               "groups",
               activeGroupCount,
             )}
             {renderSidebarItem(
-              "Lời mời kết bạn",
+              t("contacts.requests"),
               "requests",
               "person_add",
               activeRequestCount,
             )}
             {renderSidebarItem(
-              "Lời mời nhóm/cộng đồng",
+              t("contacts.invitations"),
               "invitations",
               "mail",
               0,
@@ -781,14 +802,14 @@ const ContactsPage: React.FC = () => {
           <header className="flex h-16 items-center justify-between border-b border-outline-variant/20 bg-white px-6">
             <div className="flex items-center gap-3 text-on-surface">
               <span className="material-symbols-outlined">group</span>
-              <h1 className="text-[18px] font-bold">Danh bạ</h1>
+              <h1 className="text-[18px] font-bold">{t("contacts.title")}</h1>
             </div>
             <div className="flex items-center gap-2 text-[12px] text-on-surface-variant">
               <span className="rounded-full bg-surface-container-high px-3 py-1 font-semibold">
-                Danh bạ ({activeFriendCount})
+                {t("contacts.title")} ({activeFriendCount})
               </span>
               <span className="rounded-full bg-surface-container-high px-3 py-1 font-semibold">
-                Yêu cầu ({activeRequestCount})
+                {t("contacts.requests")} ({activeRequestCount})
               </span>
             </div>
           </header>
@@ -799,11 +820,10 @@ const ContactsPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-[22px] font-black text-on-surface">
-                      Danh bạ ({activeFriendCount})
+                      {t("contacts.title")} ({activeFriendCount})
                     </h2>
                     <p className="mt-1 text-[13px] text-on-surface-variant">
-                      Tìm kiếm, sắp xếp, lọc và quản lý danh sách bạn bè của
-                      bạn.
+                      {t("contacts.description")}
                     </p>
                   </div>
                 </div>
@@ -817,7 +837,7 @@ const ContactsPage: React.FC = () => {
                       <input
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
-                        placeholder="Tìm bạn bè"
+                        placeholder={t("contacts.search_placeholder")}
                         className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-lowest py-2.5 pl-10 pr-4 text-[13px] text-on-surface outline-none placeholder:text-outline focus:border-primary/30"
                       />
                     </div>
@@ -828,7 +848,7 @@ const ContactsPage: React.FC = () => {
                       }
                       className="rounded-2xl border border-outline-variant/25 bg-white px-4 py-2.5 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/30"
                     >
-                      Tên ({sortOrder === "asc" ? "A-Z" : "Z-A"})
+                      {t("contacts.sort_name")} ({sortOrder === "asc" ? "A-Z" : "Z-A"})
                     </button>
 
                     <div className="relative" ref={dropdownRef}>
@@ -836,7 +856,7 @@ const ContactsPage: React.FC = () => {
                         onClick={() => setFilterMenuOpen((prev) => !prev)}
                         className="flex min-w-45 items-center justify-between rounded-2xl border border-outline-variant/25 bg-white px-4 py-2.5 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/30"
                       >
-                        <span>Bộ lọc: {FILTER_LABELS[filter] || filter}</span>
+                        <span>{t("contacts.filter")}: {FILTER_LABELS[filter] || filter}</span>
                         <span className="material-symbols-outlined text-[18px]">
                           expand_more
                         </span>
@@ -873,11 +893,11 @@ const ContactsPage: React.FC = () => {
 
                 {loading ? (
                   <div className="rounded-[24px] border border-outline-variant/20 bg-white p-8 text-center text-on-surface-variant">
-                    Đang tải danh bạ...
+                    {t("contacts.loading")}
                   </div>
                 ) : groupedContacts.length === 0 ? (
                   <div className="rounded-[24px] border border-outline-variant/20 bg-white p-8 text-center text-on-surface-variant">
-                    Không có liên hệ phù hợp.
+                    {t("contacts.empty")}
                   </div>
                 ) : (
                   <div className="space-y-8">
@@ -1105,7 +1125,8 @@ const ContactsPage: React.FC = () => {
                     groupConversations.map((conversation) => (
                       <div
                         key={conversation.id}
-                        className="flex items-center gap-3 rounded-2xl border border-outline-variant/20 bg-white px-4 py-3"
+                        onClick={() => navigate("/chat", { state: { openConversationId: conversation.id } })}
+                        className="flex items-center gap-3 rounded-2xl border border-outline-variant/20 bg-white px-4 py-3 cursor-pointer hover:bg-surface-container transition-colors"
                       >
                         <img
                           src={conversation.avatar || "/logo_blue.png"}
@@ -1342,6 +1363,60 @@ const ContactsPage: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* --- MODALS --- */}
+      <UserProfileModal
+        isOpen={profileModal?.isOpen || false}
+        profile={profileModal?.email ? userProfiles[profileModal.email.toLowerCase()] : null}
+        nickname={
+          profileModal?.email 
+            ? friendships.find(f => f.sender_id === profileModal.email || f.receiver_id === profileModal.email)?.nickname
+            : undefined
+        }
+        isFriend={
+          profileModal?.email
+            ? friendships.some(f => (f.sender_id === profileModal.email || f.receiver_id === profileModal.email) && f.status === "accepted")
+            : false
+        }
+        onClose={() => setProfileModal(null)}
+        onMessage={() => profileModal?.email && handleOpenFriendChat(profileModal.email)}
+        onUnfriend={() => profileModal?.email && handleUnfriend(profileModal.email)}
+        onBlock={() => profileModal?.email && handleBlockUser(profileModal.email)}
+      />
+
+      <PromptDialog
+        isOpen={nicknameModal?.isOpen || false}
+        title="Đặt biệt danh"
+        placeholder="Nhập biệt danh mới"
+        initialValue={nicknameModal?.current || ""}
+        onConfirm={handleSaveNickname}
+        onCancel={() => setNicknameModal(null)}
+        loading={actionLoading}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmModal?.isOpen || false}
+        title={
+          confirmModal?.type === "block" ? "Chặn người dùng?" : 
+          confirmModal?.type === "unblock" ? "Bỏ chặn người dùng?" : 
+          "Xóa bạn bè?"
+        }
+        message={
+          confirmModal?.type === "block" ? "Người này sẽ không thể kết bạn hoặc nhắn tin với bạn." :
+          confirmModal?.type === "unblock" ? "Người này sẽ có thể nhắn tin lại với bạn." :
+          "Quan hệ bạn bè sẽ bị xóa ở cả hai phía."
+        }
+        variant={confirmModal?.type === "unblock" ? "info" : "danger"}
+        confirmText={
+          confirmModal?.type === "block" ? "Chặn" :
+          confirmModal?.type === "unblock" ? "Bỏ chặn" :
+          "Xóa"
+        }
+        onConfirm={handleConfirmAction}
+        onCancel={() => setConfirmModal(null)}
+        loading={actionLoading}
+      />
+      {/* -------------- */}
     </div>
   );
 

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useChatStore } from "../../store/chatStore";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import {
   getDisplayName,
   getDisplayAvatar,
@@ -15,11 +16,12 @@ import ConversationTagPicker from "./ConversationTagPicker";
 import Swal from "sweetalert2";
 import { useSecurityAlerts } from "../../hooks/useSecurityAlerts";
 
-import { Lock, MoreHorizontal, UserPlus, Users, Menu } from "lucide-react";
+import { Lock, MoreHorizontal, UserPlus, Users, BellOff, Pin } from "lucide-react";
 
 const InboxList: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useTheme();
   const {
     conversations,
     activeConvId,
@@ -36,6 +38,7 @@ const InboxList: React.FC = () => {
     isCreateGroupModalOpen,
     setIsCreateGroupModalOpen,
     tags,
+    pinConversation,
   } = useChatStore();
 
   const [chatFilter, setChatFilter] = useState<"all" | "unread">("all");
@@ -133,22 +136,22 @@ const InboxList: React.FC = () => {
 
   const handleHideConversation = async (convId: string) => {
     const res = await Swal.fire({
-      title: "Ẩn trò chuyện",
-      text: "Thiết lập mã PIN cá nhân (4-6 số) để ẩn hội thoại này.",
+      title: t('inbox.hide_title'),
+      text: t('inbox.hide_text'),
       input: "password",
-      inputPlaceholder: "Nhập mã PIN",
+      inputPlaceholder: t('inbox.pin_placeholder'),
       inputAttributes: {
         maxlength: "6",
         autocapitalize: "off",
         autocorrect: "off",
       },
       showCancelButton: true,
-      confirmButtonText: "Ẩn",
-      cancelButtonText: "Hủy",
+      confirmButtonText: t('inbox.hide_btn'),
+      cancelButtonText: t('inbox.cancel'),
       confirmButtonColor: "#00418f",
       inputValidator: (value) => {
         if (!/^\d{4,6}$/.test(String(value || ""))) {
-          return "PIN phải gồm 4-6 chữ số.";
+          return t('inbox.pin_invalid');
         }
         return undefined;
       },
@@ -159,7 +162,7 @@ const InboxList: React.FC = () => {
     setConvMenu(null);
     Swal.fire({
       icon: "success",
-      title: "Đã ẩn trò chuyện",
+      title: t('inbox.hide_success'),
       timer: 1300,
       showConfirmButton: false,
     });
@@ -167,26 +170,26 @@ const InboxList: React.FC = () => {
 
   const handleUnhideConversation = async (convId: string) => {
     const res = await Swal.fire({
-      title: "Mở khóa trò chuyện",
-      text: "Nhập mã PIN để hiện lại hội thoại.",
+      title: t('inbox.unlock_title'),
+      text: t('inbox.unlock_text'),
       input: "password",
-      inputPlaceholder: "Nhập mã PIN",
+      inputPlaceholder: t('inbox.pin_placeholder'),
       showCancelButton: true,
-      confirmButtonText: "Mở khóa",
-      cancelButtonText: "Hủy",
+      confirmButtonText: t('inbox.unlock_btn'),
+      cancelButtonText: t('inbox.cancel'),
       confirmButtonColor: "#00418f",
     });
     if (!res.isConfirmed || !res.value) return;
 
     const ok = unhideConversationWithPin(convId, String(res.value));
     if (!ok) {
-      Swal.fire("Sai mã PIN", "PIN không đúng, vui lòng thử lại.", "error");
+      Swal.fire(t('inbox.pin_wrong'), t('inbox.pin_wrong'), "error");
       return;
     }
     setConvMenu(null);
     Swal.fire({
       icon: "success",
-      title: "Đã hiện lại trò chuyện",
+      title: t('inbox.unlock_success'),
       timer: 1300,
       showConfirmButton: false,
     });
@@ -244,6 +247,29 @@ const InboxList: React.FC = () => {
     }
   }
 
+  const sortedFilteredConversations = React.useMemo(() => {
+    const systemConvs = filteredConversations.filter((c: any) => c.id === "CONV#SYSTEM");
+    const normalConvs = filteredConversations.filter((c: any) => c.id !== "CONV#SYSTEM");
+
+    const pinnedConvs = normalConvs
+      .filter((c: any) => c.isPinned)
+      .sort((a: any, b: any) => {
+        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return timeB - timeA;
+      });
+
+    const unpinnedConvs = normalConvs
+      .filter((c: any) => !c.isPinned)
+      .sort((a: any, b: any) => {
+        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return timeB - timeA;
+      });
+
+    return [...systemConvs, ...pinnedConvs, ...unpinnedConvs];
+  }, [filteredConversations]);
+
   return (
     <div className="w-85 h-full border-r border-outline-variant/30 flex flex-col bg-white dark:bg-surface-container shrink-0">
       {/* Search Header */}
@@ -258,7 +284,7 @@ const InboxList: React.FC = () => {
               onChange={handleSearchTrigger}
               onFocus={() => setIsSearching(true)}
               className="w-full bg-surface-container-highest border-none rounded-2xl py-2 pl-9 pr-4 text-[13px] outline-none text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/20 transition-all cursor-text"
-              placeholder="Tìm kiếm..."
+              placeholder={t('inbox.search_placeholder')}
             />
           </div>
 
@@ -277,10 +303,6 @@ const InboxList: React.FC = () => {
             >
               <Users size={20} />
             </button>
-            <div className="w-px h-6 bg-outline-variant/10 mx-1" />
-            <button className="w-10 h-10 flex items-center justify-center hover:bg-white/60 dark:hover:bg-surface-container-high rounded-full transition-all text-on-surface-variant hover:text-primary">
-              <Menu size={20} />
-            </button>
           </div>
         </div>
 
@@ -289,20 +311,20 @@ const InboxList: React.FC = () => {
             onClick={() => setChatFilter("all")}
             className={`${chatFilter === "all" ? "text-primary border-b-2 border-primary" : "text-on-surface-variant hover:text-primary"} transition-all pb-2`}
           >
-            Tất cả
+            {t('inbox.all')}
           </button>
           <button
             onClick={() => setChatFilter("unread")}
             className={`${chatFilter === "unread" ? "text-primary border-b-2 border-primary" : "text-on-surface-variant hover:text-primary"} transition-all pb-2`}
           >
-            Chưa đọc
+            {t('inbox.unread')}
           </button>
 
           <button
             onClick={() => setClassifyOpen((prev) => !prev)}
             className="ml-auto flex items-center gap-1 rounded-full px-3 py-1 text-[13px] text-on-surface-variant hover:bg-surface-container"
           >
-            Phân loại
+            {t('inbox.classify')}
             <span className="material-symbols-outlined text-[18px]">
               expand_more
             </span>
@@ -311,7 +333,7 @@ const InboxList: React.FC = () => {
           {classifyOpen && (
             <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 overflow-hidden rounded-2xl border border-outline-variant/20 bg-white shadow-xl">
               <div className="border-b px-4 py-3 text-[12px] font-bold uppercase tracking-wide text-on-surface-variant">
-                Theo trạng thái
+                {t('inbox.by_status')}
               </div>
               <button
                 onClick={() => {
@@ -320,7 +342,7 @@ const InboxList: React.FC = () => {
                 }}
                 className={`flex w-full items-center justify-between px-4 py-3 text-left text-[13px] hover:bg-surface-container ${chatFilter === "all" ? "text-primary" : "text-on-surface"}`}
               >
-                <span>Tất cả</span>
+                <span>{t('inbox.all')}</span>
                 {chatFilter === "all" && (
                   <span className="material-symbols-outlined text-[18px]">
                     check
@@ -334,7 +356,7 @@ const InboxList: React.FC = () => {
                 }}
                 className={`flex w-full items-center justify-between px-4 py-3 text-left text-[13px] hover:bg-surface-container ${chatFilter === "unread" ? "text-primary" : "text-on-surface"}`}
               >
-                <span>Chưa đọc</span>
+                <span>{t('inbox.unread')}</span>
                 {chatFilter === "unread" && (
                   <span className="material-symbols-outlined text-[18px]">
                     check
@@ -344,7 +366,7 @@ const InboxList: React.FC = () => {
 
               <div className="border-t border-outline-variant/10" />
               <div className="px-4 py-3 text-[12px] font-bold uppercase tracking-wide text-on-surface-variant">
-                Theo thẻ phân loại
+                {t('inbox.by_tag')}
               </div>
               <button
                 onClick={() => {
@@ -353,7 +375,7 @@ const InboxList: React.FC = () => {
                 }}
                 className={`flex w-full items-center justify-between px-4 py-3 text-left text-[13px] hover:bg-surface-container ${tagFilter === null ? "text-primary" : "text-on-surface"}`}
               >
-                <span>Tất cả</span>
+                <span>{t('inbox.all')}</span>
                 {tagFilter === null && (
                   <span className="material-symbols-outlined text-[18px]">
                     check
@@ -367,7 +389,7 @@ const InboxList: React.FC = () => {
                 }}
                 className={`flex w-full items-center justify-between px-4 py-3 text-left text-[13px] hover:bg-surface-container ${tagFilter === "none" ? "text-primary" : "text-on-surface"}`}
               >
-                <span>Chưa có thẻ</span>
+                <span>{t('inbox.no_tag')}</span>
                 {tagFilter === "none" && (
                   <span className="material-symbols-outlined text-[18px]">
                     check
@@ -408,7 +430,7 @@ const InboxList: React.FC = () => {
                   }}
                   className="text-[13px] text-on-surface-variant"
                 >
-                  Quản lý thẻ phân loại
+                  {t('inbox.manage_tags')}
                 </button>
               </div>
             </div>
@@ -418,17 +440,17 @@ const InboxList: React.FC = () => {
 
       {/* List Content */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden hide-scrollbar p-2 space-y-1">
-        {filteredConversations.length === 0 ? (
+        {sortedFilteredConversations.length === 0 ? (
           <div className="text-center p-8 opacity-40 mt-10">
             <span className="material-symbols-outlined text-[48px] mb-2 text-on-surface-variant/20">
               chat_bubble
             </span>
             <p className="text-[13px] font-medium">
-              Không có cuộc trò chuyện nào
+              {t('inbox.empty')}
             </p>
           </div>
         ) : (
-          filteredConversations.map((chat) => {
+          sortedFilteredConversations.map((chat) => {
             const isSelected = activeConvId === chat.id;
             const conversationTag = (tags || []).find(
               (t: any) => t.id === (chat as any).tagId,
@@ -467,6 +489,39 @@ const InboxList: React.FC = () => {
               : false;
             const isHidden = !!hiddenConversations[chat.id];
 
+            const previewText = (() => {
+              if (isHidden) {
+                return t('inbox.hidden_chat');
+              }
+              if ((chat as any).type === "system") {
+                return chat.lastMessageContent;
+              }
+
+              const preview = getConversationPreviewText(
+                chat,
+                user,
+                userProfiles,
+              );
+
+              // Keep call previews using the more explicit call direction labels.
+              if (
+                preview === "[Cuộc gọi thoại]" ||
+                preview === "[Cuộc gọi video]"
+              ) {
+                const isVideo = preview.includes("video");
+                const isOutgoing = chat.lastMessageSenderId === user?.email;
+                if (isVideo) {
+                  return isOutgoing ? t('inbox.call_video_out') : t('inbox.call_video_in');
+                } else {
+                  return isOutgoing ? t('inbox.call_voice_out') : t('inbox.call_voice_in');
+                }
+              }
+
+              return preview;
+            })();
+
+            const showMentionTag = !isHidden && chat.hasUnreadMention;
+
             return (
               <div
                 key={chat.id}
@@ -474,8 +529,8 @@ const InboxList: React.FC = () => {
                   if (isHidden) {
                     Swal.fire({
                       icon: "info",
-                      title: "Trò chuyện đang ẩn",
-                      text: 'Bấm dấu ... rồi chọn "Mở khóa trò chuyện" để nhập PIN.',
+                      title: t('inbox.hidden_warning_title'),
+                      text: t('inbox.hidden_warning_text'),
                       timer: 2000,
                       showConfirmButton: false,
                     });
@@ -486,7 +541,9 @@ const InboxList: React.FC = () => {
                 className={`group flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all ${
                   isSelected
                     ? "bg-primary/10 shadow-sm"
-                    : "hover:bg-surface-container/70"
+                    : chat.isPinned
+                      ? "bg-primary/[0.04] dark:bg-primary/[0.06] hover:bg-primary/[0.08] dark:hover:bg-primary/[0.1] border-l-4 border-primary/50 pl-2 rounded-l-none"
+                      : "hover:bg-surface-container/70"
                 }`}
               >
                 <div className="relative shrink-0">
@@ -506,14 +563,19 @@ const InboxList: React.FC = () => {
                     >
                       {chatName}
                     </h3>
-                    {chat.updatedAt && (
-                      <span className="text-[10px] text-on-surface-variant font-medium shrink-0 ml-2">
-                        {new Date(chat.updatedAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      {chat.isPinned && (
+                        <Pin size={12} className="text-primary rotate-45 transform" />
+                      )}
+                      {chat.updatedAt && (
+                        <span className="text-[10px] text-on-surface-variant font-medium">
+                          {new Date(chat.updatedAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex justify-between items-center">
                     <div className="flex min-w-0 items-center gap-1.5">
@@ -521,7 +583,7 @@ const InboxList: React.FC = () => {
                         <span
                           className="material-symbols-outlined shrink-0 text-[16px]"
                           style={{ color: conversationTag.color || "#ffb020" }}
-                          title={`Thẻ: ${conversationTag.name}`}
+                          title={t('inbox.tag', { name: conversationTag.name })}
                         >
                           folder
                         </span>
@@ -529,45 +591,31 @@ const InboxList: React.FC = () => {
                       <p
                         className={`text-[13px] truncate ${unread ? "font-bold text-on-surface" : "text-on-surface-variant"}`}
                       >
-                        {isHidden
-                          ? "Trò chuyện đã ẩn (yêu cầu PIN)"
-                          : (() => {
-                              if ((chat as any).type === "system") {
-                                return chat.lastMessageContent;
-                              }
-
-                              const preview = getConversationPreviewText(
-                                chat,
-                                user,
-                                userProfiles,
-                              );
-
-                              // Keep call previews using the more explicit call direction labels.
-                              if (
-                                preview === "[Cuộc gọi thoại]" ||
-                                preview === "[Cuộc gọi video]"
-                              ) {
-                                const type = preview.includes("video")
-                                  ? "video"
-                                  : "thoại";
-                                return chat.lastMessageSenderId === user?.email
-                                  ? `Cuộc gọi ${type} đi`
-                                  : `Cuộc gọi ${type} đến`;
-                              }
-
-                              return preview;
-                            })()}
+                        {showMentionTag && (
+                          <span className="text-[12px] font-black text-rose-500 mr-1.5 animate-pulse shrink-0">
+                            {t('inbox.mention_tag')}
+                          </span>
+                        )}
+                        <span>{previewText}</span>
                       </p>
                     </div>
-                    {unread && chat.unreadCount > 0 && (
-                      <div className="min-w-5 h-5 bg-error text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1.5 ml-2 shadow-sm shadow-error/20">
-                        {chat.unreadCount > 99 ? "99+" : chat.unreadCount}
+                    {chat.isMuted ? (
+                      <div className="ml-2 flex items-center justify-center text-on-surface-variant/40">
+                        <BellOff size={16} />
                       </div>
+                    ) : (
+                      <>
+                        {unread && chat.unreadCount > 0 && (
+                          <div className="min-w-5 h-5 bg-error text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1.5 ml-2 shadow-sm shadow-error/20">
+                            {chat.unreadCount > 99 ? "99+" : chat.unreadCount}
+                          </div>
+                        )}
+                        {unread &&
+                          (!chat.unreadCount || chat.unreadCount === 0) && (
+                            <div className="w-2.5 h-2.5 bg-primary rounded-full shrink-0 ml-2 shadow-sm shadow-primary/20"></div>
+                          )}
+                      </>
                     )}
-                    {unread &&
-                      (!chat.unreadCount || chat.unreadCount === 0) && (
-                        <div className="w-2.5 h-2.5 bg-primary rounded-full shrink-0 ml-2 shadow-sm shadow-primary/20"></div>
-                      )}
                   </div>
                 </div>
 
@@ -585,7 +633,7 @@ const InboxList: React.FC = () => {
                       });
                     }}
                     className="rounded-full p-1 text-on-surface-variant opacity-0 transition group-hover:opacity-100 hover:bg-surface-container"
-                    title="Tùy chọn"
+                    title={t('inbox.options')}
                   >
                     <MoreHorizontal size={18} />
                   </button>
@@ -606,6 +654,36 @@ const InboxList: React.FC = () => {
             className="fixed z-110 w-56 overflow-hidden rounded-2xl border border-outline-variant/20 bg-white p-2 shadow-2xl"
             style={{ left: convMenu.x, top: convMenu.y }}
           >
+            {(() => {
+              const menuChat = conversations.find(c => c.id === convMenu.convId);
+              if (!menuChat) return null;
+              const isPinned = !!menuChat.isPinned;
+              return (
+                <button
+                  onClick={async () => {
+                    setConvMenu(null);
+                    try {
+                      await pinConversation(menuChat.id, !isPinned);
+                      Swal.fire({
+                        icon: "success",
+                        title: !isPinned ? t('inbox.pin') : t('inbox.unpin'),
+                        toast: true,
+                        position: "top-end",
+                        showConfirmButton: false,
+                        timer: 1500,
+                        timerProgressBar: true,
+                      });
+                    } catch (err) {
+                      console.error(err);
+                    }
+                  }}
+                  className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] font-medium text-on-surface hover:bg-surface-container"
+                >
+                  <Pin size={14} className="rotate-45" />
+                  {isPinned ? t('inbox.unpin') : t('inbox.pin')}
+                </button>
+              );
+            })()}
             <button
               onClick={() => {
                 setTagPickerPos({
@@ -617,7 +695,7 @@ const InboxList: React.FC = () => {
               }}
               className="block w-full rounded-xl px-3 py-2 text-left text-[13px] font-medium text-on-surface hover:bg-surface-container"
             >
-              Phân loại
+              {t('inbox.classify')}
             </button>
             <button
               onClick={() => {
@@ -632,8 +710,8 @@ const InboxList: React.FC = () => {
             >
               <Lock size={14} />
               {hiddenConversations[convMenu.convId]
-                ? "Mở khóa trò chuyện"
-                : "Ẩn trò chuyện"}
+                ? t('inbox.unlock')
+                : t('inbox.lock')}
             </button>
             <button
               onClick={() => {
@@ -642,7 +720,7 @@ const InboxList: React.FC = () => {
               }}
               className="block w-full rounded-xl px-3 py-2 text-left text-[13px] font-medium text-on-surface hover:bg-surface-container"
             >
-              Quản lý thẻ phân loại
+              {t('inbox.manage_tags')}
             </button>
           </div>
         </>

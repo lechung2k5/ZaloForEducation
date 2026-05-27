@@ -14,7 +14,7 @@ let globalSession: DefaultMeetingSession | null = null;
 let globalLocalVideo: HTMLVideoElement | null = null;
 let globalRemoteVideo: HTMLVideoElement | null = null;
 let globalContentVideo: HTMLVideoElement | null = null;
-let globalTiles: { local?: number; remote?: number; content?: number } = {};
+let globalTiles: { local?: number; remote?: number; contentTiles: Map<string, number> } = { contentTiles: new Map() };
 let globalVideoStarted = false;
 
 const isValidTileId = (tileId: unknown): tileId is number =>
@@ -54,25 +54,31 @@ export const setRemoteVideoRef = (node: HTMLVideoElement | null) => {
   }
 };
 
-export const setContentVideoRef = (node: HTMLVideoElement | null) => {
-  globalContentVideo = node;
-  const tId = globalTiles.content;
+export const contentVideoRefs = new Map<string, HTMLVideoElement>();
+
+export const bindContentVideo = (attendeeId: string, node: HTMLVideoElement | null) => {
+  if (node) {
+    contentVideoRefs.set(attendeeId, node);
+  } else {
+    contentVideoRefs.delete(attendeeId);
+  }
+  
+  const tId = globalTiles.contentTiles.get(attendeeId);
   if (node && tId !== undefined && globalSession) {
     globalSession.audioVideo.bindVideoElement(tId, node);
   }
 };
 
-const tryBindTile = (tileId: number, type: "local" | "remote" | "content", attempt = 0) => {
+const tryBindTile = (tileId: number, type: "local" | "remote", attempt = 0) => {
   if (!globalSession) return;
   
   let el: HTMLVideoElement | null = null;
   if (type === "local") el = globalLocalVideo;
   else if (type === "remote") el = globalRemoteVideo;
-  else if (type === "content") el = globalContentVideo;
 
   if (el) {
     globalSession.audioVideo.bindVideoElement(tileId, el);
-    console.log(`[Chime] ✅ ${type.toUpperCase()} tile=${tileId} bound on attempt ${attempt}`);
+    console.log(`[Chime] 🎯 ${type.toUpperCase()} tile=${tileId} bound on attempt ${attempt}`);
   } else if (attempt < 5) {
     setTimeout(() => tryBindTile(tileId, type, attempt + 1), 100 * (attempt + 1));
   } else {
@@ -102,7 +108,17 @@ export const leaveCurrentSession = async (reason: string = "unknown") => {
       ];
       
       if (globalVideoStarted) {
+        sessionToStop.audioVideo.stopLocalVideoTile();
         cleanupPromises.push(sessionToStop.audioVideo.stopVideoInput());
+        
+        if (globalLocalVideo?.srcObject) {
+          (globalLocalVideo.srcObject as MediaStream)
+            .getTracks()
+            .forEach((t) => {
+              t.stop();
+            });
+          globalLocalVideo.srcObject = null;
+        }
       }
 
       await Promise.allSettled(cleanupPromises);
@@ -112,11 +128,11 @@ export const leaveCurrentSession = async (reason: string = "unknown") => {
       console.warn("[Chime] Cleanup error:", e);
     }
     
-    globalTiles = {};
+    globalTiles = { contentTiles: new Map() };
     globalVideoStarted = false;
     globalLocalVideo = null;
     globalRemoteVideo = null;
-    globalContentVideo = null;
+    contentVideoRefs.clear();
     console.log("[Chime] Session cleaned up.");
   }
 };
@@ -160,7 +176,9 @@ export const bindTile = (tileId: number, type: "local" | "remote" | "content") =
 export const rebindAllTiles = () => {
   if (isValidTileId(globalTiles.local)) bindTile(globalTiles.local, "local");
   if (isValidTileId(globalTiles.remote)) bindTile(globalTiles.remote, "remote");
-  if (isValidTileId(globalTiles.content)) bindTile(globalTiles.content, "content");
+  globalTiles.contentTiles.forEach((tileId) => {
+    if (isValidTileId(tileId)) bindTile(tileId, "content");
+  });
 };
 
 /**
@@ -227,6 +245,38 @@ export const toggleMic = async (turnOn: boolean) => {
 };
  
 /**
+ * Device Management
+ */
+export const listVideoInputDevices = async () => globalSession?.audioVideo.listVideoInputDevices() || [];
+export const listAudioInputDevices = async () => globalSession?.audioVideo.listAudioInputDevices() || [];
+export const listAudioOutputDevices = async () => globalSession?.audioVideo.listAudioOutputDevices() || [];
+
+export const switchVideoInput = async (deviceId: string) => {
+  if (globalSession) {
+    await globalSession.audioVideo.startVideoInput(deviceId);
+    globalSession.audioVideo.startLocalVideoTile();
+    globalVideoStarted = true;
+    setTimeout(() => {
+      if (globalTiles.local !== undefined && globalLocalVideo) {
+        globalSession!.audioVideo.bindVideoElement(globalTiles.local, globalLocalVideo);
+      }
+    }, 500);
+  }
+};
+
+export const switchAudioInput = async (deviceId: string) => {
+  if (globalSession) {
+    await globalSession.audioVideo.startAudioInput(deviceId);
+  }
+};
+
+export const switchAudioOutput = async (deviceId: string) => {
+  if (globalSession) {
+    await globalSession.audioVideo.chooseAudioOutput(deviceId);
+  }
+};
+
+/**
  * Bật chia sẻ màn hình (Screen Share)
  */
 let stopScreenShareProxy = async () => {};
@@ -242,22 +292,19 @@ export const startScreenShare = async () => {
     return;
   }
  
-  // Guard: Someone else is sharing
-  const isSomeoneSharing = Object.values(store.screenShares).some(s => s.isSharing);
-  if (isSomeoneSharing) {
-    alert("Đang có người khác chia sẻ màn hình. Bạn không thể chia sẻ lúc này.");
-    return;
-  }
- 
   try {
     console.log("[Chime] Starting Screen Capture...");
     const stream = await navigator.mediaDevices.getDisplayMedia({
       video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 15 }
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: 30 }
       },
-      audio: false
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+      }
     });
  
     const track = stream.getVideoTracks()[0];
@@ -267,9 +314,13 @@ export const startScreenShare = async () => {
  
     store.setLocalScreenSharing(true, stream);
     
+    // Amazon Chime SDK drops content shares if they contain an audio track
+    // without the proper meeting features enabled. Strip audio to ensure video is sent.
+    const contentStream = new MediaStream([track]);
+    
     requestNextTick(() => {
       if (globalSession) {
-        globalSession.audioVideo.startContentShare(stream).catch(e => {
+        globalSession.audioVideo.startContentShare(contentStream).catch(e => {
           console.error("[Chime] startContentShare failed:", e);
           cleanupScreenShareStream();
         });
@@ -347,7 +398,7 @@ export const useChime = () => {
       );
 
       globalSession = session;
-      globalTiles = {};
+      globalTiles = { contentTiles: new Map() };
       globalVideoStarted = false;
 
       try {
@@ -431,20 +482,17 @@ export const useChime = () => {
             }
 
             if (tileState.isContent) {
-              globalTiles.content = tileId;
               const store = useCallStore.getState();
 
-              if (!tileState.active) {
-                globalTiles.content = undefined;
-                store.clearAllScreenShares();
-                rebindAllTiles();
-                return;
-              }
-
+              globalTiles.contentTiles.set(attendeeId, tileId);
               if (!store.screenShares[attendeeId]) {
                 store.setScreenShare(attendeeId, { stream: null, isSharing: true });
               }
-              tryBindTile(tileId, "content");
+
+              const node = contentVideoRefs.get(attendeeId);
+              if (node && globalSession) {
+                globalSession.audioVideo.bindVideoElement(tileId, node);
+              }
               return;
             }
 
@@ -468,12 +516,18 @@ export const useChime = () => {
             if (globalTiles.local === tileId) {
               globalTiles.local = undefined;
             }
-            if (globalTiles.content === tileId) {
-              console.log("[Web-Chime] 🖥️ Screen share tile removed. Cleaning up...");
-              globalTiles.content = undefined;
-              store.clearAllScreenShares();
-              // Force re-bind others to ensure camera restoration
-              rebindAllTiles();
+            let removedAttendeeId: string | undefined;
+            for (const [id, tId] of globalTiles.contentTiles.entries()) {
+              if (tId === tileId) {
+                removedAttendeeId = id;
+                break;
+              }
+            }
+
+            if (removedAttendeeId) {
+              console.log(`[Web-Chime] 📺 Screen share tile removed for ${removedAttendeeId}.`);
+              globalTiles.contentTiles.delete(removedAttendeeId);
+              store.removeScreenShare(removedAttendeeId);
             }
             if (globalTiles.remote === tileId) {
               globalTiles.remote = undefined;
@@ -604,6 +658,40 @@ export const useChime = () => {
               ) as HTMLAudioElement | null;
               if (audioEl && session) {
                 session.audioVideo.bindAudioElement(audioEl).catch(() => {});
+              }
+              
+              // [VAD] Bắt sự kiện âm lượng để xác định ai đang nói
+              session.audioVideo.realtimeSubscribeToVolumeIndicator(
+                attendeeId,
+                (updateAttendeeId, volume) => {
+                  const store = useCallStore.getState();
+                  const myAttendeeId = store.attendeeData?.AttendeeId;
+                  const normalizedUpdateId = normalizeAttendeeId(updateAttendeeId);
+                  const normalizedMyId = normalizeAttendeeId(myAttendeeId);
+                  
+                  // volume: null means unknown/muted, 0 means silent, >0 means speaking
+                  const isSpeaking = volume !== null && volume > 0;
+                  
+                  if (normalizedUpdateId === normalizedMyId) {
+                    if (store.isLocalSpeaking !== isSpeaking) {
+                      store.setLocalSpeaking(isSpeaking);
+                    }
+                  } else {
+                    if (store.isRemoteSpeaking !== isSpeaking) {
+                      store.setRemoteSpeaking(isSpeaking);
+                    }
+                  }
+                }
+              );
+            } else {
+              // Unsubscribe from VAD when attendee leaves
+              session.audioVideo.realtimeUnsubscribeFromVolumeIndicator(attendeeId);
+              
+              // Reset speaking state if the remote user left
+              const store = useCallStore.getState();
+              const myAttendeeId = store.attendeeData?.AttendeeId;
+              if (normalizeAttendeeId(attendeeId) !== normalizeAttendeeId(myAttendeeId)) {
+                store.setRemoteSpeaking(false);
               }
             }
           },

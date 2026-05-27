@@ -138,7 +138,7 @@ const IncomingCallModal: React.FC = () => {
             {callType === 'video' ? 'Cuộc gọi video' : 'Cuộc gọi thoại'}
           </div>
           <h3 className="text-3xl font-black mb-1">
-            {peerProfile?.fullName || peerProfile?.fullname || peerProfile?.email || 'ZaloEdu User'}
+            {peerProfile?.fullName || peerProfile?.fullname || peerProfile?.email || 'EnuNest User'}
           </h3>
           <p className="text-white/40 font-medium">Đang gọi cho bạn...</p>
         </div>

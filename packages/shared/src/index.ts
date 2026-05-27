@@ -1,4 +1,4 @@
-// Shared interfaces for ZaloEdu
+// Shared interfaces for EnuNest
 
 export interface User {
   id: string; // USER#<email>
@@ -57,6 +57,10 @@ export interface Conversation {
   online?: boolean;
   lastReadAt?: number;
   unreadCount?: number;
+  hasUnreadMention?: boolean;
+  mentionCount?: number;
+  lastMentionMessageId?: string;
+  lastMentionAt?: string;
   pinnedMessageIds?: string[];
   autoDeleteDays?: 1 | 7 | 30 | null;
   autoDeleteUpdatedAt?: string;
@@ -90,6 +94,13 @@ export interface FriendSuggestion {
   reasons: string[];
 }
 
+export interface MessageMention {
+  email: string;
+  displayName?: string;
+  start?: number;
+  end?: number;
+}
+
 export interface Message {
   id: string; // MSG#<timestamp>#<randomId>
   conversationId: string;
@@ -98,6 +109,7 @@ export interface Message {
   attachments?: string[];
   media?: FileURL[];
   files?: FileURL[];
+  mentions?: MessageMention[];
   like?: string[]; // Array of user emails who liked
   seen?: string[]; // Array of user emails who saw
   status?: 'sending' | 'sent' | 'delivered' | 'seen' | 'error'; 
@@ -224,5 +236,5 @@ export interface BotConversationResponse {
 
 // Bot constants — single source of truth
 export const BOT_EMAIL = 'bot@zaloedu.system';
-export const BOT_NAME = 'ZaloEdu AI';
+export const BOT_NAME = 'EnuNest AI';
 export const BOT_AVATAR = 'https://img.freepik.com/free-vector/graident-ai-robot-vectorart_78370-4114.jpg?semt=ais_hybrid&w=740&q=80';

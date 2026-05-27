@@ -56,11 +56,24 @@ interface GroupCallStore {
   joinMeeting: (convId: string, callId: string, type: string, userProfile?: any) => Promise<void>;
   toggleMinimized: (minimized?: boolean) => void;
  
+  // Premium Features
+  activeSpeakerId: string | null;
+  isChatOpen: boolean;
+  isBlurEnabled: boolean;
+  reactions: { id: string, attendeeId: string, emoji: string }[];
+
   // Screen Share Actions
   setScreenShare: (attendeeId: string, state: ScreenShareState) => void;
   removeScreenShare: (attendeeId: string) => void;
   setLocalScreenSharing: (isSharing: boolean, stream: MediaStream | null) => void;
   clearAllScreenShares: () => void;
+
+  // Premium Feature Actions
+  setActiveSpeaker: (attendeeId: string | null) => void;
+  toggleChat: (open?: boolean) => void;
+  toggleBlur: (enabled?: boolean) => void;
+  addReaction: (attendeeId: string, emoji: string) => void;
+  removeReaction: (id: string) => void;
 }
 
 export const useGroupCallStore = create<GroupCallStore>((set, get) => ({
@@ -81,6 +94,12 @@ export const useGroupCallStore = create<GroupCallStore>((set, get) => ({
   callType: null,
   isMinimized: false,
  
+  // Premium Features
+  activeSpeakerId: null,
+  isChatOpen: false,
+  isBlurEnabled: false,
+  reactions: [],
+
   screenShares: {},
   isLocalScreenSharing: false,
   localScreenShareStream: null,
@@ -104,6 +123,7 @@ export const useGroupCallStore = create<GroupCallStore>((set, get) => ({
       activeCallId: callId,
       callState: "CALLING",
       isCameraOn: type === "video",
+      callType: type,
       ringingEmails: recipients,
     });
 
@@ -133,6 +153,7 @@ export const useGroupCallStore = create<GroupCallStore>((set, get) => ({
       activeCallId: callId,
       callState: "RINGING",
       isCameraOn: type === "video",
+      callType: type,
       peerProfile: callerProfile,
       groupName: groupName || null,
       groupAvatar: groupAvatar || null
@@ -242,6 +263,15 @@ export const useGroupCallStore = create<GroupCallStore>((set, get) => ({
       if (res.data.participants) {
         get().setParticipants(res.data.participants);
       }
+
+      // [PREMIUM] F5 auto-rejoin persistence
+      sessionStorage.setItem('active_call_session', JSON.stringify({
+        isGroup: true,
+        conversationId: convId,
+        callId: callId,
+        callType: type,
+        userProfile
+      }));
     } catch (error) {
       console.error("[GroupCallStore] Join failed:", error);
       set({ callState: "IDLE" });
@@ -250,6 +280,7 @@ export const useGroupCallStore = create<GroupCallStore>((set, get) => ({
   },
 
   resetGroupCall: () => {
+    sessionStorage.removeItem('active_call_session');
     set({
       callState: "IDLE",
       conversationId: null,
@@ -302,4 +333,25 @@ export const useGroupCallStore = create<GroupCallStore>((set, get) => ({
   toggleMinimized: (minimized) => {
     set(state => ({ isMinimized: minimized !== undefined ? minimized : !state.isMinimized }));
   },
+
+  setActiveSpeaker: (attendeeId) => set({ activeSpeakerId: attendeeId }),
+  
+  toggleChat: (open) => set(state => ({ isChatOpen: open !== undefined ? open : !state.isChatOpen })),
+  
+  toggleBlur: (enabled) => set(state => ({ isBlurEnabled: enabled !== undefined ? enabled : !state.isBlurEnabled })),
+  
+  addReaction: (attendeeId, emoji) => {
+    const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    set(state => ({
+      reactions: [...state.reactions, { id, attendeeId, emoji }]
+    }));
+    // Auto-remove reaction after 3 seconds
+    setTimeout(() => {
+      get().removeReaction(id);
+    }, 3000);
+  },
+  
+  removeReaction: (id) => set(state => ({
+    reactions: state.reactions.filter(r => r.id !== id)
+  }))
 }));

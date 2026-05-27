@@ -18,6 +18,7 @@ import IncomingGroupCallModal from "../../components/call/IncomingGroupCallModal
 import { getMessageTimeContext, getDisplayName } from "../../utils/chatUtils";
 import type { Attachment } from "../../utils/chatUtils";
 import { useGroupSocketListeners } from "../../hooks/useGroupSocketListeners";
+import { useGroupCallStore } from "../../store/groupCallStore";
 import type { Message } from "@zalo-edu/shared";
 
 import {
@@ -261,7 +262,10 @@ const ChatPage: React.FC = () => {
       if (socket) {
         // Leave previous room if exists
         if (prevRoomRef.current && prevRoomRef.current !== activeConvId) {
-          socket.emit("leave_room", { convId: prevRoomRef.current });
+          const state = useGroupCallStore.getState();
+          if (state.conversationId !== prevRoomRef.current) {
+            socket.emit("leave_room", { convId: prevRoomRef.current });
+          }
         }
 
         socket.emit("join_room", { convId: activeConvId });
@@ -277,7 +281,10 @@ const ChatPage: React.FC = () => {
         return () => {
           socket.off("connect", handleReconnect);
           if (activeConvId) {
-            socket.emit("leave_room", { convId: activeConvId });
+            const state = useGroupCallStore.getState();
+            if (state.conversationId !== activeConvId) {
+              socket.emit("leave_room", { convId: activeConvId });
+            }
           }
         };
       }
@@ -386,10 +393,10 @@ const ChatPage: React.FC = () => {
     }
   }, [highlightedMessageId, messages, jumpToMessage]);
 
-  const handleSendMessage = async (text: string, attachments: Attachment[]) => {
+  const handleSendMessage = async (text: string, attachments: Attachment[], mentions?: any[]) => {
     if (!activeConvId || !user?.email) return;
 
-    // Gửi tin nhắn kèm đính kèm và thông tin reply
+    // Gửi tin nhắn kèm đính kèm, thông tin reply và mentions
     await sendMessageOptimistic(
       activeConvId,
       user.email,
@@ -397,6 +404,7 @@ const ChatPage: React.FC = () => {
       "text",
       attachments,
       replyTarget,
+      mentions ? { mentions } : {},
     );
     setReplyTarget(null);
   };
