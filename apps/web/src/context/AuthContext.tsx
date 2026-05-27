@@ -122,7 +122,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
     const token = localStorage.getItem("token");
 
-    const newSocket = io(apiUrl, {
+    const socketUrl = apiUrl === "/api" ? "/" : apiUrl;
+
+    const newSocket = io(socketUrl, {
       auth: {
         token,
       },

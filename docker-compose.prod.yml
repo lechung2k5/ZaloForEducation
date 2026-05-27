@@ -5,6 +5,7 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
+      target: backend
     container_name: unichat-backend
     ports:
       - "3000:3000"
@@ -12,3 +13,14 @@ services:
       - backend/.env
     restart: always
 
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    container_name: unichat-web
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
