@@ -1,4 +1,4 @@
-// Shared interfaces for EnuNest
+// Shared interfaces for UniChat
 
 export interface User {
   id: string; // USER#<email>
@@ -235,6 +235,6 @@ export interface BotConversationResponse {
 }
 
 // Bot constants — single source of truth
-export const BOT_EMAIL = 'bot@zaloedu.system';
-export const BOT_NAME = 'EnuNest AI';
+export const BOT_EMAIL = 'bot@UniChat.system';
+export const BOT_NAME = 'UniChat AI';
 export const BOT_AVATAR = 'https://img.freepik.com/free-vector/graident-ai-robot-vectorart_78370-4114.jpg?semt=ais_hybrid&w=740&q=80';

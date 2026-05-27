@@ -171,7 +171,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     ? userProfiles[normalizedPartner]?.status === "online"
     : false;
   
-  const isBot = normalizedPartner === 'bot@zaloedu.system';
+  const isBot = normalizedPartner === 'bot@UniChat.system';
 
   const handleOpenProfile = () => {
     if (!partnerEmail) return;

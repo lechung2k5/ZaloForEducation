@@ -9,7 +9,7 @@ export class DynamoDBService implements OnModuleInit {
   public docClient: DynamoDBDocumentClient;
   
   public get tableName(): string {
-    return this.configService.get<string>('DYNAMODB_TABLE_NAME') || 'EnuNestTable';
+    return this.configService.get<string>('DYNAMODB_TABLE_NAME') || 'UniChatTable';
   }
 
   constructor(private readonly configService: ConfigService) {

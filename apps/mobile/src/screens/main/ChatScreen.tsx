@@ -291,7 +291,7 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
 
   const isBot = useMemo(() => {
     const pEmail = selectedChat?.partner || targetEmail || '';
-    return pEmail === 'bot@zaloedu.system';
+    return pEmail === 'bot@UniChat.system';
   }, [selectedChat, targetEmail]);
 
 

@@ -54,8 +54,8 @@ export class AiService {
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://zaloedu.app',
-          'X-Title': 'EnuNest Bot',
+          'HTTP-Referer': 'https://UniChat.app',
+          'X-Title': 'UniChat Bot',
         },
         body: JSON.stringify({
           model: this.model,

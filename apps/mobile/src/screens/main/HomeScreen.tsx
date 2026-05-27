@@ -140,7 +140,7 @@ export default function HomeScreen({
       // Hide conversations with the bot
       const hasBot = Array.isArray(conv.members) && conv.members.some((m: string) => {
         const normalized = String(m || "").toLowerCase();
-        return normalized === BOT_EMAIL || normalized.includes('bot@zaloedu.system');
+        return normalized === BOT_EMAIL || normalized.includes('bot@UniChat.system');
       });
       return !hasBot;
     });

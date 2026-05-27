@@ -272,7 +272,7 @@ const ChatInfoSidebar: React.FC = () => {
         : undefined
       : undefined;
 
-  const isBot = partnerEmail?.toLowerCase() === 'bot@zaloedu.system';
+  const isBot = partnerEmail?.toLowerCase() === 'bot@UniChat.system';
 
   const chatName =
     activeChat.type === "direct"

@@ -1630,11 +1630,11 @@ export const useChatStore = create<ChatState>((originalSet, get) => {
       // Filter out bot from search results
       const filteredContacts = (data.contacts || []).filter((c: any) => {
         const email = String(c.email || "").toLowerCase();
-        return email !== BOT_EMAIL && !email.includes('bot@zaloedu.system');
+        return email !== BOT_EMAIL && !email.includes('bot@UniChat.system');
       });
       const filteredMessages = (data.messages || []).filter((m: any) => {
         const senderId = String(m.senderId || "").toLowerCase();
-        return senderId !== BOT_EMAIL && !senderId.includes('bot@zaloedu.system');
+        return senderId !== BOT_EMAIL && !senderId.includes('bot@UniChat.system');
       });
 
       set({ searchResultsList: { ...data, contacts: filteredContacts, messages: filteredMessages } });

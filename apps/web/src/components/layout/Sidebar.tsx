@@ -36,7 +36,7 @@ const Sidebar: React.FC = () => {
   const isBotConversation = (conv: any) => {
     return Array.isArray(conv.members) && conv.members.some((m: any) => {
       const normalized = String(m || "").toLowerCase();
-      return normalized === 'bot@zaloedu.system' || normalized.includes('bot@zaloedu.system');
+      return normalized === 'bot@UniChat.system' || normalized.includes('bot@UniChat.system');
     });
   };
 

@@ -784,7 +784,7 @@ export class AuthService {
   async testEmail(email: string) {
     await this.emailService.sendMail(
       email,
-      "EnuNest - Test Email Configuration",
+      "UniChat - Test Email Configuration",
       "<h1>Cấu hình Email thành công!</h1><p>Bạn nhận được thư này tức là hệ thống SMTP đã hoạt động tốt.</p>",
     );
     return { message: "Đã gửi email test thành công." };

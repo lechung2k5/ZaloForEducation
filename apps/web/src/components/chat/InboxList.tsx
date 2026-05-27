@@ -199,7 +199,7 @@ const InboxList: React.FC = () => {
     // 0. Exclude Bot conversations - AI Assistant should only be in its own tab
     const hasBot = Array.isArray(conv.members) && conv.members.some(m => {
       const normalized = String(m || "").toLowerCase();
-      return normalized === BOT_EMAIL || normalized.includes('bot@zaloedu.system');
+      return normalized === BOT_EMAIL || normalized.includes('bot@UniChat.system');
     });
     if (hasBot) return false;
 
@@ -655,15 +655,15 @@ const InboxList: React.FC = () => {
             style={{ left: convMenu.x, top: convMenu.y }}
           >
             {(() => {
-              const menuChat = conversations.find(c => c.id === convMenu.convId);
-              if (!menuChat) return null;
-              const isPinned = !!menuChat.isPinned;
+              const mUniChat = conversations.find(c => c.id === convMenu.convId);
+              if (!mUniChat) return null;
+              const isPinned = !!mUniChat.isPinned;
               return (
                 <button
                   onClick={async () => {
                     setConvMenu(null);
                     try {
-                      await pinConversation(menuChat.id, !isPinned);
+                      await pinConversation(mUniChat.id, !isPinned);
                       Swal.fire({
                         icon: "success",
                         title: !isPinned ? t('inbox.pin') : t('inbox.unpin'),

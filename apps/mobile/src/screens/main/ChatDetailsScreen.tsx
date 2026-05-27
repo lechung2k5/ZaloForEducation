@@ -485,7 +485,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   const isPinned = !!chat?.pinned;
   const isHidden = !!chat?.hidden;
 
-  const isBot = partnerEmail === 'bot@zaloedu.system';
+  const isBot = partnerEmail === 'bot@UniChat.system';
 
   const allAttachments = messages.flatMap((m: any) => {
     const arr = [...(m.media || []), ...(m.files || [])];

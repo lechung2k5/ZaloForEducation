@@ -74,7 +74,7 @@ function TabNavigator({ onLogout }: { onLogout: any }) {
     // Check if it's a bot conversation
     const isBot = Array.isArray(conv.members) && conv.members.some((m: string) => {
       const normalized = String(m || "").toLowerCase();
-      return normalized === BOT_EMAIL || normalized.includes('bot@zaloedu.system');
+      return normalized === BOT_EMAIL || normalized.includes('bot@UniChat.system');
     });
     if (isBot) return acc;
     return acc + (conv.unreadCount || 0);

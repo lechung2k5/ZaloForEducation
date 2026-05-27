@@ -52,7 +52,7 @@ export class BotService {
           email: BOT_EMAIL,
           fullName: BOT_NAME,
           avatarUrl: BOT_AVATAR,
-          bio: 'Trợ lý AI giáo dục của EnuNest. Tôi có thể trả lời câu hỏi dựa trên dữ liệu hệ thống.',
+          bio: 'Trợ lý AI giáo dục của UniChat. Tôi có thể trả lời câu hỏi dựa trên dữ liệu hệ thống.',
           status: 'active',
           isActive: true,
           role: 'BOT',
@@ -137,7 +137,7 @@ export class BotService {
    */
   private buildSystemPrompt(userContext: string): string {
     return (
-      `Bạn là ${BOT_NAME}, trợ lý AI giáo dục tích hợp trong app EnuNest.\n` +
+      `Bạn là ${BOT_NAME}, trợ lý AI giáo dục tích hợp trong app UniChat.\n` +
       `Bạn có thể truy cập dữ liệu người dùng trong hệ thống.\n` +
       `Trả lời bằng tiếng Việt, ngắn gọn, thân thiện.\n\n` +
       `${userContext}\n\n` +

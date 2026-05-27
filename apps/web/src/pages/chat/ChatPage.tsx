@@ -74,7 +74,7 @@ const ChatPage: React.FC = () => {
         : undefined
       : undefined;
 
-  const isBot = partnerEmail?.toLowerCase() === 'bot@zaloedu.system';
+  const isBot = partnerEmail?.toLowerCase() === 'bot@UniChat.system';
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -775,7 +775,7 @@ const ChatPage: React.FC = () => {
             </div>
 
             <h1 className="text-2xl font-extrabold text-on-surface mb-3">
-              Chào mừng đến với ZaloEdu
+              Chào mừng đến với UniChat
             </h1>
             <p className="text-on-surface-variant max-w-md mb-10 leading-relaxed font-medium">
               Khám phá trải nghiệm làm việc và học tập hiện đại. Chọn một cuộc

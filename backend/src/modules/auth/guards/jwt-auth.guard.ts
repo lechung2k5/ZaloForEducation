@@ -32,7 +32,7 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const payload = await this.jwtService.verifyAsync(token, {
-        secret: this.configService.get<string>('JWT_SECRET') || 'zaloedu_secret',
+        secret: this.configService.get<string>('JWT_SECRET') || 'UniChat_secret',
       });
 
       // --- NEW LOGIC: VERIFY SESSION IN REDIS AND DB ---

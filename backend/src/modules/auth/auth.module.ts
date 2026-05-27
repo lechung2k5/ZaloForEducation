@@ -18,7 +18,7 @@ import { DeviceService } from './device.service';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'zaloedu_secret',
+        secret: configService.get<string>('JWT_SECRET') || 'UniChat_secret',
         signOptions: { expiresIn: '7d' },
       }),
     }),
