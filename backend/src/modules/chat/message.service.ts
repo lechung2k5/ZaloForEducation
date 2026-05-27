@@ -322,7 +322,7 @@ export class MessageService {
 
     // 4. Update other members' mappings (updatedAt & Atomic unreadCount)
     for (const member of members) {
-      if (member === senderEmail) continue;
+      if (String(member).toLowerCase() === String(senderEmail).toLowerCase()) continue;
       const normalizedMember = String(member).replace(/^USER#/i, '').trim().toLowerCase();
       const isMentioned = mentionedEmails.has(normalizedMember) || mentionedEmails.has("all");
       transactItems.push({
