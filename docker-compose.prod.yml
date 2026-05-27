@@ -1,33 +1,6 @@
 version: '3.8'
 
 services:
-  # 1. DynamoDB for Production (Using Local but persistent)
-  dynamodb:
-    image: "amazon/dynamodb-local:latest"
-    container_name: unichat-dynamodb
-    ports:
-      - "8000:8000"
-    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
-    volumes:
-      - dynamodb_data:/home/dynamodblocal/data
-    networks:
-      - unichat-network
-    restart: always
-
-  # 2. Redis for caching & websockets
-  redis:
-    image: "redis:alpine"
-    container_name: unichat-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    networks:
-      - unichat-network
-    restart: always
-
-  # 3. Backend API
   backend:
     build: 
       context: .
@@ -35,29 +8,7 @@ services:
     container_name: unichat-backend
     ports:
       - "3000:3000"
-    environment:
-      - PORT=3000
-      - JWT_SECRET=${JWT_SECRET:-unichat_super_secret_key}
-      - FRONTEND_URL=${FRONTEND_URL:-http://your-ec2-ip:8081}
-      - AWS_REGION=ap-southeast-1
-      - AWS_ACCESS_KEY_ID=mock_access_key
-      - AWS_SECRET_ACCESS_KEY=mock_secret_key
-      - DYNAMODB_ENDPOINT=http://dynamodb:8000
-      - DYNAMODB_TABLE_NAME=Users
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-    depends_on:
-      - dynamodb
-      - redis
-    networks:
-      - unichat-network
+    env_file:
+      - backend/.env
     restart: always
 
-networks:
-  unichat-network:
-    driver: bridge
-
-volumes:
-  dynamodb_data:
-  redis_data:
