@@ -199,7 +199,7 @@ const InboxList: React.FC = () => {
     // 0. Exclude Bot conversations - AI Assistant should only be in its own tab
     const hasBot = Array.isArray(conv.members) && conv.members.some(m => {
       const normalized = String(m || "").toLowerCase();
-      return normalized === BOT_EMAIL || normalized.includes('bot@UniChat.system');
+      return normalized === String(BOT_EMAIL).toLowerCase() || normalized.includes('bot@unichat.system');
     });
     if (hasBot) return false;
 
