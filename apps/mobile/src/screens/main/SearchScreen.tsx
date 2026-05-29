@@ -23,18 +23,21 @@ import styles from './style/SearchScreen.styles';
 import { useSearchStore } from '../../store/searchStore';
 import { useChatStore } from '../../store/chatStore';
 import SafeImage from '../../components/common/SafeImage';
+import { PinModal } from '../../components/home/PinModal';
+import Alert from '../../utils/Alert';
+import { useTheme } from '../../context/ThemeContext';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DEFAULT_AVATAR = require('../../../assets/logo_blue.png');
 const RESULTS_PER_PAGE = 5;
 
-const TAG_CONFIG = {
-  CONTACT: { label: 'LIÊN HỆ', color: '#0068FF' },
-  CONVERSATION: { label: 'HỘI THOẠI', color: '#9c27b0' },
-  MESSAGE: { label: 'TIN NHẮN', color: '#00AA44' },
-  FILE: { label: 'TỆP TIN', color: '#FF6600' },
-};
+const getTagConfig = (t: any) => ({
+  CONTACT: { label: t('search.contact'), color: '#0068FF' },
+  CONVERSATION: { label: t('search.conversation'), color: '#9c27b0' },
+  MESSAGE: { label: t('search.message_type'), color: '#00AA44' },
+  FILE: { label: t('search.file'), color: '#FF6600' },
+});
 
 // ─── Utility: keyword highlighter ────────────────────────────────────────────
 
@@ -113,6 +116,8 @@ interface SearchItemProps {
 
 const SearchItem = memo(
   ({ item, isActive, isHighlighting, highlightAnim, query, onPress, userProfiles }: SearchItemProps) => {
+    const { t } = useTheme();
+    const TAG_CONFIG = getTagConfig(t);
     const tag = TAG_CONFIG[item.type as keyof typeof TAG_CONFIG];
     const isFile = item.type === 'FILE';
     const isMessage = item.type === 'MESSAGE';
@@ -126,16 +131,16 @@ const SearchItem = memo(
     const title = isContact 
       ? (profile?.nickname || profile?.fullName || profile?.fullname || item.fullName || item.displayName || item.sender?.name || '')
       : isConversation
-      ? (item.name || 'Nhóm không tên')
-      : (profile?.nickname || profile?.fullName || profile?.fullname || item.sender?.name || item.displayName || 'Người dùng');
+      ? (item.name || t('search.unnamed_group'))
+      : (profile?.nickname || profile?.fullName || profile?.fullname || item.sender?.name || item.displayName || t('search.user'));
     
     const subtitle = isConversation 
-      ? `${item.memberCount} thành viên`
+      ? (item.isHiddenMatch ? t('search.unlock_to_view') : `${item.memberCount} ${t('chat_details.members').toLowerCase()}`)
       : (isMessage || isFile) ? item.content : '';
     const fileMeta = isFile ? formatFileSize(item.size) : null;
 
-    const itemAvatarUri = profile?.avatarUrl || item.sender?.avatar || item.sender?.avatarUrl || item.avatar;
-    const avatarSource = itemAvatarUri ? { uri: itemAvatarUri } : DEFAULT_AVATAR;
+    const itemAvatarUri = item.isHiddenMatch ? DEFAULT_AVATAR : (profile?.avatarUrl || item.sender?.avatar || item.sender?.avatarUrl || item.avatar);
+    const avatarSource = itemAvatarUri === DEFAULT_AVATAR ? DEFAULT_AVATAR : (itemAvatarUri ? { uri: itemAvatarUri } : DEFAULT_AVATAR);
 
     const animatedBorderColor = isHighlighting
       ? highlightAnim.interpolate({
@@ -229,6 +234,7 @@ interface SearchScreenProps {
 
 export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) {
   const insets = useSafeAreaInsets();
+  const { t } = useTheme();
   const inputRef = useRef<TextInput>(null);
 
   // Per-item highlight tracking: Map<itemId, Animated.Value>
@@ -252,7 +258,11 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
     handleSelect,
   } = useSearchStore();
 
-  const { userProfiles } = useChatStore();
+  const { userProfiles, hiddenConversations, conversations } = useChatStore();
+
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [pinTargetConvId, setPinTargetConvId] = useState<string | null>(null);
+  const [pinTargetItem, setPinTargetItem] = useState<any>(null);
 
   // Auto-focus on mount & Cleanup on exit
   useEffect(() => {
@@ -326,6 +336,16 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
     (item: any) => {
       const id = getItemId(item);
       animateHighlight(id);
+      
+      if (item.isHiddenMatch) {
+        setTimeout(() => {
+          setPinTargetConvId(id);
+          setPinTargetItem(item);
+          setPinModalVisible(true);
+        }, 150);
+        return;
+      }
+      
       // Small delay so the highlight animation starts before navigation
       setTimeout(() => handleSelect(item, onNavigate), 100);
     },
@@ -352,23 +372,68 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
 
   // ── Derived data ──────────────────────────────────────────────────────────
 
-  /**
-   * Limit each section's data if not expanded.
-   */
   const limitedSections = useMemo(() => {
-    return (sections || []).map((section) => {
-      const isExpanded = expandedSections.has(section.title);
-      const rawData = section.data || [];
-      const slicedData = isExpanded ? rawData : rawData.slice(0, RESULTS_PER_PAGE);
+    let baseSections = (sections || [])
+      .map((section) => {
+        // Filter out results from hidden conversations
+        const filteredData = (section.data || []).filter((item: any) => {
+          if (item.type === 'MESSAGE' || item.type === 'FILE' || item.type === 'CONVERSATION') {
+            const convId = item.conversationId || item.id;
+            return !hiddenConversations[convId];
+          }
+          if (item.type === 'CONTACT') {
+            const userId = item.userId || item.id;
+            const directConv = conversations.find(c => c.type === 'direct' && c.members?.includes(userId));
+            return directConv ? !hiddenConversations[directConv.id] : true;
+          }
+          return true;
+        });
 
-      return {
-        ...section,
-        data: slicedData,
-        actualDataCount: rawData.length,
-        isExpanded,
-      };
-    });
-  }, [sections, expandedSections]);
+        const isExpanded = expandedSections.has(section.title);
+        const slicedData = isExpanded ? filteredData : filteredData.slice(0, RESULTS_PER_PAGE);
+
+        return {
+          ...section,
+          data: slicedData,
+          actualDataCount: filteredData.length,
+          isExpanded,
+        };
+      })
+      .filter((s) => s.actualDataCount > 0);
+
+    // Check if query matches any PIN in hiddenConversations
+    const q = query.trim();
+    if (q) {
+      const matchingHiddenIds = Object.keys(hiddenConversations).filter(
+        (id) => hiddenConversations[id] === q
+      );
+
+      if (matchingHiddenIds.length > 0) {
+        const hiddenMatches = conversations
+          .filter((c) => matchingHiddenIds.includes(c.id))
+          .map((c) => ({
+            ...c,
+            type: 'CONVERSATION',
+            name: t('search.hidden_chat'),
+            displayName: t('search.hidden_chat'),
+            content: t('search.unlock_to_view'),
+            memberCount: c.members?.length || 0,
+            isHiddenMatch: true, // flag
+          }));
+
+        if (hiddenMatches.length > 0) {
+          baseSections.unshift({
+            title: t('search.hidden_chat'),
+            data: hiddenMatches,
+            actualDataCount: hiddenMatches.length,
+            isExpanded: true,
+          });
+        }
+      }
+    }
+
+    return baseSections;
+  }, [sections, expandedSections, query, hiddenConversations, conversations]);
 
   const showRecents =
     !query.trim() && recentSearches?.length > 0;
@@ -418,7 +483,7 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
           onPress={() => toggleSectionExpansion(section.title)}
         >
           <Text style={styles.sectionExpandText}>
-            Xem thêm {section.title.toLowerCase()} ({section.actualDataCount - RESULTS_PER_PAGE})
+            {t('search.view_more', { title: section.title.toLowerCase() })} ({section.actualDataCount - RESULTS_PER_PAGE})
           </Text>
           <Text style={styles.sectionExpandIcon}>expand_more</Text>
         </TouchableOpacity>
@@ -457,7 +522,7 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
           <TextInput
             ref={inputRef}
             style={styles.searchInput}
-            placeholder="Tìm tên, email, tin nhắn..."
+            placeholder={t('common.search_placeholder')}
             placeholderTextColor="rgba(0,0,0,0.4)"
             value={query}
             onChangeText={handleChangeText}
@@ -483,12 +548,12 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
       ) : showRecents ? (
         <View style={{ flex: 1 }}>
           <View style={styles.sectionHeaderContainer}>
-            <Text style={styles.sectionTitle}>Tìm kiếm gần đây</Text>
+            <Text style={styles.sectionTitle}>{t('search.recent_searches')}</Text>
             <TouchableOpacity
               style={styles.clearHistoryBtn}
               onPress={clearRecentSearches}
             >
-              <Text style={styles.clearHistoryText}>Xóa tất cả</Text>
+              <Text style={styles.clearHistoryText}>{t('search.clear_all')}</Text>
             </TouchableOpacity>
           </View>
           <FlatList
@@ -520,14 +585,33 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
       ) : query.trim().length >= 2 ? (
         <View style={styles.centered}>
           <Text style={styles.emptyIcon}>search_off</Text>
-          <Text style={styles.emptyText}>Không tìm thấy kết quả nào</Text>
+          <Text style={styles.emptyText}>{t('search.no_results')}</Text>
         </View>
       ) : (
         <View style={styles.centered}>
           <Text style={styles.emptyIcon}>edit_note</Text>
-          <Text style={styles.emptyText}>Nhập ít nhất 2 ký tự để tìm kiếm</Text>
+          <Text style={styles.emptyText}>{t('search.type_to_search')}</Text>
         </View>
       )}
+
+      <PinModal
+        isVisible={pinModalVisible}
+        isSettingPin={false}
+        onClose={() => setPinModalVisible(false)}
+        onSubmit={(pin) => {
+          if (pinTargetConvId && pinTargetItem) {
+            const success = useChatStore.getState().unhideConversationWithPin(pinTargetConvId, pin);
+            if (success) {
+              setPinModalVisible(false);
+              setTimeout(() => {
+                handleSelect(pinTargetItem, onNavigate);
+              }, 100);
+            } else {
+              Alert.alert(t('common.error'), t('home.wrong_pin'));
+            }
+          }
+        }}
+      />
     </View>
   );
 }

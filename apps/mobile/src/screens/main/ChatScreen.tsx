@@ -29,7 +29,7 @@ import ChatInput from '../../components/chat/ChatInput';
 import SystemCallMessageItem from '../../components/chat/SystemCallMessageItem';
 import SystemNotificationItem from '../../components/chat/SystemNotificationItem';
 import { ConversationList } from '../../components/home/ConversationList';
-import styles from './style/ChatScreen.styles';
+import { getStyles } from './style/ChatScreen.styles';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -40,6 +40,7 @@ import {
   createCustomWindowMuteSchedule, 
   isValidTimeString
 } from '../../utils/chatUtils';
+import { useTheme } from '../../context/ThemeContext';
 
 // Components
 import { ChatHeader } from "../../components/chat/ChatHeader";
@@ -74,6 +75,8 @@ type MentionPayload = {
 };
 
 export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
@@ -290,10 +293,9 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
   }, [conversations, currentConvId, conversationId, targetEmail, localConversation, normalizeEmail]);
 
   const isBot = useMemo(() => {
-    const pEmail = selectedChat?.partner || targetEmail || '';
-    return pEmail === 'bot@UniChat.system';
-  }, [selectedChat, targetEmail]);
-
+    const pEmail = selectedChat?.partner || (Array.isArray(selectedChat?.members) ? selectedChat.members.find((m: string) => m !== user?.email) : undefined) || targetEmail || '';
+    return normalizeEmail(pEmail) === 'bot@unichat.system';
+  }, [selectedChat, targetEmail, user?.email, normalizeEmail]);
 
   const activePinnedMessages = useMemo(() => {
     // [SENIOR] Strictly isolated filter
@@ -326,6 +328,8 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
     if (!email) return "Người dùng";
     const normalized = normalizeEmail(email);
     
+    if (normalized === "bot@unichat.system") return "UniChat Bot";
+    
     // Check if there's an alias for this conversation
     if (selectedChat?.alias) return selectedChat.alias;
     
@@ -338,6 +342,7 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
     const defaultAvatar = "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
     const normalized = normalizeEmail(email);
     if (!normalized) return defaultAvatar;
+    if (normalized === "bot@unichat.system") return "https://api.dicebear.com/9.x/bottts/png?seed=UniChat&backgroundColor=0284c7";
     if (normalized === normalizeEmail(user?.email)) return user?.avatarUrl || defaultAvatar;
     const profile = userProfiles[normalized];
     return profile?.avatarUrl || profile?.avatar || defaultAvatar;
@@ -697,7 +702,7 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
           if (res.ok && res.data && res.data.fileUrl) {
             uploaded.push({ ...item, ...res.data });
           } else {
-            console.error(`[ChatScreen] Upload failed or missing fileUrl for ${item.name}`, res.error);
+            console.error(`[ChatScreen] Upload failed or missing fileUrl for ${item.name}`, res.message || res.error);
             uploadFailed = true;
             break;
           }
@@ -744,7 +749,7 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
           console.log(`[ChatScreen] Background send success for ${tempId}`);
           updateMessage(tempId, { ...res.data, status: "sent" });
         } else {
-          console.error(`[ChatScreen] Background send failed for ${tempId}`, res.error);
+          console.error(`[ChatScreen] Background send failed for ${tempId}`, res.message || res.error);
           updateMessage(tempId, { status: "error" });
         }
       } catch (err) {
@@ -858,8 +863,8 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
   if (!selectedChat) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={{ marginTop: 10, color: Colors.primary }}>Đang tải cuộc hội thoại...</Text>
+        <ActivityIndicator size="large" color="#4a8fff" />
+        <Text style={{ marginTop: 10, color: '#e8eef7' }}>Đang tải cuộc hội thoại...</Text>
       </View>
     );
   }
@@ -875,16 +880,18 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
         : `${selectedChat?.members?.length || 0} thành viên`);
 
   return (
-    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: '#fff' }}>
+    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: styles.container.backgroundColor }}>
       
       {/* 1. SIDEBAR (Chỉ hiện trên màn hình lớn - Giống bản Web) */}
       {isLargeScreen && (
-        <View style={{ width: 350, borderRightWidth: 1, borderRightColor: '#eee', backgroundColor: '#f9f9f9' }}>
+        <View style={{ width: 350, borderRightWidth: 1, borderRightColor: isDark ? '#3a3f52' : '#e2e8f0', backgroundColor: colors.surface }}>
            <View style={{ paddingTop: insets.top, flex: 1 }}>
-              <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: '#eee' }}>
-                <Text style={{ fontSize: 22, fontWeight: 'bold' }}>Tin nhắn</Text>
+              <View style={{ padding: 20, borderBottomWidth: 1, borderBottomColor: isDark ? '#3a3f52' : '#e2e8f0' }}>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: colors.onSurface }}>Tin nhắn</Text>
               </View>
               <ConversationList 
+                tags={[]}
+                onLongPressChat={() => {}}
                 conversations={conversations}
                 loading={false}
                 currentUserEmail={user?.email || ""}
@@ -907,8 +914,8 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
         >
-          {/* Subtle overlay for mobile too */}
-          <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+          {/* Dark overlay to dim the background image */}
+          <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: isDark ? 'rgba(10,14,39,0.88)' : 'rgba(255,255,255,0.85)' }} />
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ChatHeader 
           insets={insets} goBack={goBack} selectedChat={selectedChat}
@@ -979,9 +986,11 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
             if (m.type === 'date_separator') {
               return (
                 <View style={{ alignItems: 'center', marginVertical: 16 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#8e8e93', textTransform: 'uppercase' }}>
-                    {m.date === new Date().toDateString() ? "Hôm nay" : m.date}
-                  </Text>
+                  <View style={{ backgroundColor: 'rgba(42,47,66,0.85)', paddingHorizontal: 14, paddingVertical: 4, borderRadius: 20 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#9ca3b5', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      {m.date === new Date().toDateString() ? "Hôm nay" : m.date}
+                    </Text>
+                  </View>
                 </View>
               );
             }
@@ -998,11 +1007,11 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
                 userProfile={userProfiles[normalizeEmail(m.senderId)]} 
                 userProfiles={userProfiles} 
                 onLongPress={setActionMessage} 
-                onPress={isMultiSelectMode ? (msg) => handleToggleSelectedMessage(msg.id) : undefined}
+                onPress={isMultiSelectMode ? (msg: any) => handleToggleSelectedMessage(msg.id) : undefined}
                 onReaction={toggleReaction} 
                 onReply={handleReply} 
-                onReplyPress={(id) => setActiveConversation(selectedChat.id, id)} 
-                onSystemMessagePress={(id) => setActiveConversation(selectedChat.id, id)} 
+                onReplyPress={(id: string) => setActiveConversation(selectedChat.id, id)} 
+                onSystemMessagePress={(id: string) => setActiveConversation(selectedChat.id, id)} 
                 isHighlighted={!!targetMessageId && (m.id === targetMessageId || m.SK === targetMessageId)}
                 showAvatar={m.showAvatar}
                 groupPosition={m.groupPosition}
@@ -1018,27 +1027,27 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
         />
 
         {isMultiSelectMode && (
-          <View style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#eff6ff', borderTopWidth: 1, borderTopColor: '#dbeafe' }}>
+          <View style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#1a1e33', borderTopWidth: 1, borderTopColor: '#3a3f52' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#1d4ed8' }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#4a8fff' }}>
                 Đã chọn {selectedMessageIds.length} tin nhắn
               </Text>
-              <TouchableOpacity onPress={exitMultiSelectMode} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#fff' }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#334155' }}>Hủy chọn</Text>
+              <TouchableOpacity onPress={exitMultiSelectMode} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#2a2f42' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#e8eef7' }}>Hủy chọn</Text>
               </TouchableOpacity>
             </View>
             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-              <TouchableOpacity onPress={handleCopySelectedMessages} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#fff' }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#8b5cf6' }}>Sao chép</Text>
+              <TouchableOpacity onPress={handleCopySelectedMessages} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#2a2f42' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#a78bfa' }}>Sao chép</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleMarkSelectedMessages} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#f0fdf4' }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#16a34a' }}>Đánh dấu</Text>
+              <TouchableOpacity onPress={handleMarkSelectedMessages} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#162032' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#34d399' }}>Đánh dấu</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handlePinSelectedMessages} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#fefce8' }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#ca8a04' }}>Ghim</Text>
+              <TouchableOpacity onPress={handlePinSelectedMessages} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#1f1a10' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#fbbf24' }}>Ghim</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleDeleteSelectedMessages} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#ef4444' }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>Xóa</Text>
+              <TouchableOpacity onPress={handleDeleteSelectedMessages} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: '#7f1d1d' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#fca5a5' }}>Xóa</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1087,9 +1096,9 @@ export default function ChatScreen({ onNavigate, goBack, params }: ChatScreenPro
 
         {/* TARGETING MESSAGE OVERLAY */}
         {isLoadingMessages && targetMessageId && (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.7)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }]}>
-            <ActivityIndicator size="large" color="#0084ff" />
-            <Text style={{ marginTop: 12, fontWeight: '600', color: '#0084ff' }}>Đang tìm vị trí tin nhắn...</Text>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10,14,39,0.85)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }]}>
+            <ActivityIndicator size="large" color="#4a8fff" />
+            <Text style={{ marginTop: 12, fontWeight: '600', color: '#4a8fff' }}>Đang tìm vị trí tin nhắn...</Text>
           </View>
         )}
 

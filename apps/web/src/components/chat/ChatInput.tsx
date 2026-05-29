@@ -789,8 +789,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
           <div className="min-w-0 flex-1 relative z-10">
             <div className="flex items-center gap-1 mb-0.5">
               <Reply size={14} className="text-primary" />
-              <p className="text-[11px] font-extrabold text-primary uppercase tracking-wider">
-                Đang trả lời {replyTarget.senderId}
+              <p className="text-[11px] font-extrabold text-primary uppercase tracking-wider truncate">
+                Đang trả lời {replyTarget.senderId ? getDisplayName(replyTarget.senderId, user, userProfiles) : "Tin nhắn"}
               </p>
             </div>
             <p className="text-[13px] text-on-surface-variant/80 truncate font-medium italic">

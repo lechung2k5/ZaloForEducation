@@ -1,3 +1,4 @@
+import { useTheme } from '../../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -33,6 +34,8 @@ interface ProfileMoreProps {
 }
 
 export default function ProfileMoreScreen({ onNavigate }: ProfileMoreProps) {
+  const { colors, t } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors), [colors]);
   const storage = AsyncStorage;
   const [displayName, setDisplayName] = useState('Người dùng');
 
@@ -115,10 +118,10 @@ export default function ProfileMoreScreen({ onNavigate }: ProfileMoreProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f1f1f4',
+    backgroundColor: colors.background,
   },
   header: {
     height: 74,
@@ -136,23 +139,23 @@ const styles = StyleSheet.create({
   headerIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 28,
-    color: '#fff',
+    color: colors.surface,
   },
   headerTitle: {
     ...Typography.heading,
-    color: '#d8f2ff',
+    color: colors.onPrimaryContainer,
     fontSize: 18,
     flex: 1,
   },
   body: {
     flex: 1,
-    backgroundColor: '#f1f1f4',
+    backgroundColor: colors.background,
   },
   bodyContent: {
     paddingBottom: 24,
   },
   group: {
-    backgroundColor: '#f2f2f2',
+    backgroundColor: colors.background,
   },
   row: {
     minHeight: 66,
@@ -161,11 +164,11 @@ const styles = StyleSheet.create({
   },
   rowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#d9d9dc',
+    borderBottomColor: colors.outlineVariant,
   },
   rowText: {
     ...Typography.body,
-    color: '#1f2329',
+    color: colors.onSurface,
     fontSize: 15,
     lineHeight: 22,
   },
@@ -177,7 +180,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.heading,
-    color: '#1c7dad',
+    color: colors.primary,
     fontSize: 16,
   },
 });

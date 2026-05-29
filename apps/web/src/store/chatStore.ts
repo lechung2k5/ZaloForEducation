@@ -214,6 +214,11 @@ interface ChatState {
   isCreateGroupModalOpen: boolean;
   setIsCreateGroupModalOpen: (val: boolean) => void;
 
+  // Friend Requests
+  pendingFriendRequestsCount: number;
+  setPendingFriendRequestsCount: (count: number | ((prev: number) => number)) => void;
+  fetchPendingFriendRequestsCount: () => Promise<void>;
+
   // Group Management
   addMembers: (convId: string, members: string[]) => Promise<void>;
   removeMember: (convId: string, email: string) => Promise<void>;
@@ -305,6 +310,20 @@ export const useChatStore = create<ChatState>((originalSet, get) => {
   setIsAddFriendModalOpen: (val) => set({ isAddFriendModalOpen: val }),
   isCreateGroupModalOpen: false,
   setIsCreateGroupModalOpen: (val) => set({ isCreateGroupModalOpen: val }),
+  pendingFriendRequestsCount: 0,
+  setPendingFriendRequestsCount: (count) => set((state) => ({
+    pendingFriendRequestsCount: typeof count === 'function' ? count(state.pendingFriendRequestsCount) : count
+  })),
+  fetchPendingFriendRequestsCount: async () => {
+    try {
+      const res = await api.get('/chat/friends/requests');
+      if (res.data && Array.isArray(res.data)) {
+        set({ pendingFriendRequestsCount: res.data.length });
+      }
+    } catch (err) {
+      console.log('Failed to fetch pending friend requests count', err);
+    }
+  },
 
   setConversations: (updater) =>
     set((state) => {
@@ -423,7 +442,17 @@ export const useChatStore = create<ChatState>((originalSet, get) => {
       prevCursor: prevCursor !== undefined ? prevCursor : get().prevCursor 
     }),
 
-  addMessage: (message) =>
+  addMessage: (message) => {
+    if (message.type === "system") {
+      try {
+        const parsed = JSON.parse(message.content);
+        if (parsed.actor && parsed.actor !== "system") get().loadUserProfile(parsed.actor);
+        if (parsed.target) get().loadUserProfile(parsed.target);
+      } catch (e) {
+        // ignore
+      }
+    }
+
     set((state) => {
       const incomingConvId = (message.conversationId || (message as any).convId || "").toLowerCase();
       if (!incomingConvId) return state;
@@ -514,7 +543,7 @@ export const useChatStore = create<ChatState>((originalSet, get) => {
       let archiveChanged = false;
 
       const hasMedia = (message.media && message.media.length > 0) || (message.type === 'image' || message.type === 'video');
-      const hasFiles = (message.files && message.files.length > 0) || (message.type === 'file');
+      const hasFiles = ((message.files && message.files.length > 0) || (message.type === 'file')) && message.content !== '[Tin nhắn thoại]';
       const hasLinks = message.content && /https?:\/\/[^\s]+/.test(message.content);
 
       if (hasMedia) {
@@ -544,7 +573,8 @@ export const useChatStore = create<ChatState>((originalSet, get) => {
         conversations: newConvs,
         archiveAssets: archiveChanged ? updatedArchive : state.archiveAssets
       };
-    }),
+    });
+  },
 
   markAsRead: async (convId) => {
     set((state) => ({

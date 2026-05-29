@@ -78,6 +78,8 @@ export const normalizeConversation = (conv: any, currentUserEmail: string | null
     avatar: conv.avatar || "",
     unreadCount: Number(conv.unreadCount || 0),
     updatedAt: conv.updatedAt || conv.created_at || new Date().toISOString(),
+    pinned: !!(conv.isPinned || conv.pinned),
+    isMuted: !!conv.isMuted,
   };
 };
 export const normalizeAttachment = (f: any) => {

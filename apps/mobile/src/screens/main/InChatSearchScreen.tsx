@@ -14,10 +14,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useChatStore } from '../../store/chatStore';
 import { Colors } from '../../constants/Theme';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 const InChatSearchScreen = ({ route, navigation }: any) => {
   const { conversationId, chatName } = route.params;
   const { user } = useAuth();
+  const { t } = useTheme();
   const {
     searchMessages,
     localSearchResults,
@@ -92,7 +94,7 @@ const InChatSearchScreen = ({ route, navigation }: any) => {
           <TextInput
             ref={inputRef}
             style={styles.input}
-            placeholder={`Tìm trong ${chatName || 'cuộc trò chuyện'}`}
+            placeholder={t('chat_details.search_in', { name: chatName || t('chat_details.conversation') })}
             value={query}
             onChangeText={setQuery}
             placeholderTextColor="#94a3b8"
@@ -112,19 +114,19 @@ const InChatSearchScreen = ({ route, navigation }: any) => {
         {isLocalSearching ? (
           <View style={styles.centerBox}>
             <ActivityIndicator color={Colors.primary} size="large" />
-            <Text style={styles.infoText}>Đang tìm kiếm...</Text>
+            <Text style={styles.infoText}>{t('chat_details.searching')}</Text>
           </View>
         ) : query.length < 2 ? (
           <View style={styles.centerBox}>
             <Text style={styles.iconLarge}>search</Text>
             <Text style={styles.infoText}>
-              Nhập từ khóa (tối thiểu 2 ký tự) để tìm kiếm tin nhắn trong hội thoại này
+              {t('chat_details.search_hint')}
             </Text>
           </View>
         ) : localSearchResults.length === 0 ? (
           <View style={styles.centerBox}>
             <Text style={styles.iconLarge}>sentiment_dissatisfied</Text>
-            <Text style={styles.infoText}>Không tìm thấy kết quả cho "{query}"</Text>
+            <Text style={styles.infoText}>{t('chat_details.search_no_results', { query })}</Text>
           </View>
         ) : (
           <FlatList

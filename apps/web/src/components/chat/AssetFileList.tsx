@@ -53,8 +53,7 @@ const AssetFileList: React.FC<AssetFileListProps> = ({ convId }) => {
             const mime = f.mimeType?.toLowerCase() || "";
             return (
               !name.includes("location.json") &&
-              !name.includes("contact.json") &&
-              !mime.startsWith("audio/")
+              !name.includes("contact.json")
             );
           });
         return files.map((file, idx) => (

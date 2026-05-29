@@ -295,6 +295,8 @@ export const getMessagePreview = (message: any): string => {
             return "[Xóa thành viên]";
           case "member_left":
             return "[Rời nhóm]";
+          case "member_joined_link":
+            return "[Tham gia bằng link]";
           case "role_updated":
           case "promoted_to_deputy":
           case "demoted_to_member":
@@ -373,6 +375,8 @@ const formatSystemPreview = (
           return `${actorLabel} đã xóa ${buildTargetLabel(parsed.target)} khỏi nhóm`;
         case "member_left":
           return `${actorLabel} đã rời nhóm`;
+        case "member_joined_link":
+          return `${actorLabel} đã tham gia nhóm bằng link`;
         case "role_updated":
         case "promoted_to_deputy":
         case "demoted_to_member":

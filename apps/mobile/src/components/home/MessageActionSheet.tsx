@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Pressable } from 'react-native';
-import styles from '../../screens/main/style/HomeScreen.styles';
+import { getStyles } from '../../screens/main/style/HomeScreen.styles';
 import { Colors } from '../../constants/Theme';
+import { useTheme } from '../../context/ThemeContext';
 
 const REACTION_OPTIONS = ["❤️", "👍", "😂", "😮", "😢", "😡"];
 
@@ -32,6 +33,9 @@ export const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
   onRecall,
   onDeleteForMe,
 }) => {
+  const { colors, isDark, t } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
+
   if (!isVisible || !message) return null;
 
   return (
@@ -61,7 +65,7 @@ export const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
             <View style={[styles.actionIconBox, { backgroundColor: '#f0f7ff' }]}>
               <Text style={[styles.actionIcon, { color: Colors.primary }]}>reply</Text>
             </View>
-            <Text style={styles.actionText}>Trả lời</Text>
+            <Text style={styles.actionText}>{t('chat.reply')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -71,7 +75,7 @@ export const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
             <View style={[styles.actionIconBox, { backgroundColor: '#f0fff4' }]}>
               <Text style={[styles.actionIcon, { color: '#22c55e' }]}>content_copy</Text>
             </View>
-            <Text style={styles.actionText}>Sao chép</Text>
+            <Text style={styles.actionText}>{t('common.copy')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -81,7 +85,7 @@ export const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
             <View style={[styles.actionIconBox, { backgroundColor: '#fff7ed' }]}>
               <Text style={[styles.actionIcon, { color: '#f97316' }]}>forward</Text>
             </View>
-            <Text style={styles.actionText}>Chuyển tiếp</Text>
+            <Text style={styles.actionText}>{t('chat.forward')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -91,7 +95,7 @@ export const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
             <View style={[styles.actionIconBox, { backgroundColor: '#fef3c7' }]}>
               <Text style={[styles.actionIcon, { color: '#d97706' }]}>push_pin</Text>
             </View>
-            <Text style={styles.actionText}>{message.pinned ? 'Bỏ ghim' : 'Ghim'}</Text>
+            <Text style={styles.actionText}>{message.pinned ? t('chat.unpin_msg') : t('chat.pin_msg')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -102,9 +106,7 @@ export const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
               onPress={() => onRecall(message.id)}
             >
               <Text style={styles.actionListIcon}>history_toggle_off</Text>
-              <Text style={[styles.actionListText, { color: '#ef4444' }]}>
-                Thu hồi tin nhắn
-              </Text>
+              <Text style={[styles.actionListText, { color: '#ef4444' }]}>{t('chat.revoke_msg')}</Text>
             </TouchableOpacity>
           )}
 
@@ -113,9 +115,7 @@ export const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
             onPress={() => onDeleteForMe(message.id)}
           >
             <Text style={[styles.actionListIcon, { color: '#ef4444' }]}>delete</Text>
-            <Text style={[styles.actionListText, { color: '#ef4444' }]}>
-              Xóa ở phía tôi
-            </Text>
+            <Text style={[styles.actionListText, { color: '#ef4444' }]}>{t('chat.delete_for_me')}</Text>
           </TouchableOpacity>
         </View>
       </Pressable>

@@ -2,13 +2,17 @@ import { StateCreator } from 'zustand';
 import { getStorage } from '../storage';
 import { safeJsonParse } from '../chatHelpers';
 import { ChatStore } from '../chatStore';
+import { apiRequest } from '../../utils/api';
 
 export interface NotificationSlice {
   notifications: any[];
   unreadNotificationCount: number;
+  pendingFriendRequestsCount: number;
   markNotificationsRead: (conversationId?: string) => void;
   addNotification: (notification: any) => void;
   clearNotifications: () => void;
+  setPendingFriendRequestsCount: (count: number | ((prev: number) => number)) => void;
+  fetchPendingFriendRequestsCount: () => Promise<void>;
 }
 
 export const createNotificationSlice: StateCreator<ChatStore, [], [], NotificationSlice> = (set, get) => {
@@ -18,6 +22,22 @@ export const createNotificationSlice: StateCreator<ChatStore, [], [], Notificati
   return {
     notifications: initialNotifications,
     unreadNotificationCount: initialNotifications.filter((n: any) => !n.read).length,
+    pendingFriendRequestsCount: 0,
+
+    setPendingFriendRequestsCount: (count) => set((state) => ({
+      pendingFriendRequestsCount: typeof count === 'function' ? count(state.pendingFriendRequestsCount) : count
+    })),
+
+    fetchPendingFriendRequestsCount: async () => {
+      try {
+        const res = await apiRequest('/chat/friends/requests');
+        if (res && res.data && Array.isArray(res.data)) {
+          set({ pendingFriendRequestsCount: res.data.length });
+        }
+      } catch (err) {
+        console.log("Failed to fetch pending requests count", err);
+      }
+    },
 
     markNotificationsRead: (conversationId) =>
       set((state) => {

@@ -28,7 +28,7 @@ export class ChatService {
     private readonly chatGateway: ChatGateway,
     @Inject(forwardRef(() => FriendshipService))
     private readonly friendshipService: FriendshipService,
-    private readonly userService: UserService,
+    public readonly userService: UserService,
   ) {}
 
   private normalizeConvId(id: string): { raw: string; prefixed: string; original: string; veryRaw: string } {
@@ -413,8 +413,9 @@ export class ChatService {
       {
         Update: {
           TableName: this.db.tableName,
-          Key: { PK: "CONVERSATION", SK: convId },
-          UpdateExpression: "SET members = :m, updatedAt = :updatedAt",
+          Key: { PK: convId, SK: "METADATA" },
+          UpdateExpression: "SET #m = :m, updatedAt = :updatedAt",
+          ExpressionAttributeNames: { "#m": "members" },
           ExpressionAttributeValues: {
             ":m": updatedMembers,
             ":updatedAt": now,
@@ -427,6 +428,9 @@ export class ChatService {
           Item: {
             PK: `USER#${emailLower}`,
             SK: convId,
+            type: "group",
+            name: metadata.name,
+            createdAt: now,
             joinedAt: now,
             updatedAt: now,
           },
@@ -964,6 +968,21 @@ export class ChatService {
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       );
   }
+
+  async getCommonGroups(userEmail: string, targetEmail: string) {
+    // Get all conversations for the current user
+    const myConvs = await this.getConversationsByUser(userEmail);
+    const targetLower = String(targetEmail).trim().toLowerCase();
+    // Filter for group conversations where targetEmail is also a member
+    return myConvs
+      .filter((c) =>
+        c.type === 'group' &&
+        Array.isArray(c.members) &&
+        c.members.some((m: string) => String(m).trim().toLowerCase() === targetLower)
+      )
+      .map((c) => ({ id: c.id, name: c.name, avatar: c.avatar || null, memberCount: (c.members || []).length }));
+  }
+
 
   async markConversationAsRead(
     email: string,

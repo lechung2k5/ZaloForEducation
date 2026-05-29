@@ -13,6 +13,7 @@ import { DynamoDBService } from "../../infrastructure/dynamodb.service";
 import { S3Service } from "../../infrastructure/s3.service";
 import { FriendshipService } from "./friendship.service";
 import { ChatGateway } from "./chat.gateway";
+import { ChatService } from "./chat.service";
 
 @Injectable()
 export class MessageService {
@@ -22,6 +23,8 @@ export class MessageService {
     private readonly friendshipService: FriendshipService,
     @Inject(forwardRef(() => ChatGateway))
     private readonly chatGateway: ChatGateway,
+    @Inject(forwardRef(() => ChatService))
+    private readonly chatService: ChatService,
   ) {}
 
   private normalizeConvId(id: string): { raw: string; prefixed: string; original: string; veryRaw: string } {
@@ -30,6 +33,12 @@ export class MessageService {
     
     if (input.toUpperCase().startsWith("DIRECT#")) {
       const parts = input.split("#");
+      if (parts.length >= 3) {
+        const emails = parts.slice(1).map(e => e.toLowerCase()).sort();
+        normalized = `DIRECT#${emails[0]}#${emails[1]}`;
+      }
+    } else if (input.toLowerCase().startsWith("direct:")) {
+      const parts = input.split(":");
       if (parts.length >= 3) {
         const emails = parts.slice(1).map(e => e.toLowerCase()).sort();
         normalized = `DIRECT#${emails[0]}#${emails[1]}`;
@@ -81,8 +90,23 @@ export class MessageService {
     }
 
     if (!metadataRes.Item) {
-      console.error(`[MessageService] Metadata NOT FOUND for ${prefId}, ${origId} or ${rawId}`);
-      throw new BadRequestException(`Không tìm thấy cuộc hội thoại: ${prefId}`);
+      if (rawId.startsWith("DIRECT#")) {
+        const parts = rawId.split("#");
+        if (parts.length === 3) {
+          try {
+            console.log(`[MessageService] Auto-creating missing direct conversation ${rawId}`);
+            const newConv = await this.chatService.createDirectConversation(parts[1], parts[2]);
+            metadataRes = { Item: { ...newConv, PK: prefId, SK: "METADATA" } } as any;
+          } catch (e) {
+            console.error(`[MessageService] Failed to auto-create direct conversation ${rawId}`, e);
+          }
+        }
+      }
+
+      if (!metadataRes.Item) {
+        console.error(`[MessageService] Metadata NOT FOUND for ${prefId}, ${origId} or ${rawId}`);
+        throw new BadRequestException(`Không tìm thấy cuộc hội thoại: ${prefId}`);
+      }
     }
 
     const metadata = metadataRes.Item as any;

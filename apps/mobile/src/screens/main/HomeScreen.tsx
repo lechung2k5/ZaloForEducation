@@ -12,12 +12,11 @@ import {
   Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import styles from './style/HomeScreen.styles';
-import { Colors } from '../../constants/Theme';
+import { getStyles } from './style/HomeScreen.styles';
+import { useTheme } from '../../context/ThemeContext';
 import Alert from '../../utils/Alert';
 import { useAuth } from '../../context/AuthContext';
-import { apiRequest, chatGet, chatPost, chatPatch, chatUpload } from '../../utils/api';
-import SocketService from '../../utils/socket';
+
 import { getMessagePreview } from '../../utils/chatUtils';
 import { useChatStore } from '../../store/chatStore';
 import { useConversations } from "../../hooks/queries/useConversations";
@@ -27,9 +26,14 @@ import NotificationScreen from "./NotificationScreen";
 import { HomeHeader } from "../../components/home/HomeHeader";
 import { ConversationList } from "../../components/home/ConversationList";
 import { MessageActionSheet } from "../../components/home/MessageActionSheet";
+import { InboxActionSheet } from "../../components/home/InboxActionSheet";
+import { ClassifyFilterModal } from "../../components/home/ClassifyFilterModal";
+import { ConversationTagPicker } from "../../components/home/ConversationTagPicker";
+import { PinModal } from "../../components/home/PinModal";
 import { ProfileTab } from "../../components/home/ProfileTab";
 import { Conversation, Message } from "../../store/types";
 import { BOT_EMAIL } from "../../constants/bot";
+import { ASSETS } from "../../utils/assets";
 
 const TAB_ALIAS: Record<string, string> = {
   messages: "chat",
@@ -42,7 +46,7 @@ const TAB_ALIAS: Record<string, string> = {
 
 const normalizeHomeTab = (tab: string) => TAB_ALIAS[String(tab || "").trim().toLowerCase()] || "chat";
 
-const DEFAULT_AVATAR = { uri: "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true" };
+const DEFAULT_AVATAR = ASSETS.DEFAULT_AVATAR;
 
 export default function HomeScreen({
   navigation,
@@ -50,6 +54,8 @@ export default function HomeScreen({
   params: directParams,
 }: any) {
   const insets = useSafeAreaInsets();
+  const { colors, t, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const { user, profileVersion, checkSessionStatus, logout }: any = useAuth();
   
   const { 
@@ -59,7 +65,10 @@ export default function HomeScreen({
     unreadNotificationCount,
     userProfiles,
     upsertProfiles,
-    loadUserProfile
+    loadUserProfile,
+    tags,
+    hiddenConversations,
+    loadLocalData
   } = useChatStore();
 
   const { refetch: refetchConversations, isFetching: isRefreshing } = useConversations();
@@ -70,10 +79,24 @@ export default function HomeScreen({
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [friendSearchEmail, setFriendSearchEmail] = useState("");
   const [actionMessage, setActionMessage] = useState<Message | null>(null);
+  const [actionConv, setActionConv] = useState<Conversation | null>(null);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+
+  // Inbox Parity States
+  const [chatFilter, setChatFilter] = useState<"all" | "unread">("all");
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [classifyOpen, setClassifyOpen] = useState(false);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  
+  // Pin Modal States
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [pinModalMode, setPinModalMode] = useState<"hide" | "unhide">("hide");
+  const [tagPickerConv, setTagPickerConv] = useState<any>(null);
+  const [pinTargetConvId, setPinTargetConvId] = useState<string | null>(null);
 
   useEffect(() => {
     if (checkSessionStatus) checkSessionStatus();
+    loadLocalData();
   }, []);
 
   useEffect(() => {
@@ -83,10 +106,11 @@ export default function HomeScreen({
   const normalizeEmail = (email: string) => String(email || "").trim().toLowerCase();
 
   const getDisplayName = (email: string) => {
-    if (!email) return "Người dùng";
+    if (!email) return t('common.user');
     const normalizedEmail = normalizeEmail(email);
+    if (normalizedEmail === "bot@unichat.system") return "UniChat Bot";
     if (normalizedEmail === normalizeEmail(user?.email)) {
-      return user?.nickname || user?.fullName || user?.fullname || "Bạn";
+      return user?.nickname || user?.fullName || user?.fullname || t('common.you');
     }
     const p = userProfiles[normalizedEmail] || {};
     return p?.nickname || p?.fullName || p?.fullname || normalizedEmail;
@@ -95,16 +119,18 @@ export default function HomeScreen({
   const getDisplayAvatar = (email?: string) => {
     const normalizedEmail = email ? normalizeEmail(email) : "";
     if (!normalizedEmail) return DEFAULT_AVATAR;
+    if (normalizedEmail === "bot@unichat.system") return { uri: "https://api.dicebear.com/9.x/bottts/png?seed=UniChat&backgroundColor=0284c7" };
     if (normalizedEmail === normalizeEmail(user?.email)) {
        return user?.avatarUrl ? { uri: user.avatarUrl } : DEFAULT_AVATAR;
     }
-    const avatarUri = userProfiles[normalizedEmail]?.avatarUrl;
+    const profile = userProfiles[normalizedEmail] || {};
+    const avatarUri = profile?.avatarUrl || profile?.urlAvatar || profile?.avatar;
     return avatarUri ? { uri: avatarUri } : DEFAULT_AVATAR;
   };
 
   const getConversationPreview = (conv: Conversation) => {
     const isMe = conv?.lastMessageSenderId === user?.email;
-    const prefix = isMe ? 'Bạn: ' : '';
+    const prefix = isMe ? t('common.you_colon') : '';
 
     // Create a mock message object to use getMessagePreview
     const mockMsg = {
@@ -115,7 +141,7 @@ export default function HomeScreen({
     };
 
     const preview = getMessagePreview(mockMsg);
-    if (preview === 'Tin nhắn' && !mockMsg.content) return 'Chưa có tin nhắn';
+    if (preview === t('chat.message_label') && !mockMsg.content) return t('chat.no_messages');
     
     return `${prefix}${preview}`;
   };
@@ -140,11 +166,26 @@ export default function HomeScreen({
       // Hide conversations with the bot
       const hasBot = Array.isArray(conv.members) && conv.members.some((m: string) => {
         const normalized = String(m || "").toLowerCase();
-        return normalized === BOT_EMAIL || normalized.includes('bot@UniChat.system');
+        const lowerBotEmail = BOT_EMAIL.toLowerCase();
+        return normalized === lowerBotEmail || normalized.includes(lowerBotEmail) || normalized.includes('bot@unichat.system');
       });
-      return !hasBot;
+      if (hasBot) return false;
+
+      // 1. Unread filter
+      if (chatFilter === "unread" && (conv.unreadCount || 0) === 0) return false;
+
+      // 2. Tag filter
+      if (tagFilter) {
+        if (tagFilter === "none" && conv.tagId) return false;
+        if (tagFilter !== "none" && conv.tagId !== tagFilter) return false;
+      }
+
+      // 3. Hidden conversations
+      if (hiddenConversations[conv.id]) return false;
+
+      return true;
     });
-  }, [conversations]);
+  }, [conversations, chatFilter, tagFilter, hiddenConversations]);
 
   const handleSelectChat = (chat: Conversation) => {
     if (chat.id === "CONV#SYSTEM") {
@@ -155,9 +196,9 @@ export default function HomeScreen({
   };
 
   const handleLogoutPress = () => {
-    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
-      { text: "Hủy", style: "cancel" },
-      { text: "Đăng xuất", style: "destructive", onPress: logout },
+    Alert.alert(t('profile.logout'), t('profile.logout_confirm'), [
+      { text: t('common.cancel'), style: "cancel" },
+      { text: t('profile.logout'), style: "destructive", onPress: logout },
     ]);
   };
 
@@ -180,16 +221,37 @@ export default function HomeScreen({
       >
         <View style={styles.content}>
           {activeTab === "chat" && (
-            <ConversationList 
-              conversations={filteredConversations}
-              loading={loadingConversations}
-              currentUserEmail={user?.email || ""}
-              userProfiles={userProfiles}
-              onSelectChat={handleSelectChat}
-              getDisplayName={getDisplayName}
-              getDisplayAvatar={getDisplayAvatar}
-              getConversationPreview={getConversationPreview}
-            />
+            <>
+              {/* Filter Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8, paddingTop: 4 }}>
+                <TouchableOpacity onPress={() => setChatFilter("all")}>
+                  <Text style={[chatFilter === "all" ? { color: colors.primary, fontWeight: '700' } : { color: colors.onSurfaceVariant, fontWeight: '500' }]}>{t('home.all')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setChatFilter("unread")} style={{ marginLeft: 20 }}>
+                  <Text style={[chatFilter === "unread" ? { color: colors.primary, fontWeight: '700' } : { color: colors.onSurfaceVariant, fontWeight: '500' }]}>{t('home.unread')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setClassifyOpen(true)} style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ color: tagFilter ? colors.primary : colors.onSurfaceVariant, fontWeight: '500', marginRight: 4 }}>{t('home.classify')}</Text>
+                  <Text style={{ fontFamily: 'Material Symbols Outlined', color: tagFilter ? colors.primary : colors.onSurfaceVariant, fontSize: 18 }}>filter_list</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ConversationList 
+                conversations={filteredConversations}
+                loading={loadingConversations}
+                currentUserEmail={user?.email || ""}
+                userProfiles={userProfiles}
+
+                tags={tags}
+                onSelectChat={handleSelectChat}
+                onLongPressChat={(chat) => {
+                  setActionConv(chat);
+                }}
+                getDisplayName={getDisplayName}
+                getDisplayAvatar={getDisplayAvatar}
+                getConversationPreview={getConversationPreview}
+              />
+            </>
           )}
           {activeTab === "contacts" && (
             <ContactsScreen
@@ -230,6 +292,84 @@ export default function HomeScreen({
         onDeleteForMe={() => {}}
       />
 
+      <InboxActionSheet 
+        isVisible={!!actionConv}
+        conversation={actionConv}
+        onClose={() => setActionConv(null)}
+        onPin={async (convId, isPinned) => {
+          setActionConv(null);
+          await useChatStore.getState().setPinConversation(convId, !isPinned);
+        }}
+        onClassify={() => {
+          const targetConv = actionConv;
+          setActionConv(null);
+          setTimeout(() => {
+            setTagPickerConv(targetConv);
+            setTagPickerOpen(true);
+          }, 150);
+        }}
+        onHideToggle={(convId, isHidden) => {
+          setActionConv(null);
+          setTimeout(() => {
+            setPinTargetConvId(convId);
+            setPinModalMode(isHidden ? "unhide" : "hide");
+            setPinModalVisible(true);
+          }, 150);
+        }}
+        onManageTags={() => {
+          setActionConv(null);
+          setTimeout(() => {
+            navigation.navigate('TagManagement');
+          }, 150);
+        }}
+      />
+
+      <ClassifyFilterModal
+        isVisible={classifyOpen}
+        currentTag={tagFilter}
+        onClose={() => setClassifyOpen(false)}
+        onSelectFilter={setTagFilter}
+        onManageTags={() => {
+          setClassifyOpen(false);
+          navigation.navigate('TagManagement');
+        }}
+      />
+
+      <ConversationTagPicker
+        isVisible={tagPickerOpen}
+        conversation={tagPickerConv}
+        onClose={() => {
+          setTagPickerOpen(false);
+          setTimeout(() => setTagPickerConv(null), 300); // clear after animation
+        }}
+        onAssignTag={(convId, tagId) => {
+          useChatStore.getState().assignTagToConversation(convId, tagId);
+        }}
+        onManageTags={() => {
+          navigation.navigate('TagManagement');
+        }}
+      />
+
+      <PinModal
+        isVisible={pinModalVisible}
+        isSettingPin={pinModalMode === "hide"}
+        onClose={() => setPinModalVisible(false)}
+        onSubmit={(pin) => {
+          if (pinTargetConvId) {
+            if (pinModalMode === "hide") {
+              useChatStore.getState().hideConversationWithPin(pinTargetConvId, pin);
+            } else {
+              const success = useChatStore.getState().unhideConversationWithPin(pinTargetConvId, pin);
+              if (!success) {
+                // If it was a real app we would show an alert, but for now we just log
+                console.warn("Sai mã PIN");
+              }
+            }
+          }
+          setPinModalVisible(false);
+        }}
+      />
+
       <Modal
         visible={isAddMenuOpen}
         transparent
@@ -243,7 +383,7 @@ export default function HomeScreen({
               onPress={() => { setIsAddMenuOpen(false); navigation.navigate('Search'); }}
             >
               <Text style={styles.addMenuIcon}>person_add</Text>
-              <Text style={styles.addMenuLabel}>Thêm bạn</Text>
+              <Text style={styles.addMenuLabel}>{t('home.add_friend')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -251,19 +391,19 @@ export default function HomeScreen({
               onPress={() => { setIsAddMenuOpen(false); navigation.navigate('CreateGroup'); }}
             >
               <Text style={styles.addMenuIcon}>group_add</Text>
-              <Text style={styles.addMenuLabel}>Tạo nhóm</Text>
+              <Text style={styles.addMenuLabel}>{t('home.create_group')}</Text>
             </TouchableOpacity>
 
             <View style={styles.addMenuDivider} />
 
             <TouchableOpacity style={styles.addMenuItem}>
               <Text style={styles.addMenuIcon}>videocam</Text>
-              <Text style={styles.addMenuLabel}>Tạo cuộc gọi nhóm</Text>
+              <Text style={styles.addMenuLabel}>{t('home.create_group_call')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.addMenuItem}>
               <Text style={styles.addMenuIcon}>devices</Text>
-              <Text style={styles.addMenuLabel}>Thiết bị đăng nhập</Text>
+              <Text style={styles.addMenuLabel}>{t('home.login_devices')}</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -271,3 +411,4 @@ export default function HomeScreen({
     </View>
   );
 }
+

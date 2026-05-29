@@ -13,7 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
-import { Colors, Shadows, Typography } from '../../constants/Theme';
+import { Shadows, Typography } from '../../constants/Theme';
+import { useTheme } from '../../context/ThemeContext';
 import Alert from '../../utils/Alert';
 
 import { useAuth } from '../../context/AuthContext';
@@ -26,6 +27,8 @@ interface LoginProps {
 }
 
 export default function LoginScreen({ onNavigate }: LoginProps) {
+  const { colors, t, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,7 +49,7 @@ export default function LoginScreen({ onNavigate }: LoginProps) {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ email và mật khẩu!');
+      Alert.alert(t('common.error'), t('auth.login_error_empty'));
       return;
     }
 
@@ -89,10 +92,10 @@ export default function LoginScreen({ onNavigate }: LoginProps) {
         return;
       }
 
-      Alert.alert('Đăng nhập thất bại', data.message || 'Sai tài khoản hoặc mật khẩu');
+      Alert.alert(t('auth.login_failed'), data.message || t('auth.login_wrong_creds'));
     } catch (error: any) {
       if (error.message !== 'SESSION_INVALIDATED') {
-        Alert.alert('Lỗi', 'Lỗi kết nối server: ' + error.message);
+        Alert.alert(t('common.error'), t('auth.login_network_error') + ': ' + error.message);
       }
     } finally {
       setLoading(false);
@@ -101,7 +104,7 @@ export default function LoginScreen({ onNavigate }: LoginProps) {
 
   const ForgotLink = () => (
     <TouchableOpacity onPress={() => onNavigate && onNavigate('Forgot')}>
-      <Text style={styles.forgotText}>Quên mật khẩu?</Text>
+      <Text style={styles.forgotText}>{t('auth.forgot_pass')}</Text>
     </TouchableOpacity>
   );
 
@@ -124,16 +127,16 @@ export default function LoginScreen({ onNavigate }: LoginProps) {
               />
             </View>
             <Text style={styles.brandTitle}>UniChat</Text>
-            <Text style={styles.brandSubtitle}>Khai phóng tiềm năng tri thức</Text>
+            <Text style={styles.brandSubtitle}>"+t('auth.brand_subtitle')+"</Text>
           </View>
 
           <View style={styles.cardContainer}>
-            <BlurView intensity={80} tint="light" style={styles.glassCard}>
-              <Text style={styles.cardTitle}>Đăng nhập</Text>
+            <BlurView intensity={80} tint={isDark ? "dark" : "light"} style={styles.glassCard}>
+              <Text style={styles.cardTitle}>{t('auth.login')}</Text>
 
               <View style={styles.form}>
                 <Input
-                  label="Email "
+                  label={t('auth.email')}
                   placeholder="user@example.com"
                   value={email}
                   onChangeText={setEmail}
@@ -141,7 +144,7 @@ export default function LoginScreen({ onNavigate }: LoginProps) {
                   icon="person"
                 />
                 <Input
-                  label="Mật khẩu"
+                  label={t('auth.password')}
                   placeholder="••••••••"
                   value={password}
                   onChangeText={setPassword}
@@ -151,7 +154,7 @@ export default function LoginScreen({ onNavigate }: LoginProps) {
                 />
 
                 <Button
-                  title={loading ? "Đang xử lý..." : "Đăng nhập"}
+                  title={loading ? t('common.processing') : t('auth.login')}
                   onPress={handleLogin}
                   variant="primary"
                   disabled={loading}
@@ -160,9 +163,9 @@ export default function LoginScreen({ onNavigate }: LoginProps) {
               </View>
 
               <View style={styles.footer}>
-                <Text style={styles.footerText}>Bạn mới sử dụng UniChat? </Text>
+                <Text style={styles.footerText}>{t('auth.new_user')} </Text>
                 <TouchableOpacity onPress={() => onNavigate && onNavigate('Register')}>
-                  <Text style={styles.footerLink}>Đăng ký ngay</Text>
+                  <Text style={styles.footerLink}>{t('auth.register_now')}</Text>
                 </TouchableOpacity>
               </View>
             </BlurView>
@@ -173,24 +176,24 @@ export default function LoginScreen({ onNavigate }: LoginProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.surface },
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.surface },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   blob: { position: 'absolute', borderRadius: 200, opacity: 0.5 },
-  blobTopRight: { top: -100, right: -100, width: 300, height: 300, backgroundColor: 'rgba(0, 65, 143, 0.08)' },
-  blobBottomLeft: { bottom: -100, left: -100, width: 250, height: 250, backgroundColor: 'rgba(75, 94, 134, 0.1)' },
+  blobTopRight: { top: -100, right: -100, width: 300, height: 300, backgroundColor: isDark ? 'rgba(195, 212, 255, 0.08)' : 'rgba(0, 65, 143, 0.08)' },
+  blobBottomLeft: { bottom: -100, left: -100, width: 250, height: 250, backgroundColor: isDark ? 'rgba(190, 210, 255, 0.1)' : 'rgba(75, 94, 134, 0.1)' },
   headerContainer: { alignItems: 'center', marginBottom: 40 },
-  logoBox: { width: 64, height: 64, borderRadius: 20, backgroundColor: '#eef4ff', alignItems: 'center', justifyContent: 'center', marginBottom: 16, overflow: 'hidden', ...Shadows.medium },
+  logoBox: { width: 64, height: 64, borderRadius: 20, backgroundColor: isDark ? '#1d3055' : '#eef4ff', alignItems: 'center', justifyContent: 'center', marginBottom: 16, overflow: 'hidden', ...Shadows.medium },
   logoImage: { width: '100%', height: '100%' },
-  brandTitle: { ...Typography.heading, fontSize: 32, color: Colors.primary, marginBottom: 4 },
-  brandSubtitle: { ...Typography.body, fontSize: 14, color: Colors.onSurfaceVariant },
+  brandTitle: { ...Typography.heading, fontSize: 32, color: colors.primary, marginBottom: 4 },
+  brandSubtitle: { ...Typography.body, fontSize: 14, color: colors.onSurfaceVariant },
   cardContainer: { borderRadius: 32, overflow: 'hidden', ...Shadows.medium },
-  glassCard: { padding: 32, backgroundColor: 'rgba(255, 255, 255, 0.8)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.6)', borderRadius: 32 },
-  cardTitle: { ...Typography.heading, fontSize: 24, color: Colors.onSurface, marginBottom: 24 },
+  glassCard: { padding: 32, backgroundColor: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(255, 255, 255, 0.8)', borderWidth: 1, borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.6)', borderRadius: 32 },
+  cardTitle: { ...Typography.heading, fontSize: 24, color: colors.onSurface, marginBottom: 24 },
   form: { marginBottom: 16 },
-  forgotText: { ...Typography.label, fontSize: 13, color: Colors.primary },
+  forgotText: { ...Typography.label, fontSize: 13, color: colors.primary },
   footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 24 },
-  footerText: { ...Typography.body, fontSize: 14, color: Colors.onSurfaceVariant },
-  footerLink: { ...Typography.label, fontSize: 14, color: Colors.primary },
+  footerText: { ...Typography.body, fontSize: 14, color: colors.onSurfaceVariant },
+  footerLink: { ...Typography.label, fontSize: 14, color: colors.primary },
 });

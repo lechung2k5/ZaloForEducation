@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Alert from '../utils/Alert';
 import SocketService from '../utils/socket';
 import { getDeviceId } from '../utils/deviceId';
-import { apiRequest } from '../utils/api';
+import { apiRequest, chatPatch } from '../utils/api';
 import { useCallStore } from '../store/callStore';
 import { useChatStore } from '../store/chatStore';
 import { chimeRef } from '../utils/chimeRef';
@@ -158,6 +158,9 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       });
       await Promise.allSettled(images);
 
+      // 6. Fetch pending friend requests count
+      await chatStore.fetchPendingFriendRequestsCount();
+
       console.log('✅ [PRELOAD] Data preload complete');
     } catch (err) {
       console.error('❌ [PRELOAD] Data preload failed:', err);
@@ -193,6 +196,9 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
     SocketService.off('call:upgrade_request');
     SocketService.off('call:upgrade_accepted');
     SocketService.off('call:upgrade_declined');
+    SocketService.off('friend_request_received');
+    SocketService.off('friendship_updated');
+    SocketService.off('presence_update');
 
     SocketService.on('force_logout', (data: any) => {
       if (handleForceLogoutRef.current) {
@@ -216,7 +222,24 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       if (data && data.profile) updateUser(data.profile);
     });
 
-    SocketService.on('receiveMessage', (data: any) => {
+    SocketService.on('presence_update', (data: any) => {
+      const email = String(data?.email || '').trim().toLowerCase();
+      if (!email) return;
+      const status = data?.status;
+      if (status !== 'online' && status !== 'offline') return;
+
+      const chatStore = useChatStore.getState();
+      const existing = chatStore.userProfiles[email] || {};
+      chatStore.upsertProfiles({
+        [email]: {
+          ...existing,
+          email,
+          status,
+        },
+      });
+    });
+
+    SocketService.on('receiveMessage', async (data: any) => {
       const chatStore = useChatStore.getState();
       chatStore.addMessage(data);
 
@@ -229,6 +252,7 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       // [SENIOR] If this is the active chat, clear any pending notifications for it immediately
       if (isActiveChat && AppState.currentState === 'active') {
         dismissNotificationsByConversation(convId).catch(() => {});
+        chatPatch(`/conversations/${encodeURIComponent(convId)}/read`, {}).catch((e: any) => console.warn('Failed to mark read from socket', e));
       }
 
       // [NHẮC HẸN] Handle auto-scheduling if it's a reminder
@@ -243,9 +267,17 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       }
 
       // Notification logic: Trigger if app is in background OR user is in a different chat
-      const isMe = String(data.senderId || '').replace(/^USER#/, "").trim().toLowerCase() === String(user?.email || '').trim().toLowerCase();
+      const isMe = String(data.senderId || '').replace(/^USER#/, "").trim().toLowerCase() === String(chatStore.currentUserEmail || '').trim().toLowerCase();
       
-      if ((AppState.currentState !== 'active' || !isActiveChat) && !isMe) {
+      if ((AppState.currentState !== 'active' || !isActiveChat) && !isMe && !chatStore.isConversationMuted(convId)) {
+        let settings: any = { notifications: true, messageSound: true };
+        try {
+          const raw = await AsyncStorage.getItem('mobile_settings');
+          if (raw) settings = { ...settings, ...JSON.parse(raw) };
+        } catch(e) {}
+
+        if (settings.notifications === false) return;
+
         const getProfileName = (email: string) => {
           if (!email) return 'Người dùng';
           const profiles = chatStore.userProfiles;
@@ -254,13 +286,27 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
           return p?.nickname || p?.fullName || p?.fullname || norm.split('@')[0];
         };
         const senderName = getProfileName(data.senderId);
-        const content = data.content || 'Đã gửi một tin nhắn';
         const mentions = data.mentions || data.payload?.mentions || [];
         const normalizedUserEmail = String(user?.email || '').replace(/^USER#/i, '').trim().toLowerCase();
         const isMentioned = Array.isArray(mentions) && mentions.some((mention: any) => {
           const email = typeof mention === 'string' ? mention : mention?.email;
           return String(email || '').replace(/^USER#/i, '').trim().toLowerCase() === normalizedUserEmail;
         });
+
+        let content = data.content || 'Đã gửi một tin nhắn';
+        if (data.type === 'system') {
+          // Dynamic import of chatUtils to avoid circular dependencies if any, or just require
+          const { formatSystemPreview } = require('../utils/chatUtils');
+          content = formatSystemPreview(data.content, data.senderId, chatStore.userProfiles, user?.email);
+        } else if (data.type === 'SYSTEM_CALL') {
+           const callType = data.payload?.callType || "audio";
+           const isGroup = !!data.payload?.isGroup;
+           if (isGroup) {
+             content = callType === "video" ? "[Cuộc gọi video nhóm]" : "[Cuộc gọi thoại nhóm]";
+           } else {
+             content = callType === "video" ? "[Cuộc gọi video]" : "[Cuộc gọi thoại]";
+           }
+        }
 
         Notifications.scheduleNotificationAsync({
           content: {
@@ -303,14 +349,33 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
     SocketService.on('conversation:updated', (data: any) => {
       const { convId, updates } = data;
       if (convId && updates) {
+        const activeConvId = useChatStore.getState().activeConvId;
+        const finalUpdates = { ...updates };
+        
+        // If we are currently in this chat, force unreadCount to 0
+        if (activeConvId === convId && finalUpdates.unreadCount !== undefined) {
+          finalUpdates.unreadCount = 0;
+        }
+
         useChatStore.getState().setConversations((prev: any[]) => 
-          prev.map((c: any) => c.id === convId ? { ...c, ...updates } : c)
+          prev.map((c: any) => c.id === convId ? { ...c, ...finalUpdates } : c)
         );
       }
     });
 
     SocketService.on('notification:new', (data: any) => {
-      useChatStore.getState().addNotification(data);
+      const chatStore = useChatStore.getState();
+      const convId = data?.conversationId || data?.convId || data?.metadata?.conversationId;
+      if (convId && chatStore.isConversationMuted(convId)) return;
+      chatStore.addNotification(data);
+    });
+
+    SocketService.on('friend_request_received', () => {
+      useChatStore.getState().fetchPendingFriendRequestsCount();
+    });
+
+    SocketService.on('friendship_updated', () => {
+      useChatStore.getState().fetchPendingFriendRequestsCount();
     });
 
     SocketService.on('CALL_ENDED', (data: any) => {
@@ -328,7 +393,7 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       }
     });
 
-    SocketService.on('call:incoming', (data: any) => {
+    SocketService.on('call:incoming', async (data: any) => {
       const { callState, activeCallId, receiveIncomingCall } = useCallStore.getState();
       if (callState !== 'IDLE') {
         if (activeCallId !== data.callId) {
@@ -345,6 +410,14 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       receiveIncomingCall(data.callerProfile, data.callType, data.convId, data.callId);
 
       if (AppState.currentState !== 'active') {
+        let settings: any = { notifications: true, messageSound: true, callVibrate: true };
+        try {
+          const raw = await AsyncStorage.getItem('mobile_settings');
+          if (raw) settings = { ...settings, ...JSON.parse(raw) };
+        } catch(e) {}
+
+        if (settings.notifications === false) return;
+
         if (Platform.OS === 'android' && NativeModules.ChimeModule?.wakeUpScreen) {
           NativeModules.ChimeModule.wakeUpScreen();
         }
@@ -367,7 +440,6 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
             categoryIdentifier: 'incoming_call',
             autoDismiss: false,
             sticky: true,
-            vibrate: [0, 500, 1000, 500, 1000, 500],
           },
           trigger: null,
         });
@@ -618,6 +690,9 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       SocketService.off('call:upgrade_request');
       SocketService.off('call:upgrade_accepted');
       SocketService.off('call:upgrade_declined');
+      SocketService.off('friend_request_received');
+      SocketService.off('friendship_updated');
+      SocketService.off('presence_update');
       subscription.remove();
       responseListener.remove();
     };

@@ -2,6 +2,11 @@ package com.tisjn.zaloedumonorepo
 
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -11,12 +16,55 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
+  private val immersiveHandler = Handler(Looper.getMainLooper())
+
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      window.setDecorFitsSystemWindows(true)
+    }
     super.onCreate(null)
+    scheduleHideSystemNavigationBars()
+  }
+
+  override fun onWindowFocusChanged(hasFocus: Boolean) {
+    super.onWindowFocusChanged(hasFocus)
+    if (hasFocus) {
+      scheduleHideSystemNavigationBars()
+    }
+  }
+
+  override fun onResume() {
+    super.onResume()
+    scheduleHideSystemNavigationBars()
+  }
+
+  private fun scheduleHideSystemNavigationBars() {
+    window.decorView.post {
+      hideSystemNavigationBars()
+      immersiveHandler.postDelayed({ hideSystemNavigationBars() }, 250)
+      immersiveHandler.postDelayed({ hideSystemNavigationBars() }, 1000)
+    }
+  }
+
+  private fun hideSystemNavigationBars() {
+    @Suppress("DEPRECATION")
+    window.decorView.systemUiVisibility = (
+      View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+        or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+    )
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      window.decorView.windowInsetsController?.let { controller ->
+        controller.systemBarsBehavior =
+          WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsets.Type.navigationBars())
+      }
+    }
   }
 
   /**

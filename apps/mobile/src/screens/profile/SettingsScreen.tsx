@@ -16,9 +16,11 @@ import {
     useWindowDimensions,
     View
 } from 'react-native';
-import { Colors, Shadows, Typography } from '../../constants/Theme';
+import { Shadows, Typography } from '../../constants/Theme';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import Alert from '../../utils/Alert';
+import { apiPut } from '../../utils/api';
 
 const SETTINGS_KEY = 'mobile_settings';
 
@@ -26,11 +28,8 @@ const DEFAULT_SETTINGS = {
   notifications: true,
   messageSound: true,
   callVibrate: true,
-  lockApp: false,
   showOnlineStatus: true,
   allowSearchByPhone: true,
-  syncContacts: true,
-  saveMediaToDevice: false,
   themeMode: 'system',
   language: 'vi',
 };
@@ -45,9 +44,10 @@ interface SettingRowProps {
   onPress?: any;
   divider?: boolean;
   compact?: boolean;
+  styles: any;
 }
 
-function SettingRow({ icon, title, subtitle, rightElement, onPress, divider = false, compact = false }: SettingRowProps) {
+function SettingRow({ icon, title, subtitle, rightElement, onPress, divider = false, compact = false, styles }: SettingRowProps) {
   return (
     <TouchableOpacity
       activeOpacity={onPress ? 0.8 : 1}
@@ -77,9 +77,10 @@ interface SectionProps {
   children: React.ReactNode;
   compact?: boolean;
   cardRadius?: number;
+  styles: any;
 }
 
-function Section({ title, subtitle, children, compact = false, cardRadius = 22 }: SectionProps) {
+function Section({ title, subtitle, children, compact = false, cardRadius = 22, styles }: SectionProps) {
   return (
     <View style={[styles.sectionCard, { borderRadius: cardRadius }]}> 
       <View style={[styles.sectionHeader, compact && styles.sectionHeaderCompact]}>
@@ -96,9 +97,10 @@ interface ChipProps {
   active: boolean;
   onPress: () => void;
   compact?: boolean;
+  styles: any;
 }
 
-function Chip({ label, active, onPress, compact = false }: ChipProps) {
+function Chip({ label, active, onPress, compact = false, styles }: ChipProps) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={[styles.chip, compact && styles.chipCompact, active && styles.chipActive]}>
       <Text style={[styles.chipText, compact && styles.chipTextCompact, active && styles.chipTextActive]}>{label}</Text>
@@ -110,9 +112,10 @@ interface PillToggleProps {
   value: boolean;
   onValueChange: () => void;
   compact?: boolean;
+  styles: any;
 }
 
-function PillToggle({ value, onValueChange, compact = false }: PillToggleProps) {
+function PillToggle({ value, onValueChange, compact = false, styles }: PillToggleProps) {
   return (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -145,7 +148,8 @@ interface SettingsScreenProps {
 export default function SettingsScreen({ onNavigate, returnTo = 'Main', onLogout }: SettingsScreenProps) {
   const { width } = useWindowDimensions();
   const storage = useMemo(() => AsyncStorage, []);
-  const { requestLockAccount, confirmLockAccount, requestDeleteAccount, confirmDeleteAccount } = useAuth() as any;
+  const { requestLockAccount, confirmLockAccount, requestDeleteAccount, confirmDeleteAccount, user } = useAuth() as any;
+  const { themeMode, setThemeMode, language, setLanguage, isDark, colors, t } = useTheme();
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [lockModalVisible, setLockModalVisible] = useState(false);
@@ -158,9 +162,14 @@ export default function SettingsScreen({ onNavigate, returnTo = 'Main', onLogout
     const loadSettings = async () => {
       try {
         const saved = await storage.getItem(SETTINGS_KEY);
+        let parsed: any = {};
         if (saved) {
-          setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(saved) });
+          parsed = JSON.parse(saved);
         }
+        if (user && user.showOnlineStatus !== undefined) {
+          parsed.showOnlineStatus = user.showOnlineStatus;
+        }
+        setSettings({ ...DEFAULT_SETTINGS, ...parsed });
       } catch (error) {
         console.error('Load settings error', error);
       } finally {
@@ -169,11 +178,18 @@ export default function SettingsScreen({ onNavigate, returnTo = 'Main', onLogout
     };
 
     loadSettings();
-  }, [storage]);
+  }, [storage, user]);
 
   const persistSettings = async (nextSettings: any) => {
     setSettings(nextSettings);
     await storage.setItem(SETTINGS_KEY, JSON.stringify(nextSettings));
+    if (nextSettings.showOnlineStatus !== settings.showOnlineStatus) {
+      try {
+        await apiPut('/users/profile', { showOnlineStatus: nextSettings.showOnlineStatus });
+      } catch (e) {
+        console.warn('Failed to sync showOnlineStatus to server', e);
+      }
+    }
   };
 
   const updateSetting = async (key: string, value: any) => {
@@ -181,60 +197,31 @@ export default function SettingsScreen({ onNavigate, returnTo = 'Main', onLogout
     await persistSettings(next);
   };
 
-  const handleClearLocalData = () => {
-    Alert.alert('Xóa dữ liệu cục bộ', 'Xóa dữ liệu thiết bị đã lưu trong app?', [
-      { text: 'Hủy', style: 'cancel' },
-      {
-        text: 'Xóa',
-        style: 'destructive',
-        onPress: async () => {
-          await storage.removeItem(SETTINGS_KEY);
-          setSettings(DEFAULT_SETTINGS);
-          Alert.alert('Thành công', 'Đã khôi phục cài đặt mặc định.');
-        },
-      },
-    ]);
-  };
-
-  const handleSupport = () => {
-    Alert.alert('Contact support', 'Tính năng hỗ trợ sẽ được kết nối với trung tâm trợ giúp trong bản tiếp theo.');
-  };
-
-  const handleAbout = () => {
-    Alert.alert('About UniChat', 'UniChat Mobile\nPhiên bản giáo dục nội bộ cho hồ sơ, thiết bị và cài đặt.');
-  };
-
-  const handleRestore = () => {
-    Alert.alert('Backup and restore', 'Tính năng sao lưu và khôi phục dữ liệu sẽ được mở rộng ở bản cập nhật tiếp theo.');
-  };
-
   const handleThemeChange = async (value: string) => {
-    await updateSetting('themeMode', value);
+    setThemeMode(value as any);
   };
 
   const handleLanguageChange = async (value: string) => {
-    await updateSetting('language', value);
+    setLanguage(value as any);
   };
 
   const toggleSwitch = async (key: string) => {
     await updateSetting(key, !((settings as any)[key]));
   };
 
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#0058bc', '#00418f']} style={styles.header}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <LinearGradient colors={[colors.primaryContainer, colors.primary]} style={styles.header}>
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.headerButton} onPress={() => onNavigate(returnTo)}>
             <Text style={styles.headerIcon}>arrow_back</Text>
           </TouchableOpacity>
           <View style={styles.headerTextWrap}>
-            <Text style={styles.headerTitle}>Settings</Text>
-            <Text style={styles.headerSubtitle}>Quản lý quyền riêng tư, thông báo và giao diện</Text>
+            <Text style={styles.headerTitle}>{t('nav.settings')}</Text>
           </View>
-          <TouchableOpacity style={styles.headerButton} onPress={handleSupport}>
-            <Text style={styles.headerIcon}>search</Text>
-          </TouchableOpacity>
         </View>
       </LinearGradient>
 
@@ -243,251 +230,122 @@ export default function SettingsScreen({ onNavigate, returnTo = 'Main', onLogout
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollContent, { paddingHorizontal: horizontalPadding }]}
       >
-        <View style={[styles.profileSummary, { borderRadius: cardRadius, padding: isCompact ? 12 : 16 }]}>
-          <View
-            style={[
-              styles.summaryBadge,
-              {
-                width: isCompact ? 48 : 56,
-                height: isCompact ? 48 : 56,
-                borderRadius: isCompact ? 14 : 18,
-                marginRight: isCompact ? 10 : 12,
-              },
-            ]}
-          >
-            <Text style={styles.summaryIcon}>settings</Text>
-          </View>
-          <View style={styles.summaryTextWrap}>
-            <Text style={[styles.summaryTitle, { fontSize: isCompact ? 15 : 17 }]}>Tùy chỉnh trải nghiệm mobile</Text>
-            <Text style={[styles.summaryText, { fontSize: isCompact ? 12 : 13, lineHeight: isCompact ? 17 : 19 }]}>
-              Các thay đổi ở đây được lưu trên thiết bị và đồng bộ theo tài khoản khi có hỗ trợ backend.
-            </Text>
-          </View>
-        </View>
 
-        <Section title="Account and security" subtitle="Thiết bị, mật khẩu và bảo mật" compact={isCompact} cardRadius={cardRadius}>
+        <Section title={t('settings.section.account')} subtitle={t('settings.section.account_sub')} compact={isCompact} cardRadius={cardRadius} styles={styles}>
           <SettingRow
             icon="security"
-            title="Quản lý thiết bị đăng nhập"
-            subtitle="Xem và đăng xuất phiên đang hoạt động"
+            title={t('settings.devices')}
+            subtitle={t('settings.devices_sub')}
             rightElement={<Text style={styles.chevron}>chevron_right</Text>}
             onPress={() => onNavigate('Sessions')}
+            divider
             compact={isCompact}
+            styles={styles}
           />
           <SettingRow
             icon="lock"
-            title="Đổi mật khẩu"
-            subtitle="Cập nhật mật khẩu để tăng an toàn"
+            title={t('settings.password')}
+            subtitle={t('settings.password_sub')}
             rightElement={<Text style={styles.chevron}>chevron_right</Text>}
             onPress={() => onNavigate('ChangePassword')} 
             divider
             compact={isCompact}
-          />
-          <SettingRow
-            icon="verified_user"
-            title="Khóa ứng dụng"
-            subtitle="Bật xác thực khi mở app"
-            rightElement={
-              <PillToggle
-                value={settings.lockApp}
-                onValueChange={() => toggleSwitch('lockApp')}
-                compact={isCompact}
-              />
-            }
-            onPress={() => toggleSwitch('lockApp')}
-            compact={isCompact}
+            styles={styles}
           />
           <SettingRow
             icon="lock_person"
-            title="Khóa tài khoản"
-            subtitle="Tạm dừng truy cập, có thể mở khóa sau"
+            title={t('settings.lock')}
+            subtitle={t('settings.lock_sub')}
             rightElement={<Text style={styles.chevronDanger}>chevron_right</Text>}
             onPress={() => setLockModalVisible(true)}
             divider
             compact={isCompact}
+            styles={styles}
           />
           <SettingRow
             icon="delete_forever"
-            title="Xóa tài khoản"
-            subtitle="Xóa vĩnh viễn toàn bộ dữ liệu"
+            title={t('settings.delete')}
+            subtitle={t('settings.delete_sub')}
             rightElement={<Text style={styles.chevronDanger}>chevron_right</Text>}
             onPress={() => setDeleteModalVisible(true)}
             compact={isCompact}
+            styles={styles}
           />
         </Section>
 
-        <Section title="Privacy" subtitle="Ai nhìn thấy dữ liệu cá nhân của bạn" compact={isCompact} cardRadius={cardRadius}>
+        <Section title={t('settings.section.privacy')} subtitle={t('settings.section.privacy_sub')} compact={isCompact} cardRadius={cardRadius} styles={styles}>
           <SettingRow
             icon="visibility"
-            title="Trạng thái hoạt động"
-            subtitle="Hiển thị khi bạn đang online"
+            title={t('settings.online')}
+            subtitle={t('settings.online_sub')}
             rightElement={
               <PillToggle
                 value={settings.showOnlineStatus}
                 onValueChange={() => toggleSwitch('showOnlineStatus')}
                 compact={isCompact}
+                styles={styles}
               />
             }
             onPress={() => toggleSwitch('showOnlineStatus')}
+            divider
             compact={isCompact}
+            styles={styles}
           />
           <SettingRow
             icon="contact_phone"
-            title="Tìm bằng số điện thoại"
-            subtitle="Cho phép người khác tìm bạn qua số điện thoại"
+            title={t('settings.search_phone')}
+            subtitle={t('settings.search_phone_sub')}
             rightElement={
               <PillToggle
                 value={settings.allowSearchByPhone}
                 onValueChange={() => toggleSwitch('allowSearchByPhone')}
                 compact={isCompact}
+                styles={styles}
               />
             }
             onPress={() => toggleSwitch('allowSearchByPhone')}
-            divider
             compact={isCompact}
-          />
-          <SettingRow
-            icon="badge"
-            title="Đồng bộ danh bạ"
-            subtitle="Kết nối danh bạ để gợi ý liên hệ"
-            rightElement={
-              <PillToggle
-                value={settings.syncContacts}
-                onValueChange={() => toggleSwitch('syncContacts')}
-                compact={isCompact}
-              />
-            }
-            onPress={() => toggleSwitch('syncContacts')}
-            compact={isCompact}
+            styles={styles}
           />
         </Section>
 
-        <Section title="Notifications" subtitle="Âm thanh, rung và nhắc nhở" compact={isCompact} cardRadius={cardRadius}>
+        <Section title={t('settings.section.notifications')} subtitle={t('settings.section.notifications_sub')} compact={isCompact} cardRadius={cardRadius} styles={styles}>
           <SettingRow
             icon="notifications"
-            title="Thông báo"
-            subtitle="Nhận thông báo từ ứng dụng"
+            title={t('settings.notif')}
+            subtitle={t('settings.notif_sub')}
             rightElement={
               <PillToggle
                 value={settings.notifications}
                 onValueChange={() => toggleSwitch('notifications')}
                 compact={isCompact}
+                styles={styles}
               />
             }
             onPress={() => toggleSwitch('notifications')}
             compact={isCompact}
-          />
-          <SettingRow
-            icon="message"
-            title="Âm thanh tin nhắn"
-            subtitle="Phát âm thanh khi có tin mới"
-            rightElement={
-              <PillToggle
-                value={settings.messageSound}
-                onValueChange={() => toggleSwitch('messageSound')}
-                compact={isCompact}
-              />
-            }
-            onPress={() => toggleSwitch('messageSound')}
-            divider
-            compact={isCompact}
-          />
-          <SettingRow
-            icon="phone_in_talk"
-            title="Rung cuộc gọi"
-            subtitle="Rung khi có cuộc gọi đến"
-            rightElement={
-              <PillToggle
-                value={settings.callVibrate}
-                onValueChange={() => toggleSwitch('callVibrate')}
-                compact={isCompact}
-              />
-            }
-            onPress={() => toggleSwitch('callVibrate')}
-            compact={isCompact}
+            styles={styles}
           />
         </Section>
 
-        <Section title="Messages" subtitle="Tin nhắn, media và lưu trữ" compact={isCompact} cardRadius={cardRadius}>
-          <SettingRow
-            icon="forum"
-            title="Lưu media về máy"
-            subtitle="Tự động lưu ảnh và video nhận được"
-            rightElement={
-              <PillToggle
-                value={settings.saveMediaToDevice}
-                onValueChange={() => toggleSwitch('saveMediaToDevice')}
-                compact={isCompact}
-              />
-            }
-            onPress={() => toggleSwitch('saveMediaToDevice')}
-            compact={isCompact}
-          />
-          <SettingRow
-            icon="backup"
-            title="Backup and restore"
-            subtitle="Sao lưu và khôi phục dữ liệu"
-            rightElement={<Text style={styles.chevron}>chevron_right</Text>}
-            onPress={handleRestore}
-            divider
-            compact={isCompact}
-          />
-          <SettingRow
-            icon="delete_forever"
-            title="Xóa dữ liệu cục bộ"
-            subtitle="Xóa cài đặt lưu trên thiết bị"
-            rightElement={<Text style={styles.chevronDanger}>chevron_right</Text>}
-            onPress={handleClearLocalData}
-            compact={isCompact}
-          />
-        </Section>
-
-        <Section title="Theme and language" subtitle="Giao diện hiển thị" compact={isCompact} cardRadius={cardRadius}>
-          <Text style={[styles.optionLabel, { fontSize: isCompact ? 13 : 14 }]}>Theme</Text>
+        <Section title={t('settings.section.theme')} subtitle={t('settings.section.theme_sub')} compact={isCompact} cardRadius={cardRadius} styles={styles}>
+          <Text style={[styles.optionLabel, { fontSize: isCompact ? 13 : 14 }]}>{t('settings.theme')}</Text>
           <View style={styles.choiceRow}>
-            <Chip label="System" active={settings.themeMode === 'system'} onPress={() => handleThemeChange('system')} compact={isCompact} />
-            <Chip label="Light" active={settings.themeMode === 'light'} onPress={() => handleThemeChange('light')} compact={isCompact} />
-            <Chip label="Dark" active={settings.themeMode === 'dark'} onPress={() => handleThemeChange('dark')} compact={isCompact} />
+            <Chip label={t('settings.theme.system')} active={themeMode === 'system'} onPress={() => handleThemeChange('system')} compact={isCompact} styles={styles} />
+            <Chip label={t('settings.theme.light')} active={themeMode === 'light'} onPress={() => handleThemeChange('light')} compact={isCompact} styles={styles} />
+            <Chip label={t('settings.theme.dark')} active={themeMode === 'dark'} onPress={() => handleThemeChange('dark')} compact={isCompact} styles={styles} />
           </View>
 
-          <Text style={[styles.optionLabel, { marginTop: SECTION_SPACING, fontSize: isCompact ? 13 : 14 }]}>Language</Text>
+          <Text style={[styles.optionLabel, { marginTop: SECTION_SPACING, fontSize: isCompact ? 13 : 14 }]}>{t('settings.language')}</Text>
           <View style={styles.choiceRow}>
-            <Chip label="Tiếng Việt" active={settings.language === 'vi'} onPress={() => handleLanguageChange('vi')} compact={isCompact} />
-            <Chip label="English" active={settings.language === 'en'} onPress={() => handleLanguageChange('en')} compact={isCompact} />
+            <Chip label={t('settings.lang.vi')} active={language === 'vi'} onPress={() => handleLanguageChange('vi')} compact={isCompact} styles={styles} />
+            <Chip label={t('settings.lang.en')} active={language === 'en'} onPress={() => handleLanguageChange('en')} compact={isCompact} styles={styles} />
           </View>
-        </Section>
-
-        <Section title="About UniChat" subtitle="Thông tin ứng dụng và hỗ trợ" compact={isCompact} cardRadius={cardRadius}>
-          <SettingRow
-            icon="info"
-            title="About UniChat"
-            subtitle="Phiên bản, điều khoản và cập nhật"
-            rightElement={<Text style={styles.chevron}>chevron_right</Text>}
-            onPress={handleAbout}
-            compact={isCompact}
-          />
-          <SettingRow
-            icon="support_agent"
-            title="Contact support"
-            subtitle="Liên hệ khi cần trợ giúp"
-            rightElement={<Text style={styles.chevron}>chevron_right</Text>}
-            onPress={handleSupport}
-            divider
-            compact={isCompact}
-          />
-          <SettingRow
-            icon="logout"
-            title="Đăng xuất"
-            subtitle="Thoát khỏi tài khoản hiện tại"
-            rightElement={<Text style={styles.chevronDanger}>chevron_right</Text>}
-            onPress={onLogout}
-            compact={isCompact}
-          />
         </Section>
 
         <View style={styles.footerNote}>
           <Text style={styles.footerNoteText}>
-            Settings được lưu cục bộ trên thiết bị để phù hợp với luồng mobile hiện tại.
+            {t('settings.footer')}
           </Text>
         </View>
       </ScrollView>
@@ -523,10 +381,10 @@ export default function SettingsScreen({ onNavigate, returnTo = 'Main', onLogout
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: colors.background,
   },
   header: {
     paddingTop: 14,
@@ -549,7 +407,7 @@ const styles = StyleSheet.create({
   headerIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
-    color: '#fff',
+    color: '#ffffff',
   },
   headerTextWrap: {
     flex: 1,
@@ -557,7 +415,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     ...Typography.heading,
     fontSize: 22,
-    color: '#fff',
+    color: '#ffffff',
   },
   headerSubtitle: {
     ...Typography.body,
@@ -575,7 +433,7 @@ const styles = StyleSheet.create({
   profileSummary: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 22,
     padding: 16,
     marginBottom: 16,
@@ -587,31 +445,31 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#e7f1ff',
+    backgroundColor: colors.primaryContainer,
     marginRight: 12,
   },
   summaryIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 26,
-    color: Colors.primary,
+    color: colors.primary,
   },
   summaryTextWrap: {
     flex: 1,
   },
   summaryTitle: {
     ...Typography.heading,
-    color: Colors.onSurface,
+    color: colors.onSurface,
     fontSize: 17,
   },
   summaryText: {
     ...Typography.body,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     fontSize: 13,
     lineHeight: 19,
     marginTop: 4,
   },
   sectionCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 22,
     paddingVertical: 6,
     marginBottom: 14,
@@ -630,7 +488,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...Typography.heading,
     fontSize: 17,
-    color: Colors.onSurface,
+    color: colors.onSurface,
   },
   sectionTitleCompact: {
     fontSize: 15,
@@ -638,7 +496,7 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     ...Typography.body,
     fontSize: 13,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     marginTop: 4,
   },
   sectionSubtitleCompact: {
@@ -658,7 +516,7 @@ const styles = StyleSheet.create({
   },
   rowDivider: {
     borderBottomWidth: 1,
-    borderBottomColor: '#edf0f4',
+    borderBottomColor: colors.surfaceVariant,
   },
   rowIconBox: {
     width: 40,
@@ -666,7 +524,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#edf5ff',
+    backgroundColor: colors.surfaceVariant,
     marginRight: 12,
   },
   rowIconBoxCompact: {
@@ -678,7 +536,7 @@ const styles = StyleSheet.create({
   rowIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 22,
-    color: Colors.primary,
+    color: colors.primary,
   },
   rowIconCompact: {
     fontSize: 20,
@@ -688,7 +546,7 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     ...Typography.body,
-    color: Colors.onSurface,
+    color: colors.onSurface,
     fontSize: 15,
   },
   rowTitleCompact: {
@@ -696,7 +554,7 @@ const styles = StyleSheet.create({
   },
   rowSubtitle: {
     ...Typography.body,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     fontSize: 12,
     marginTop: 3,
     lineHeight: 17,
@@ -713,17 +571,17 @@ const styles = StyleSheet.create({
   chevron: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
   },
   chevronDanger: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
-    color: Colors.error,
+    color: colors.error,
   },
   optionLabel: {
     ...Typography.body,
     fontSize: 14,
-    color: Colors.onSurface,
+    color: colors.onSurface,
     paddingHorizontal: 16,
     marginBottom: 10,
   },
@@ -738,25 +596,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: '#f2f5fa',
+    backgroundColor: colors.background,
   },
   chipCompact: {
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   chipActive: {
-    backgroundColor: '#dcecff',
+    backgroundColor: colors.surfaceVariant,
   },
   chipText: {
     ...Typography.body,
     fontSize: 13,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
   },
   chipTextCompact: {
     fontSize: 12,
   },
   chipTextActive: {
-    color: Colors.primary,
+    color: colors.primary,
   },
   pillToggle: {
     width: 74,
@@ -775,7 +633,7 @@ const styles = StyleSheet.create({
     borderColor: '#18d95f',
   },
   pillToggleOff: {
-    backgroundColor: '#d9d9dc',
+    backgroundColor: colors.outlineVariant,
     borderWidth: 1,
     borderColor: '#d0d0d4',
   },
@@ -785,8 +643,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#f0f0f0',
-    shadowColor: '#0f172a',
+    backgroundColor: colors.surfaceVariant,
+    shadowColor: colors.outline,
     shadowOpacity: 0.16,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
@@ -813,7 +671,7 @@ const styles = StyleSheet.create({
   },
   footerNoteText: {
     ...Typography.body,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 18,
@@ -830,20 +688,23 @@ interface AccountActionModalProps {
 }
 
 function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp }: AccountActionModalProps) {
-  const [step, setStep] = useState(1);
+  const { colors, t } = useTheme();
+  const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [currentPassword, setCurrentPassword] = useState('');
   const [otp, setOtp] = useState('');
 
+  const modalStyles = useMemo(() => getModalStyles(colors), [colors]);
+
   const isLock = mode === 'lock';
   const accentColor = isLock ? '#ea580c' : '#dc2626';
-  const title = isLock ? 'Khóa tài khoản' : 'Xóa tài khoản';
+  const title = isLock ? t('settings.lock_title') : t('settings.delete_title');
   const icon = isLock ? 'lock_person' : 'delete_forever';
-  const confirmLabel = isLock ? 'Xác nhận khóa tài khoản' : 'Xác nhận xóa tài khoản';
+  const confirmLabel = isLock ? t('settings.lock_confirm') : t('settings.delete_confirm');
   const warningMsg = isLock
-    ? 'Tài khoản sẽ bị tạm khóa. Tất cả phiên đăng nhập sẽ bị vô hiệu hóa ngay lập tức.'
-    : 'Hành động này KHÔNG THỂ hoàn tác. Toàn bộ dữ liệu tài khoản sẽ bị xóa vĩnh viễn.';
+    ? t('settings.lock_warning')
+    : t('settings.delete_warning');
 
   const handleClose = () => {
     setStep(1);
@@ -861,7 +722,7 @@ function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp
       await onRequestOtp(currentPassword);
       setStep(2);
     } catch (err: any) {
-      setError(err?.message || 'Có lỗi xảy ra, vui lòng thử lại.');
+      setError(err?.message || t('common.error_retry'));
     } finally {
       setLoading(false);
     }
@@ -874,7 +735,7 @@ function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp
     try {
       await onConfirmOtp(otp);
     } catch (err: any) {
-      setError(err?.message || 'Mã OTP không chính xác.');
+      setError(err?.message || t('auth.otp_invalid_code'));
       setLoading(false);
     }
   };
@@ -896,7 +757,7 @@ function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp
               <Text style={[modalStyles.icon, { color: accentColor }]}>{icon}</Text>
             </View>
             <Text style={modalStyles.title}>{title}</Text>
-            <Text style={modalStyles.subtitle}>{step === 1 ? warningMsg : 'Nhập mã OTP đã được gửi về email của bạn.'}</Text>
+            <Text style={modalStyles.subtitle}>{step === 1 ? warningMsg : (t('settings.otp_sent') || 'Nhập mã OTP đã được gửi về email của bạn.')}</Text>
 
             {!!error && (
               <View style={modalStyles.errorBox}>
@@ -906,11 +767,11 @@ function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp
 
             {step === 1 ? (
               <View style={modalStyles.form}>
-                <Text style={modalStyles.label}>Mật khẩu hiện tại</Text>
+                <Text style={modalStyles.label}>{t('settings.current_password') || 'Mật khẩu hiện tại'}</Text>
                 <TextInput
                   style={modalStyles.input}
                   secureTextEntry
-                  placeholder="Xác nhận danh tính"
+                  placeholder={t('settings.verify_identity') || 'Xác nhận danh tính'}
                   placeholderTextColor="#9ca3af"
                   value={currentPassword}
                   onChangeText={setCurrentPassword}
@@ -922,7 +783,7 @@ function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp
                   disabled={loading || !currentPassword}
                   activeOpacity={0.85}
                 >
-                  <Text style={modalStyles.btnText}>{loading ? 'Đang gửi...' : 'Tiếp tục'}</Text>
+                  <Text style={modalStyles.btnText}>{loading ? (t('common.sending') || 'Đang gửi...') : (t('common.continue') || 'Tiếp tục')}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -943,16 +804,16 @@ function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp
                   disabled={loading || otp.length < 6}
                   activeOpacity={0.85}
                 >
-                  <Text style={modalStyles.btnText}>{loading ? 'Đang xử lý...' : confirmLabel}</Text>
+                  <Text style={modalStyles.btnText}>{loading ? (t('common.processing') || 'Đang xử lý...') : confirmLabel}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={modalStyles.backBtn} onPress={() => setStep(1)}>
-                  <Text style={modalStyles.backBtnText}>Quay lại</Text>
+                  <Text style={modalStyles.backBtnText}>{t('common.go_back') || 'Quay lại'}</Text>
                 </TouchableOpacity>
               </View>
             )}
 
             <TouchableOpacity style={modalStyles.cancelBtn} onPress={handleClose}>
-              <Text style={modalStyles.cancelText}>Đóng</Text>
+              <Text style={modalStyles.cancelText}>{t('common.close') || 'Đóng'}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -961,7 +822,7 @@ function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp
   );
 }
 
-const modalStyles = StyleSheet.create({
+const getModalStyles = (colors: any) => StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'center',
@@ -979,7 +840,7 @@ const modalStyles = StyleSheet.create({
   sheet: {
     width: '88%',
     maxWidth: 340,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 32,
     padding: 24,
     alignItems: 'center',
@@ -1007,14 +868,14 @@ const modalStyles = StyleSheet.create({
   title: {
     ...Typography.heading,
     fontSize: 22,
-    color: Colors.onSurface,
+    color: colors.onSurface,
     marginBottom: 10,
     textAlign: 'center',
   },
   subtitle: {
     ...Typography.body,
     fontSize: 14,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     textAlign: 'center',
     lineHeight: 21,
     marginBottom: 24,
@@ -1039,7 +900,7 @@ const modalStyles = StyleSheet.create({
   label: {
     ...Typography.heading,
     fontSize: 13,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     alignSelf: 'flex-start',
     marginBottom: 8,
     marginLeft: 4,
@@ -1050,26 +911,26 @@ const modalStyles = StyleSheet.create({
     width: '100%',
     height: 56,
     borderWidth: 1.5,
-    borderColor: '#e5e7eb',
+    borderColor: colors.surfaceVariant,
     borderRadius: 18,
     paddingHorizontal: 18,
     fontSize: 16,
-    color: Colors.onSurface,
+    color: colors.onSurface,
     marginBottom: 20,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
   otpInput: {
     width: '100%',
     height: 80,
     borderWidth: 2,
-    borderColor: Colors.primary,
+    borderColor: colors.primary,
     borderRadius: 24,
     textAlign: 'center',
     fontSize: 36,
     letterSpacing: 12,
-    color: Colors.primary,
+    color: colors.primary,
     marginBottom: 24,
-    backgroundColor: '#f8fbff',
+    backgroundColor: colors.surfaceVariant,
     fontWeight: 'bold',
   },
   btn: {
@@ -1083,7 +944,7 @@ const modalStyles = StyleSheet.create({
   },
   btnText: {
     ...Typography.heading,
-    color: '#fff',
+    color: colors.surface,
     fontSize: 16,
     letterSpacing: 0.5,
   },
@@ -1093,7 +954,7 @@ const modalStyles = StyleSheet.create({
   },
   backBtnText: {
     ...Typography.body,
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -1105,7 +966,7 @@ const modalStyles = StyleSheet.create({
   },
   cancelText: {
     ...Typography.body,
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     fontSize: 15,
   },
 });

@@ -1,6 +1,7 @@
 import React from 'react';
+import { useTheme } from '../../context/ThemeContext';
 import { View, TouchableOpacity, Text } from 'react-native';
-import styles from '../../screens/main/style/ContactsScreen.styles';
+import { getContactsStyles } from '../../screens/main/style/ContactsScreen.styles';
 
 interface SectionTabsProps {
   activeSection: string;
@@ -18,6 +19,8 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
   activeSection,
   setActiveSection,
 }) => {
+  const { colors } = useTheme();
+  const styles = getContactsStyles(colors);
   return (
     <View style={styles.sectionTabs}>
       {TABS.map((item) => (

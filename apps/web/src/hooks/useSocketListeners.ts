@@ -213,19 +213,10 @@ export const useSocketListeners = () => {
         });
       }
 
-      // Play sound if messageSound is enabled and message not from me
       const isFromMe = msg.senderId === user?.email;
       const shouldPlaySound = !isFromMe && (normIncoming !== normActive || document.visibilityState !== "visible");
       if (shouldPlaySound) {
-        try {
-          const raw = localStorage.getItem("mobile_settings");
-          const parsed = raw ? JSON.parse(raw) : {};
-          if (parsed.messageSound !== false) {
-            playNotificationChime();
-          }
-        } catch (e) {
-          playNotificationChime();
-        }
+        playNotificationChime();
       }
 
       if (msg.payload?.reminder && msg.status !== "sending") {

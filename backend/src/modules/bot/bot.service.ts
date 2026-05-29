@@ -340,6 +340,13 @@ export class BotService {
           // PDFs: extract text, fallback to note
           const extractedText = await this.extractPdfText(url, fileName);
           parts.push({ type: 'text', text: extractedText });
+        } else if (
+          mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+          url.toLowerCase().endsWith('.docx')
+        ) {
+          // DOCX files: extract text
+          const extractedText = await this.extractDocxText(url, fileName);
+          parts.push({ type: 'text', text: extractedText });
         } else {
           // Other file types: text note
           parts.push({ type: 'text', text: `[Tệp đính kèm: ${fileName}] — định dạng chưa hỗ trợ đọc tự động.` });
@@ -348,6 +355,44 @@ export class BotService {
     }
 
     return parts;
+  }
+
+  /**
+   * Download DOCX from URL and extract text using mammoth.
+   */
+  private async extractDocxText(url: string, fileName: string): Promise<string> {
+    try {
+      this.logger.log(`Attempting to download DOCX for extraction: ${url}`);
+      const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      if (!response.ok) {
+        return `[Tài liệu đính kèm: ${fileName}] — không thể tải tệp (Lỗi ${response.status}).`;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      if (buffer.length > 5 * 1024 * 1024) {
+        return `[Tài liệu đính kèm: ${fileName}] — tệp quá lớn (>5MB), không thể đọc tự động.`;
+      }
+
+      const mammoth = require('mammoth');
+      const result = await mammoth.extractRawText({ buffer });
+      const text = result.value?.trim();
+
+      if (!text || text.length < 5) {
+        return `[Tài liệu đính kèm: ${fileName}] — tài liệu trống hoặc có thể là dạng ảnh quét, không thể trích xuất văn bản.`;
+      }
+
+      const maxLen = 3000;
+      const truncated = text.length > maxLen
+        ? text.substring(0, maxLen) + '\n\n[... Tài liệu còn lại đã được cắt bớt ...]'
+        : text;
+
+      return `[Nội dung tài liệu: ${fileName}]\n${truncated}`;
+    } catch (error) {
+      this.logger.warn(`DOCX text extraction failed for ${url}: ${error.message}`);
+      return `[Tài liệu đính kèm: ${fileName}] — không thể đọc nội dung tự động.`;
+    }
   }
 
   /**
@@ -395,20 +440,13 @@ export class BotService {
     }
   }
 
-  /**
-   * Emit bot message via WebSocket using multiple channels for reliability.
-   */
   private emitBotMessage(convId: string, userEmail: string, message: any): void {
     const payload = {
       ...message,
-      conversationId: message.conversationId || convId,
+      conversationId: convId, // Enforce correct format with CONV# prefix
     };
 
-    // Channel 1: Room broadcast (for anyone in the conversation room)
-    this.chatGateway.server.to(convId).emit('receiveMessage', payload);
-
-    // Channel 2: User-targeted broadcast
-    const userRoom = `user#${userEmail}`;
-    this.chatGateway.server.to(userRoom).emit('receiveMessage', payload);
+    // Use ChatGateway's centralized emission method for full consistency (Room + Personal Inboxes + Notifications)
+    this.chatGateway.emitReceiveMessage(convId, payload);
   }
 }

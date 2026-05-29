@@ -116,10 +116,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       this.logger.log(`[SOCKET] User ${normalizedEmail} identified. Joined rooms: [${userRoom}], [${deviceId || 'no-device'}]`);
 
-      // Update Presence to Online
-      const presenceKey = `presence:${normalizedEmail}`;
-      await this.redisService.set(presenceKey, 'online', 3600); // 1 hour TTL
-      this.server.emit('presence_update', { email: normalizedEmail, status: 'online' });
+      // Check if user allows showing online status
+      const userRecord = await this.chatService.userService.getUserProfile(normalizedEmail);
+      if (userRecord.profile.showOnlineStatus !== false) {
+        // Update Presence to Online
+        const presenceKey = `presence:${normalizedEmail}`;
+        await this.redisService.set(presenceKey, 'online', 3600); // 1 hour TTL
+        this.server.emit('presence_update', { email: normalizedEmail, status: 'online' });
+      }
 
       userPlatformMap.set(normalizedEmail, data.platform || 'web');
 

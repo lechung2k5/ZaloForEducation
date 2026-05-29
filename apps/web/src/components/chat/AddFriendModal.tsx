@@ -33,8 +33,8 @@ const AddFriendModal: React.FC = () => {
   };
 
   const handleSearch = async () => {
-    if (!email.trim() || !email.includes('@')) {
-      setError('Vui lòng nhập Email hợp lệ');
+    if (!email.trim()) {
+      setError('Vui lòng nhập thông tin hợp lệ');
       return;
     }
 
@@ -43,7 +43,9 @@ const AddFriendModal: React.FC = () => {
     setSearchResult(null);
     
     try {
-      const res = await api.get(`/chat/friends/search`, { params: { email: email.trim() } });
+      const isPhone = /^\\d+$/.test(email.trim()) || !email.includes('@');
+      const params = isPhone ? { phone: email.trim() } : { email: email.trim() };
+      const res = await api.get(`/chat/friends/search`, { params });
       if (res.data?.found) {
         setSearchResult(res.data);
       } else {
@@ -100,15 +102,15 @@ const AddFriendModal: React.FC = () => {
         <div className="p-6 space-y-6 overflow-y-auto max-h-[60vh] hide-scrollbar">
           {/* Email Input Section */}
           <div className="space-y-3 px-1">
-            <p className="text-[13px] font-bold text-on-surface-variant">Tìm kiếm qua Email</p>
+            <p className="text-[13px] font-bold text-on-surface-variant">Tìm kiếm qua Email / Số điện thoại</p>
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-primary text-[22px] group-focus-within:scale-110 transition-transform" size={20} />
               <input 
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="Ví dụ: example@gmail.com"
+                placeholder="Ví dụ: example@gmail.com hoặc 0123456789"
                 className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-[24px] py-4 pl-[52px] pr-4 text-[15px] outline-none text-on-surface focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all placeholder:text-on-surface-variant/90 shadow-inner"
               />
             </div>

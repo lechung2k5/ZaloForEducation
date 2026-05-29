@@ -273,6 +273,8 @@ export const useSearchStore = create<SearchStore>((set, get) => {
             targetMessageId: item.messageId || item.id,
             highlightKeyword: get().lastQuery,
           });
+        } else if (item.type === 'CONVERSATION') {
+          onNavigate('Chat', { conversationId: item.id });
         }
       }, 300);
     },

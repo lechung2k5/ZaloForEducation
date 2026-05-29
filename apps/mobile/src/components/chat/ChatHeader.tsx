@@ -1,8 +1,10 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import styles from '../../screens/main/style/ChatScreen.styles';
+import { getStyles } from '../../screens/main/style/ChatScreen.styles';
 import { BOT_EMAIL } from '../../constants/bot';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 
 interface ChatHeaderProps {
   insets: { top: number };
@@ -29,6 +31,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onOpenDetails,
   isBot,
 }) => {
+  const { user } = useAuth();
+  const showOnlineStatus = user?.showOnlineStatus !== false;
+  const { colors, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
+
   return (
     <LinearGradient colors={["#0058bc", "#00418f"]} style={[styles.header, { paddingTop: insets.top }]}>
       {goBack && (
@@ -44,7 +51,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           source={{ uri: displayAvatar }} 
           style={styles.headerAvatar} 
         />
-        {isOnline && (
+        {(showOnlineStatus && isOnline) && (
           <View style={styles.onlineBadge} />
         )}
       </View>

@@ -167,7 +167,9 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const normalizedPartner = partnerEmail
     ? String(partnerEmail).trim().toLowerCase()
     : "";
-  const isOnline = normalizedPartner
+  const showOnlineStatus = user?.showOnlineStatus !== false;
+
+  const isOnline = showOnlineStatus && normalizedPartner
     ? userProfiles[normalizedPartner]?.status === "online"
     : false;
   

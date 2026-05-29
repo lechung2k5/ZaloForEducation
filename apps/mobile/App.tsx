@@ -50,6 +50,7 @@ import GroupCallOverlay from './src/components/chat/GroupCallOverlay';
 import { useGroupSocketListeners } from './src/hooks/useGroupSocketListeners';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ThemeProvider } from './src/context/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 function MainApp() {
@@ -143,7 +144,9 @@ export default function App() {
         <AuthProvider onForceLogoutNavigate={(target) => {
           console.log('🚨 [APP] Global Force Logout trigger received. Target:', target);
         }}>
-          <MainApp />
+          <ThemeProvider>
+            <MainApp />
+          </ThemeProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </QueryClientProvider>

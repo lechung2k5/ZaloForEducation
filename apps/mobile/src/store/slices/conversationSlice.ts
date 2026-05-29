@@ -1,4 +1,5 @@
 import { StateCreator } from "zustand";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   chatGet,
   apiPost,
@@ -41,11 +42,12 @@ export interface ConversationSlice {
   ) => void;
   mutedConversations: Record<string, any>;
   isConversationMuted: (convId: string) => boolean;
+  setConversationMuted: (convId: string, muted: boolean) => Promise<void>;
   muteConversationFor: (
     convId: string,
-    duration: "1h" | "4h" | "until-8am" | "until-open" | boolean,
-  ) => void;
-  clearConversationMuted: (convId: string) => void;
+    duration: "1h" | "4h" | "12h" | "until-8am" | "until-open" | boolean,
+  ) => Promise<void>;
+  clearConversationMuted: (convId: string) => Promise<void>;
   startDirectChat: (targetEmail: string) => Promise<string>;
   addMembers: (convId: string, memberEmails: string[]) => Promise<void>;
   removeMember: (convId: string, memberEmail: string) => Promise<void>;
@@ -62,6 +64,17 @@ export interface ConversationSlice {
   setPinConversation: (convId: string, isPinned: boolean) => Promise<boolean>;
   setHiddenConversation: (convId: string, isHidden: boolean) => Promise<boolean>;
   updateConversationById: (convId: string, updates: any | ((prev: any) => any)) => void;
+
+  // Inbox Parity
+  tags: Array<{ id: string; name: string; color?: string }>;
+  hiddenConversations: Record<string, string>;
+  loadLocalData: () => Promise<void>;
+  createTag: (tag: { id: string; name: string; color?: string }) => void;
+  updateTag: (tag: { id: string; name: string; color?: string }) => void;
+  deleteTag: (tagId: string) => void;
+  assignTagToConversation: (convId: string, tagId: string | null) => void;
+  hideConversationWithPin: (convId: string, pin: string) => void;
+  unhideConversationWithPin: (convId: string, pin: string) => boolean;
 }
 
 export const createConversationSlice: StateCreator<
@@ -73,6 +86,97 @@ export const createConversationSlice: StateCreator<
   conversations: [],
   activeConvId: null,
   mutedConversations: {},
+  tags: [],
+  hiddenConversations: {},
+
+  loadLocalData: async () => {
+    try {
+      const tagsJson = await AsyncStorage.getItem("chat_tags");
+      const hiddenJson = await AsyncStorage.getItem("chat_hidden");
+      
+      const tags = tagsJson ? JSON.parse(tagsJson) : [];
+      const hiddenConversations = hiddenJson ? JSON.parse(hiddenJson) : {};
+      
+      set({ tags, hiddenConversations } as any);
+    } catch (e) {
+      console.error("Failed to load local data", e);
+    }
+  },
+
+  createTag: async (tag) => {
+    const tags = [...get().tags, tag];
+    await AsyncStorage.setItem("chat_tags", JSON.stringify(tags));
+    set({ tags } as any);
+  },
+
+  updateTag: async (tag) => {
+    const tags = get().tags.map((t: any) => (t.id === tag.id ? tag : t));
+    await AsyncStorage.setItem("chat_tags", JSON.stringify(tags));
+    set({ tags } as any);
+  },
+
+  deleteTag: async (tagId) => {
+    const tags = get().tags.filter((t: any) => t.id !== tagId);
+    await AsyncStorage.setItem("chat_tags", JSON.stringify(tags));
+    
+    // Also remove tag from conversations
+    const convTagMapJson = await AsyncStorage.getItem("chat_conversation_tags");
+    const convTagMap = convTagMapJson ? JSON.parse(convTagMapJson) : {};
+    const nextMap = { ...convTagMap };
+    
+    Object.keys(nextMap).forEach((convId) => {
+      if (nextMap[convId] === tagId) {
+        delete nextMap[convId];
+      }
+    });
+    
+    await AsyncStorage.setItem("chat_conversation_tags", JSON.stringify(nextMap));
+    
+    set({
+      tags,
+      conversations: get().conversations.map((c) =>
+        (c as any).tagId === tagId ? { ...c, tagId: undefined } : c
+      ),
+    } as any);
+  },
+
+  assignTagToConversation: async (convId, tagId) => {
+    const convTagMapJson = await AsyncStorage.getItem("chat_conversation_tags");
+    const map = convTagMapJson ? JSON.parse(convTagMapJson) : {};
+    
+    if (tagId) map[convId] = tagId;
+    else delete map[convId];
+    
+    await AsyncStorage.setItem("chat_conversation_tags", JSON.stringify(map));
+    
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === convId ? { ...c, tagId } : c
+      ),
+    }) as any);
+  },
+
+  hideConversationWithPin: async (convId, pin) => {
+    set((state) => {
+      const nextHidden = { ...state.hiddenConversations, [convId]: pin };
+      AsyncStorage.setItem("chat_hidden", JSON.stringify(nextHidden));
+      return { hiddenConversations: nextHidden } as any;
+    });
+  },
+
+  unhideConversationWithPin: (convId, pin) => {
+    const currentPin = get().hiddenConversations[convId];
+    if (currentPin === pin) {
+      set((state) => {
+        const nextHidden = { ...state.hiddenConversations };
+        delete nextHidden[convId];
+        AsyncStorage.setItem("chat_hidden", JSON.stringify(nextHidden));
+        return { hiddenConversations: nextHidden } as any;
+      });
+      return true;
+    }
+    return false;
+  },
 
   addMembers: async (convId, memberEmails) => {
     await apiPost(`/chat/conversations/${encodeURIComponent(convId)}/members`, {
@@ -169,17 +273,58 @@ export const createConversationSlice: StateCreator<
   },
 
   isConversationMuted: (convId: string) => {
-    const muted = get().mutedConversations[convId];
+    const norm = (id: string) => String(id || "").toLowerCase().replace(/^conv#/, "");
+    const conversation = get().conversations.find((c) => norm(c.id) === norm(convId));
+    if (conversation?.isMuted) return true;
+
+    const muted = Object.entries(get().mutedConversations).find(
+      ([key]) => norm(key) === norm(convId),
+    )?.[1];
     if (!muted) return false;
     if (muted === true || muted === "until-open") return true;
     if (typeof muted === "number") return Date.now() < muted;
     return false;
   },
 
-  muteConversationFor: (convId, duration) => {
+  setConversationMuted: async (convId, muted) => {
+    if (!convId) return;
+    const previousConversations = get().conversations;
+    const previousMutedConversations = get().mutedConversations;
+    const norm = (id: string) => String(id || "").toLowerCase().replace(/^conv#/, "");
+
+    set((state) => {
+      const nextMutedConversations = { ...state.mutedConversations };
+      Object.keys(nextMutedConversations).forEach((key) => {
+        if (norm(key) === norm(convId)) delete nextMutedConversations[key];
+      });
+      if (muted) nextMutedConversations[convId] = true;
+
+      return {
+        conversations: state.conversations.map((c) =>
+          norm(c.id) === norm(convId) ? { ...c, isMuted: muted } : c,
+        ),
+        mutedConversations: nextMutedConversations,
+      } as any;
+    });
+
+    try {
+      const res = await chatPatch(`/conversations/${encodeURIComponent(convId)}/settings`, { isMuted: muted });
+      if (res && res.ok === false) throw new Error(res.message || "SYNC_FAILED");
+    } catch (err) {
+      console.error("Failed to set conversation muted", err);
+      set({
+        conversations: previousConversations,
+        mutedConversations: previousMutedConversations,
+      } as any);
+      throw err;
+    }
+  },
+
+  muteConversationFor: async (convId, duration) => {
     let until: any = true;
     if (duration === "1h") until = Date.now() + 60 * 60 * 1000;
     else if (duration === "4h") until = Date.now() + 4 * 60 * 60 * 1000;
+    else if (duration === "12h") until = Date.now() + 12 * 60 * 60 * 1000;
     else if (duration === "until-8am") {
       const d = new Date();
       if (d.getHours() >= 8) d.setDate(d.getDate() + 1);
@@ -187,20 +332,36 @@ export const createConversationSlice: StateCreator<
       until = d.getTime();
     } else if (duration === "until-open") until = "until-open";
 
+    const previousConversations = get().conversations;
+    const previousMutedConversations = get().mutedConversations;
+
     set(
       (state) =>
         ({
+          conversations: state.conversations.map((c) =>
+            String(c.id || "").toLowerCase().replace(/^conv#/, "") === String(convId || "").toLowerCase().replace(/^conv#/, "")
+              ? { ...c, isMuted: true }
+              : c,
+          ),
           mutedConversations: { ...state.mutedConversations, [convId]: until },
         }) as any,
     );
+
+    try {
+      const res = await chatPatch(`/conversations/${encodeURIComponent(convId)}/settings`, { isMuted: true });
+      if (res && res.ok === false) throw new Error(res.message || "SYNC_FAILED");
+    } catch (err) {
+      console.error("Failed to mute conversation", err);
+      set({
+        conversations: previousConversations,
+        mutedConversations: previousMutedConversations,
+      } as any);
+      throw err;
+    }
   },
 
-  clearConversationMuted: (convId) => {
-    set((state) => {
-      const next = { ...state.mutedConversations };
-      delete next[convId];
-      return { mutedConversations: next } as any;
-    });
+  clearConversationMuted: async (convId) => {
+    await get().setConversationMuted(convId, false);
   },
 
   setConversations: (input) => {
@@ -220,10 +381,6 @@ export const createConversationSlice: StateCreator<
       nextConversations[convIndex] = {
         ...nextConversations[convIndex],
         unreadCount: 0,
-        hasUnreadMention: false,
-        mentionCount: 0,
-        lastMentionMessageId: undefined,
-        lastMentionAt: undefined,
         hasUnreadMention: false,
         mentionCount: 0,
         lastMentionMessageId: undefined,
@@ -272,10 +429,22 @@ export const createConversationSlice: StateCreator<
             (newConv as any).lastMessageContent = preview;
           } catch (e) {}
 
-          const existing = currentConversations.find(
-            (c) => c.id === newConv.id,
-          );
+          const existing = currentConversations.find((c) => c.id === newConv.id);
           if (existing) {
+            // [SENIOR] Protect against stale GET /conversations overwriting local optimistic state
+            const existingTime = new Date(existing.updatedAt || 0).getTime();
+            const newTime = new Date(newConv.updatedAt || 0).getTime();
+            
+            if (existingTime > newTime) {
+              return { 
+                ...newConv, 
+                unreadCount: existing.unreadCount,
+                lastMessage: existing.lastMessage,
+                lastMessageContent: existing.lastMessageContent,
+                updatedAt: existing.updatedAt,
+              };
+            }
+
             if (existing.unreadCount === 0 && newConv.unreadCount > 0) {
               if (
                 String(existing.lastMessage) === String(newConv.lastMessage)
@@ -285,11 +454,20 @@ export const createConversationSlice: StateCreator<
             }
           }
           return newConv;
-        })
-        .filter((c) => c !== null);
+          })
+          .filter((c) => c !== null);
 
-      set({ conversations: reconciled } as any);
-      return reconciled;
+      // Merge tags from AsyncStorage
+      const convTagMapJson = await AsyncStorage.getItem("chat_conversation_tags");
+      const convTagMap = convTagMapJson ? JSON.parse(convTagMapJson) : {};
+
+      const reconciledWithTags = reconciled.map((c: any) => ({
+        ...c,
+        tagId: convTagMap[c.id] || c.tagId || undefined,
+      }));
+
+      set({ conversations: reconciledWithTags } as any);
+      return reconciledWithTags;
     } catch (err) {
       console.error("Failed to fetch conversations", err);
       return [];
@@ -323,6 +501,7 @@ export const createConversationSlice: StateCreator<
       target.lastMessageType = type || target.lastMessageType;
       target.lastMessageMedia = media || target.lastMessageMedia;
       target.lastMessageFiles = files || target.lastMessageFiles;
+      target.updatedAt = messageData?.createdAt || new Date().toISOString();
 
       const isActive = state.activeConvId === convId;
       const isOwn = String(senderId || '').replace(/^USER#/, "").trim().toLowerCase() === String(get().currentUserEmail || '').trim().toLowerCase();
@@ -330,6 +509,12 @@ export const createConversationSlice: StateCreator<
 
       if (!isActive && !isOwn) {
         target.unreadCount = (target.unreadCount || 0) + 1;
+      }
+
+      if (isOwn) {
+        target.unreadCount = 0;
+        target.hasUnreadMention = false;
+        target.mentionCount = 0;
       }
 
       if (isMentioned && !isActive) {
@@ -456,7 +641,7 @@ export const createConversationSlice: StateCreator<
   setPinConversation: async (convId: string, isPinned: boolean) => {
     try {
       // Try to sync with backend
-      const res = await chatPatch(`/conversations/${convId}`, { pinned: isPinned });
+      const res = await chatPatch(`/conversations/${encodeURIComponent(convId)}/settings`, { isPinned });
       if (!res?.ok) throw new Error('SYNC_FAILED');
       
       // Update local state
@@ -480,29 +665,13 @@ export const createConversationSlice: StateCreator<
   },
 
   setHiddenConversation: async (convId: string, isHidden: boolean) => {
-    try {
-      // Try to sync with backend
-      const res = await chatPatch(`/conversations/${convId}`, { hidden: isHidden });
-      if (!res?.ok) throw new Error('SYNC_FAILED');
-      
-      // Update local state
-      set((state) => ({
-        conversations: state.conversations.map((c) =>
-          c.id === convId ? { ...c, hidden: isHidden } : c
-        )
-      } as any));
-      
-      return true;
-    } catch (err) {
-      console.error('Failed to sync hidden state', err);
-      // Fallback: just update local state
-      set((state) => ({
-        conversations: state.conversations.map((c) =>
-          c.id === convId ? { ...c, hidden: isHidden } : c
-        )
-      } as any));
-      return false;
-    }
+    // Update local state (client-only feature)
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === convId ? { ...c, hidden: isHidden } : c
+      )
+    } as any));
+    return true;
   },
 
   updateConversationById: (convId, updater) =>

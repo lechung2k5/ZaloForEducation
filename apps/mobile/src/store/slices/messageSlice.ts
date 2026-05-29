@@ -36,7 +36,7 @@ export interface MessageSlice {
   sendMessageOptimistic: (convId: string, payload: { content: string, type: string, media?: any, files?: any, payload?: any, reminder?: any, replyTo?: any, extraFields?: any, skipApi?: boolean }) => Promise<string>;
   patchMessageOptimistic: (convId: string, messageId: string, data: any) => Promise<void>;
   deleteMessageOptimistic: (convId: string, messageId: string) => Promise<void>;
-  clearHistory: (convId: string) => Promise<void>;
+  clearHistory: (convId: string, forEveryone?: boolean) => Promise<void>;
   fetchMessage: (convId: string, messageId: string) => Promise<any>;
   fetchArchiveAssets: (convId: string, type: "media" | "file" | "link", reset?: boolean) => Promise<void>;
   votePoll: (convId: string, messageId: string, optionIndex: number) => Promise<void>;
@@ -255,13 +255,41 @@ export const createMessageSlice: StateCreator<ChatStore, [], [], MessageSlice> =
     }),
 
   addMessage: (message) => {
+    if (message.type === "system") {
+      try {
+        const parsed = JSON.parse(message.content);
+        if (parsed.actor && parsed.actor !== "system") (get() as any).loadUserProfile(parsed.actor);
+        if (parsed.target) (get() as any).loadUserProfile(parsed.target);
+      } catch (e) {
+        // ignore
+      }
+    }
+
     const normalized = normalizeMessage(message);
     if (!normalized) return;
     set((state) => {
-      const exists = state.messages.some((m) => m.id === normalized.id);
-      if (exists) return state;
+      let nextMessages = [...state.messages];
 
-      const nextMessages = sortMessages([normalized, ...state.messages]);
+      // Check if it's an update to an optimistic 'sending' message
+      const optimisticIndex = nextMessages.findIndex(
+        (m) =>
+          m.senderId === normalized.senderId &&
+          m.content === normalized.content &&
+          m.status === "sending" &&
+          Math.abs(
+            new Date(m.createdAt || 0).getTime() -
+              new Date(normalized.createdAt || 0).getTime(),
+          ) < 10000,
+      );
+
+      if (optimisticIndex !== -1) {
+        nextMessages[optimisticIndex] = { ...normalized, status: "sent" };
+        nextMessages = sortMessages(nextMessages);
+      } else {
+        const exists = nextMessages.some((m) => m.id === normalized.id);
+        if (exists) return state;
+        nextMessages = sortMessages([normalized, ...nextMessages]);
+      }
       if (state.activeConvId) {
         setCachedMessages(state.activeConvId, nextMessages);
       }
@@ -271,7 +299,7 @@ export const createMessageSlice: StateCreator<ChatStore, [], [], MessageSlice> =
       let archiveChanged = false;
 
       const hasMedia = (normalized.media && normalized.media.length > 0) || (normalized.type === 'image' || normalized.type === 'video');
-      const hasFiles = (normalized.files && normalized.files.length > 0) || (normalized.type === 'file');
+      const hasFiles = ((normalized.files && normalized.files.length > 0) || (normalized.type === 'file')) && normalized.content !== '[Tin nhắn thoại]';
       const hasLinks = typeof normalized.content === 'string' && /https?:\/\/[^\s]+/.test(normalized.content);
 
       if (hasMedia) {
@@ -395,13 +423,15 @@ export const createMessageSlice: StateCreator<ChatStore, [], [], MessageSlice> =
     }
   },
 
-  clearHistory: async (convId) => {
+  clearHistory: async (convId, forEveryone = false) => {
     try {
-      await chatPost(`/conversations/${encodeURIComponent(convId)}/clear`, {});
+      const url = `/conversations/${encodeURIComponent(convId)}/history${forEveryone ? '?forEveryone=true' : ''}`;
+      await chatDelete(url);
       set({ messages: [], nextCursor: null, prevCursor: null } as any);
       setCachedMessages(convId, []);
     } catch (err) {
       console.error("Failed to clear history", err);
+      throw err;
     }
   },
 

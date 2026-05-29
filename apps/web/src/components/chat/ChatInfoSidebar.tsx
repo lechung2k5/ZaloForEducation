@@ -47,6 +47,7 @@ import AssetLinkList from "./AssetLinkList";
 import GroupShareModal from "./GroupShareModal";
 import { useTheme } from "../../context/ThemeContext";
 import { useGroupCallStore } from "../../store/groupCallStore";
+import { pushSecurityAlert } from "../../utils/securityAlerts";
 
 const ChatInfoSidebar: React.FC = () => {
   const navigate = useNavigate();
@@ -106,6 +107,19 @@ const ChatInfoSidebar: React.FC = () => {
   const [isWallpaperModalOpen, setIsWallpaperModalOpen] = useState(false);
   const [showClearHistoryPanel, setShowClearHistoryPanel] = useState(false);
 
+  // Alias state
+  const [showAliasModal, setShowAliasModal] = useState(false);
+  const [aliasDraft, setAliasDraft] = useState("");
+  const [savingAlias, setSavingAlias] = useState(false);
+
+  // Common groups state
+  const [commonGroups, setCommonGroups] = useState<any[]>([]);
+  const [loadingCommonGroups, setLoadingCommonGroups] = useState(false);
+  const [showCommonGroups, setShowCommonGroups] = useState(false);
+
+  // Storage state
+  const [storageInfo, setStorageInfo] = useState<{ count: number; sizeMb: string } | null>(null);
+
   useEffect(() => {
     if (activeChat?.id) {
       // Pre-fetch first few assets for the preview
@@ -130,6 +144,12 @@ const ChatInfoSidebar: React.FC = () => {
     setShowCustomTime(false);
     setIsEditingGroupName(false);
     setNewGroupName(activeChat.name || "");
+    // Reset per-conversation state
+    setShowCommonGroups(false);
+    setCommonGroups([]);
+    setStorageInfo(null);
+    setAliasDraft("");
+    setShowAliasModal(false);
   }, [activeChat?.id]);
 
   const normalizedUserEmail = String(user?.email || "")
@@ -257,6 +277,7 @@ const ChatInfoSidebar: React.FC = () => {
 
   if (!activeChat) return null;
 
+
   const partnerEmail =
     activeChat.type === "direct"
       ? Array.isArray(activeChat.members)
@@ -289,6 +310,102 @@ const ChatInfoSidebar: React.FC = () => {
   const getMuteStatusLabel = () => {
     return muted ? t('info.mute_status_muted') : t('info.mute_status_active');
   };
+
+  // ── Alias helpers ────────────────────────────────────────────────────────────
+  const handleSaveAlias = async () => {
+    if (!partnerEmail) return;
+    const nextAlias = aliasDraft.trim();
+    setSavingAlias(true);
+    try {
+      await api.patch("/chat/friends/nickname", {
+        friendEmail: partnerEmail,
+        nickname: nextAlias,
+      });
+      const { updateConversationById } = useChatStore.getState();
+      updateConversationById(activeConvId!, (prev: any) => ({ ...prev, alias: nextAlias || undefined }));
+      setShowAliasModal(false);
+      Swal.fire({ icon: "success", title: "Đã lưu", text: "Tên gợi nhớ đã được cập nhật.", timer: 1500, showConfirmButton: false });
+    } catch {
+      Swal.fire("Lỗi", "Không thể lưu tên gợi nhớ. Vui lòng thử lại.", "error");
+    } finally {
+      setSavingAlias(false);
+    }
+  };
+
+  // ── Common Groups ────────────────────────────────────────────────────────────
+  const handleViewCommonGroups = async () => {
+    if (!partnerEmail) return;
+    setShowCommonGroups((prev) => !prev);
+    if (commonGroups.length > 0) return;
+    setLoadingCommonGroups(true);
+    try {
+      const res = await api.get(`/chat/groups/common?email=${encodeURIComponent(partnerEmail)}`);
+      setCommonGroups(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setCommonGroups([]);
+    } finally {
+      setLoadingCommonGroups(false);
+    }
+  };
+
+  // ── Storage ──────────────────────────────────────────────────────────────────
+  const handleViewStorage = () => {
+    if (!activeConvId) return;
+    const allAttachments = messages.flatMap((m: any) => [...(m.media || []), ...(m.files || [])]);
+    const totalBytes = allAttachments.reduce((sum: number, a: any) => sum + Number(a?.size || 0), 0);
+    setStorageInfo({ count: allAttachments.length, sizeMb: (totalBytes / 1024 / 1024).toFixed(2) });
+  };
+
+  // ── Hide / Unhide ────────────────────────────────────────────────────────────
+  const { hideConversationWithPin, unhideConversationWithPin, hiddenConversations } = useChatStore.getState();
+  const isConvHidden = !!(activeConvId && hiddenConversations[activeConvId]);
+
+  const handleHideConversation = async () => {
+    if (!activeConvId) return;
+    const res = await Swal.fire({
+      title: "Ẩn trò chuyện", text: "Nhập mã PIN (4-6 số) để ẩn cuộc trò chuyện này:",
+      input: "password", inputPlaceholder: "Mã PIN",
+      inputAttributes: { maxlength: "6", autocapitalize: "off", autocorrect: "off" },
+      showCancelButton: true, confirmButtonText: "Ẩn", cancelButtonText: t("inbox.cancel"), confirmButtonColor: "#00418f",
+      inputValidator: (value) => { if (!/^\d{4,6}$/.test(String(value || ""))) return "Mã PIN phải là 4-6 chữ số."; return undefined; },
+    });
+    if (!res.isConfirmed || !res.value) return;
+    hideConversationWithPin(activeConvId, String(res.value));
+    Swal.fire({ icon: "success", title: "Đã ẩn", text: "Cuộc trò chuyện sẽ không hiển thị trong danh sách.", timer: 1500, showConfirmButton: false });
+    navigate("/chat");
+  };
+
+  const handleUnhideConversation = async () => {
+    if (!activeConvId) return;
+    const res = await Swal.fire({
+      title: "Hiện lại trò chuyện", text: "Nhập mã PIN để hiện lại cuộc trò chuyện:",
+      input: "password", inputPlaceholder: "Mã PIN",
+      showCancelButton: true, confirmButtonText: "Hiện lại", cancelButtonText: t("inbox.cancel"), confirmButtonColor: "#00418f",
+    });
+    if (!res.isConfirmed || !res.value) return;
+    const ok = unhideConversationWithPin(activeConvId, String(res.value));
+    if (!ok) { Swal.fire("Sai mã PIN", "Mã PIN không đúng. Vui lòng thử lại.", "error"); }
+    else { Swal.fire({ icon: "success", title: "Đã hiện lại", timer: 1300, showConfirmButton: false }); }
+  };
+
+  // ── Block / Report ───────────────────────────────────────────────────────────
+  const handleBlockUser = async () => {
+    if (!partnerEmail || !activeConvId) return;
+    const confirmResult = await Swal.fire({
+      title: "Chặn người dùng", text: `Chặn ${chatName} khỏi liên hệ?`, icon: "warning",
+      showCancelButton: true, confirmButtonText: "Chặn", cancelButtonText: t("inbox.cancel"), confirmButtonColor: "#d33",
+    });
+    if (!confirmResult.isConfirmed) return;
+    try {
+      await api.post("/chat/friends/block", { targetEmail: partnerEmail });
+      Swal.fire({ icon: "success", title: "Đã chặn", text: "Bạn có thể quản lý danh sách chặn trong Danh bạ.", timer: 2000, showConfirmButton: false });
+      navigate("/chat");
+    } catch (err: any) {
+      Swal.fire(t("modal.error"), err.response?.data?.message || "Không thể thực hiện chặn.", "error");
+    }
+  };
+
+
 
   const autoDeleteLabel = (days: 1 | 7 | 30 | null) => {
     if (days === 1) return t('info.day_1');
@@ -392,11 +509,50 @@ const ChatInfoSidebar: React.FC = () => {
 
   const handleLeaveGroup = async () => {
     if (!activeConvId || !user?.email) return;
+
+    if (isGroupOwner && transferOwnerCandidates.length === 0) {
+      const confirm = await Swal.fire({
+        title: t('info.leave_group'),
+        text: "Bạn là thành viên duy nhất. Nhóm sẽ bị giải tán nếu bạn rời đi. Bạn có chắc chắn không?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Giải tán nhóm",
+        cancelButtonText: t('inbox.cancel'),
+        confirmButtonColor: "#d33",
+      });
+
+      if (confirm.isConfirmed) {
+        try {
+          await dissolveGroup(activeConvId);
+          navigate("/chat");
+        } catch (err: any) {
+          Swal.fire(
+            t('modal.error'),
+            err.response?.data?.message || t('info.dissolve_error'),
+            "error",
+          );
+        }
+      }
+      return;
+    }
+
     if (isGroupOwner) {
       setSelectedNewOwnerEmail(transferOwnerCandidates[0] || null);
       setShowTransferOwnerModal(true);
       return;
     }
+
+    const confirm = await Swal.fire({
+      title: t('info.leave_group'),
+      text: "Bạn có chắc chắn muốn rời khỏi nhóm này không?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Rời nhóm",
+      cancelButtonText: t('inbox.cancel'),
+      confirmButtonColor: "#d33",
+    });
+
+    if (!confirm.isConfirmed) return;
 
     try {
       await removeMember(activeConvId, user.email);
@@ -735,6 +891,126 @@ const ChatInfoSidebar: React.FC = () => {
                 <Settings size={14} />
               </button>
             )}
+          </div>
+        )}
+
+        {/* Section: Direct Chat Extra Features */}
+        {activeChat.type === "direct" && !isBot && (
+          <div className="mt-4 px-4 space-y-1">
+            <div className="pt-2 pb-1">
+              <h4 className="px-1 text-[11px] font-extrabold text-on-surface-variant uppercase tracking-wider">Người dùng</h4>
+            </div>
+
+            {/* Alias */}
+            <button
+              onClick={() => { setAliasDraft((activeChat as any).alias || ""); setShowAliasModal(true); }}
+              className="w-full flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-surface-container text-on-surface font-semibold text-[13px] transition-all"
+            >
+              <span className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[20px] text-on-surface-variant">edit</span>
+                Đổi tên gợi nhớ
+              </span>
+              <span className="text-[12px] font-bold text-primary truncate max-w-[100px]">
+                {(activeChat as any).alias || "Chưa đặt"}
+              </span>
+            </button>
+
+            {/* Common Groups */}
+            <button
+              onClick={handleViewCommonGroups}
+              className="w-full flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-surface-container text-on-surface font-semibold text-[13px] transition-all"
+            >
+              <span className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[20px] text-on-surface-variant">groups</span>
+                Xem nhóm chung
+              </span>
+              <ChevronDown size={14} className={`text-on-surface-variant/50 transition-transform ${showCommonGroups ? "rotate-180" : ""}`} />
+            </button>
+
+            {showCommonGroups && (
+              <div className="ml-3 pl-6 border-l border-outline-variant/20 space-y-1 py-1">
+                {loadingCommonGroups ? (
+                  <div className="flex justify-center py-2"><Loader2 size={14} className="animate-spin text-primary/40" /></div>
+                ) : commonGroups.length === 0 ? (
+                  <p className="text-[12px] italic text-on-surface-variant/60 py-1">Không có nhóm chung nào.</p>
+                ) : (
+                  commonGroups.map((g: any) => (
+                    <div key={g.id} className="flex items-center gap-2 py-1.5">
+                      <img src={g.avatar || "/logo_blue.png"} className="w-7 h-7 rounded-full object-cover" alt="" />
+                      <span className="text-[13px] font-medium text-on-surface truncate">{g.name}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Storage */}
+            <button
+              onClick={handleViewStorage}
+              className="w-full flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-surface-container text-on-surface font-semibold text-[13px] transition-all"
+            >
+              <span className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[20px] text-on-surface-variant">storage</span>
+                Dung lượng trò chuyện
+              </span>
+              {storageInfo && (
+                <span className="text-[12px] font-bold text-primary">{storageInfo.sizeMb} MB</span>
+              )}
+            </button>
+
+            {storageInfo && (
+              <div className="ml-3 pl-6 border-l border-outline-variant/20 py-1">
+                <p className="text-[12px] text-on-surface-variant">{storageInfo.count} file đính kèm — {storageInfo.sizeMb} MB</p>
+              </div>
+            )}
+
+            {/* Hide conversation */}
+            <button
+              onClick={isConvHidden ? handleUnhideConversation : handleHideConversation}
+              className="w-full flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-surface-container text-on-surface font-semibold text-[13px] transition-all"
+            >
+              <span className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[20px] text-on-surface-variant">{isConvHidden ? "visibility" : "visibility_off"}</span>
+                {isConvHidden ? "Hiện trò chuyện" : "Ẩn trò chuyện"}
+              </span>
+              {isConvHidden && <span className="text-[11px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Đang ẩn</span>}
+            </button>
+
+
+            {/* Block */}
+            <button
+              onClick={handleBlockUser}
+              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-error/10 text-error font-bold text-[13px] transition-all"
+            >
+              <span className="material-symbols-outlined text-[20px]">block</span>
+              Chặn người dùng
+            </button>
+          </div>
+        )}
+
+        {/* Section: Group Extra Features */}
+        {activeChat.type === "group" && (
+          <div className="mt-4 px-4 space-y-1">
+            {/* Storage */}
+            <button
+              onClick={handleViewStorage}
+              className="w-full flex items-center justify-between gap-3 p-3 rounded-xl hover:bg-surface-container text-on-surface font-semibold text-[13px] transition-all"
+            >
+              <span className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[20px] text-on-surface-variant">storage</span>
+                Dung lượng trò chuyện
+              </span>
+              {storageInfo && (
+                <span className="text-[12px] font-bold text-primary">{storageInfo.sizeMb} MB</span>
+              )}
+            </button>
+
+            {storageInfo && (
+              <div className="ml-3 pl-6 border-l border-outline-variant/20 py-1">
+                <p className="text-[12px] text-on-surface-variant">{storageInfo.count} file đính kèm — {storageInfo.sizeMb} MB</p>
+              </div>
+            )}
+
           </div>
         )}
         <p className="text-[12px] text-on-surface-variant font-medium mt-1">
@@ -1572,6 +1848,43 @@ const ChatInfoSidebar: React.FC = () => {
           onClose={() => setIsGroupShareOpen(false)}
           conversationId={activeChat.id}
         />
+      )}
+
+      {/* Alias Modal */}
+      {showAliasModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-surface-container shadow-2xl border border-outline-variant/20 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20">
+              <h3 className="text-[18px] font-extrabold text-on-surface">Đổi tên gợi nhớ</h3>
+              <button onClick={() => setShowAliasModal(false)} className="w-9 h-9 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant">
+                <X size={22} />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-[13px] text-on-surface-variant mb-3">Tên này chỉ hiển thị với bạn, không ảnh hưởng đến người kia.</p>
+              <input
+                autoFocus
+                value={aliasDraft}
+                onChange={(e) => setAliasDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleSaveAlias(); if (e.key === "Escape") setShowAliasModal(false); }}
+                placeholder="Nhập tên gợi nhớ"
+                className="w-full bg-surface-container-highest px-4 py-3 rounded-xl text-[14px] text-on-surface outline-none border-2 border-transparent focus:border-primary/30"
+              />
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-outline-variant/20 bg-surface-container/40">
+              <button onClick={() => setShowAliasModal(false)} className="px-5 py-2.5 rounded-xl bg-surface-container-high text-on-surface font-bold hover:opacity-90 text-[13px]" type="button">{t("inbox.cancel")}</button>
+              <button
+                onClick={() => void handleSaveAlias()}
+                disabled={savingAlias}
+                className="px-5 py-2.5 rounded-xl bg-primary text-white font-bold disabled:opacity-50 text-[13px] flex items-center gap-2"
+                type="button"
+              >
+                {savingAlias && <Loader2 size={14} className="animate-spin" />}
+                {savingAlias ? "Đang lưu..." : "Lưu"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

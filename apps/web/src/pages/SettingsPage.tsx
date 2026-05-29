@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import api from '../services/api';
 
 const SETTINGS_KEY = 'mobile_settings';
 
@@ -93,7 +94,7 @@ const ChipSelector: React.FC<{ label: string; active: boolean; onClick: () => vo
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, requestChangePassword, confirmChangePassword, requestLockAccount, confirmLockAccount, requestDeleteAccount, confirmDeleteAccount } = useAuth();
+  const { user, requestChangePassword, confirmChangePassword, requestLockAccount, confirmLockAccount, requestDeleteAccount, confirmDeleteAccount, refreshUser } = useAuth();
   const { themeMode, setThemeMode, isDark, language, setLanguage, t } = useTheme();
   const [settings, setSettings] = useState<WebSettings>(DEFAULT_SETTINGS);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -108,14 +109,25 @@ const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw);
-      setSettings((prev) => ({ ...prev, ...parsed }));
-    } catch (error) {
-      console.error('Failed to parse settings', error);
+    let parsed: any = {};
+    if (raw) {
+      try {
+        parsed = JSON.parse(raw);
+      } catch (error) {
+        console.error('Failed to parse settings', error);
+      }
     }
-  }, []);
+    
+    if (user && user.showOnlineStatus !== undefined) {
+      parsed.showOnlineStatus = user.showOnlineStatus;
+    }
+    
+    setSettings((prev) => {
+      const next = { ...prev, ...parsed };
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [user]);
 
   const patchSettings = (patch: Partial<WebSettings>) => {
     setSettings((prev) => {
@@ -123,6 +135,11 @@ const SettingsPage: React.FC = () => {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
       return next;
     });
+    if (patch.showOnlineStatus !== undefined) {
+      api.put('/users/profile', { showOnlineStatus: patch.showOnlineStatus })
+        .then(() => refreshUser())
+        .catch((e) => console.warn('Failed to sync showOnlineStatus to server', e));
+    }
   };
 
   return (
@@ -218,13 +235,6 @@ const SettingsPage: React.FC = () => {
                 }
                 patchSettings({ notifications: nextVal });
               }}
-            />
-            <SettingsToggle
-              icon="volume_up"
-              label={t('notif.sound')}
-              description={t('notif.sound_desc')}
-              enabled={settings.messageSound}
-              onToggle={() => patchSettings({ messageSound: !settings.messageSound })}
             />
           </Section>
 

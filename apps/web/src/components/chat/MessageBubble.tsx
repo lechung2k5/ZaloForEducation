@@ -33,6 +33,9 @@ import SystemCallMessageItem from "./SystemCallMessageItem";
 import PollMessage from "./PollMessage";
 import ReminderMessage from "./ReminderMessage";
 import CodeSnippet from "./CodeSnippet";
+import api from "../../services/api";
+import Swal from "sweetalert2";
+import { Users } from "lucide-react";
 
 interface MessageBubbleProps {
   message: any;
@@ -60,7 +63,7 @@ Object.keys(FLUENT_EMOJI_MAP).forEach((key) => {
   FLUENT_EMOJI_MAP[key] = FLUENT_EMOJI_MAP[key].replace(/ /g, "%20");
 });
 
-const WebAudioPlayer: React.FC<{ src: string }> = ({ src }) => {
+const WebAudioPlayer: React.FC<{ src: string; title?: string; allowDownload?: boolean }> = ({ src, title = "Tin nhắn thoại", allowDownload = false }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [duration, setDuration] = useState<number | null>(null);
   const [error, setError] = useState(false);
@@ -100,16 +103,31 @@ const WebAudioPlayer: React.FC<{ src: string }> = ({ src }) => {
       </div>
       <div className="flex-1 flex flex-col gap-1">
         <div className="flex justify-between items-center">
-          <p className="text-[11px] font-extrabold text-primary/80 uppercase tracking-wider">
-            Tin nhắn thoại
+          <p className="text-[11px] font-extrabold text-primary/80 uppercase tracking-wider truncate mr-2" title={title}>
+            {title}
           </p>
-          <span className="text-[10px] font-bold opacity-60">
-            {duration ? formatTime(duration) : "--:--"}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold opacity-60">
+              {duration ? formatTime(duration) : "--:--"}
+            </span>
+            {allowDownload && (
+              <a
+                href={src}
+                download
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary hover:text-primary/80 transition-colors"
+                title="Tải xuống"
+              >
+                <span className="material-symbols-outlined text-[16px]">download</span>
+              </a>
+            )}
+          </div>
         </div>
         <audio
           ref={audioRef}
           controls
+          controlsList={allowDownload ? undefined : "nodownload"}
           preload="metadata"
           className="w-full h-8 brightness-95 contrast-125 focus:outline-none"
           onLoadedMetadata={handleLoadedMetadata}
@@ -122,6 +140,95 @@ const WebAudioPlayer: React.FC<{ src: string }> = ({ src }) => {
           </p>
         )}
       </div>
+    </div>
+  );
+};
+
+const GroupInviteBubble: React.FC<{ groupId: string }> = ({ groupId }) => {
+  const [preview, setPreview] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [joining, setJoining] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchPreview = async () => {
+      try {
+        const res = await api.get(`/chat/conversations/${encodeURIComponent(groupId)}/preview`);
+        setPreview(res.data);
+      } catch (err) {
+        console.error("Failed to fetch group preview", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPreview();
+  }, [groupId]);
+
+  const handleJoin = async () => {
+    setJoining(true);
+    try {
+      const res = await api.post(`/chat/conversations/${encodeURIComponent(groupId)}/join`);
+      await useChatStore.getState().fetchConversation(groupId);
+      
+      if (res.data?.message === "Đã là thành viên") {
+        Swal.fire({
+          title: "Thông báo",
+          text: "Bạn đã là thành viên của nhóm này!",
+          icon: "info",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      } else {
+        Swal.fire({
+          title: "Thành công",
+          text: "Bạn đã tham gia nhóm thành công!",
+          icon: "success",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      }
+      navigate(`/chat?id=${encodeURIComponent(groupId)}`);
+    } catch (err: any) {
+      Swal.fire("Lỗi", err.response?.data?.message || "Không thể tham gia nhóm", "error");
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 p-3 bg-white dark:bg-surface-container border border-outline-variant/20 rounded-2xl shadow-sm w-[250px]">
+        <Loader2 size={16} className="animate-spin text-primary" />
+        <span className="text-[12px] text-on-surface-variant font-medium">Đang tải thông tin nhóm...</span>
+      </div>
+    );
+  }
+
+  if (!preview) return null;
+
+  return (
+    <div className="flex flex-col gap-3 p-4 bg-white dark:bg-surface-container border border-outline-variant/20 rounded-2xl shadow-sm w-[280px] max-w-full">
+      <div className="flex items-center gap-3">
+        <img
+          src={preview.avatarUrl || "/avatar_placeholder.png"}
+          alt={preview.name}
+          className="w-12 h-12 rounded-full object-cover shadow-sm ring-1 ring-black/5"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-[14px] font-bold text-on-surface truncate">{preview.name}</p>
+          <div className="flex items-center gap-1 text-[11px] font-medium text-on-surface-variant mt-0.5">
+            <Users size={12} />
+            <span>{preview.memberCount} thành viên</span>
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={handleJoin}
+        disabled={joining}
+        className="w-full py-2 bg-primary hover:bg-primary/90 text-white text-[13px] font-bold rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+      >
+        {joining ? <Loader2 size={16} className="animate-spin" /> : "Tham gia ngay"}
+      </button>
     </div>
   );
 };
@@ -168,9 +275,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     setPreviewImage,
     startDirectChat,
     tags,
+    loadUserProfile,
   } = useChatStore();
   const { startCall, joinGroupCall } = useCallActions();
-  const [isReactionDockOpen, setIsReactionDockOpen] = useState(false);
+  const [isMenuReactionOpen, setIsMenuReactionOpen] = useState(false);
   const reactionDockRef = useRef<HTMLDivElement | null>(null);
 
   // Load autoDownload settings once
@@ -195,7 +303,36 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     text: string,
     mentions?: Array<{ email: string; displayName?: string; start?: number; end?: number }>,
   ) => {
-    if (!mentions || mentions.length === 0) return text;
+    const processLinks = (input: string) => {
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const linkParts = [];
+      let linkLastIndex = 0;
+      let linkMatch;
+      while ((linkMatch = urlRegex.exec(input)) !== null) {
+        if (linkMatch.index > linkLastIndex) {
+          linkParts.push(input.substring(linkLastIndex, linkMatch.index));
+        }
+        linkParts.push(
+          <a
+            key={`link-${linkMatch.index}-${Math.random()}`}
+            href={linkMatch[1]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline hover:text-primary-dark cursor-pointer break-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {linkMatch[1]}
+          </a>
+        );
+        linkLastIndex = urlRegex.lastIndex;
+      }
+      if (linkLastIndex < input.length) {
+        linkParts.push(input.substring(linkLastIndex));
+      }
+      return linkParts.length > 0 ? linkParts : input;
+    };
+
+    if (!mentions || mentions.length === 0) return processLinks(text);
 
     const nameMap = new Map<string, string>();
     mentions.forEach((m) => {
@@ -206,7 +343,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     });
 
     const sortedNames = Array.from(nameMap.keys()).sort((a, b) => b.length - a.length);
-    if (sortedNames.length === 0) return text;
+    if (sortedNames.length === 0) return processLinks(text);
 
     const escapedNames = sortedNames.map((name) =>
       name.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&"),
@@ -223,7 +360,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       const email = nameMap.get(matchedName);
 
       if (matchIndex > lastIndex) {
-        parts.push(text.substring(lastIndex, matchIndex));
+        parts.push(...(Array.isArray(processLinks(text.substring(lastIndex, matchIndex))) ? processLinks(text.substring(lastIndex, matchIndex)) : [processLinks(text.substring(lastIndex, matchIndex))]));
       }
 
       const isAllMention = email === "all";
@@ -250,34 +387,37 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
 
     if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
+      parts.push(...(Array.isArray(processLinks(text.substring(lastIndex))) ? processLinks(text.substring(lastIndex)) : [processLinks(text.substring(lastIndex))]));
     }
 
-    return parts.length > 0 ? parts : text;
+    return parts.length > 0 ? parts : processLinks(text);
   };
 
   // Use state to track conversation/message changes and reset reaction dock
   // This is a safe way to handle state resets based on prop changes
-  const [prevConvMsgKey, setPrevConvMsgKey] = useState(`${activeConvId}-${message.id}`);
+  const [prevConvId, setPrevConvId] = useState(activeConvId);
+  const [prevMsgId, setPrevMsgId] = useState(message.id);
   const [prevCallOverlay, setPrevCallOverlay] = useState(isCallOverlayActive);
 
   // Sync state with props in a safe way
-  const currentConvMsgKey = `${activeConvId}-${message.id}`;
-  if (prevConvMsgKey !== currentConvMsgKey) {
-    setPrevConvMsgKey(currentConvMsgKey);
-    setIsReactionDockOpen(false);
+  if (activeConvId !== prevConvId || message.id !== prevMsgId) {
+    setPrevConvId(activeConvId);
+    setPrevMsgId(message.id);
+    setIsMenuReactionOpen(false);
   }
   if (isCallOverlayActive !== prevCallOverlay) {
     setPrevCallOverlay(isCallOverlayActive);
     if (isCallOverlayActive) {
-      setIsReactionDockOpen(false);
+      setIsMenuReactionOpen(false);
     }
   }
 
   useEffect(() => {
-    if (!isReactionDockOpen) return;
+    if (!isMenuReactionOpen) return;
 
-    const closePicker = () => setIsReactionDockOpen(false);
+    const closePicker = () => {
+      setIsMenuReactionOpen(false);
+    };
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -304,7 +444,23 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.removeEventListener("pointerdown", handlePointerDown, true);
     };
-  }, [isReactionDockOpen]);
+  }, [isMenuReactionOpen]);
+
+  useEffect(() => {
+    if (message.type === "system") {
+      try {
+        const parsed = JSON.parse(message.content);
+        if (parsed.actor && parsed.actor !== "system") {
+          loadUserProfile(parsed.actor);
+        }
+        if (parsed.target) {
+          loadUserProfile(parsed.target);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [message.type, message.content, loadUserProfile]);
 
   // --- UTILS & DATA (No hooks here) ---
   const isVideoMedia = (mediaItem: any) => {
@@ -469,6 +625,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           case "member_left":
             displayContent = `${actorLabel} đã rời nhóm`;
             break;
+          case "member_joined_link":
+            displayContent = `${actorLabel} đã tham gia nhóm bằng link`;
+            break;
           case "role_updated":
           case "promoted_to_deputy":
           case "demoted_to_member":
@@ -631,23 +790,23 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
               <div className="relative" ref={reactionDockRef}>
                 <button
-                  onClick={() => setIsReactionDockOpen(!isReactionDockOpen)}
+                  onClick={() => setIsMenuReactionOpen(!isMenuReactionOpen)}
                   className="w-8 h-8 flex items-center justify-center bg-white dark:bg-surface-container border border-outline-variant/30 dark:border-outline-variant/40 rounded-full shadow-lg hover:bg-surface-container active:scale-90 transition-all text-on-surface-variant group/btn"
                   title="Thả cảm xúc"
                 >
                   <ThumbsUp
                     size={18}
-                    className={`group-hover/btn:text-primary transition-colors ${isReactionDockOpen ? "text-primary" : ""}`}
+                    className={`group-hover/btn:text-primary transition-colors ${isMenuReactionOpen ? "text-primary" : ""}`}
                   />
                 </button>
-                {isReactionDockOpen && (
+                {isMenuReactionOpen && (
                   <div className={`absolute top-full mt-2 flex items-center gap-1.5 p-1.5 bg-white dark:bg-surface-container border border-outline-variant/20 shadow-xl rounded-full z-[100] animate-in zoom-in-95 duration-200 ${isMe ? "right-0" : "left-0"}`}>
                     {["👍", "❤️", "😄", "😮", "😭", "😡"].map((emoji) => (
                       <button
                         key={emoji}
                         onClick={() => {
                           handleReact(emoji, "add");
-                          setIsReactionDockOpen(false);
+                          setIsMenuReactionOpen(false);
                         }}
                         className="w-8 h-8 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-transform hover:scale-110 active:scale-90"
                       >
@@ -692,8 +851,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             {message.replyTo && (
               <div className={`mb-3 rounded-xl ${isMe ? 'bg-primary/10' : 'bg-black/5'} p-3 text-[12px] border-l-4 border-primary/50 flex items-center gap-3 transition-colors hover:bg-black/5`}>
                 <div className="flex-1 min-w-0">
-                  <p className={`font-black opacity-50 text-[10px] uppercase tracking-[0.1em] mb-1`}>
-                    Phản hồi
+                  <p className={`font-black opacity-50 text-[10px] uppercase tracking-[0.1em] mb-1 truncate`}>
+                    Phản hồi {message.replyTo.senderId ? getDisplayName(message.replyTo.senderId, user, userProfiles) : "Tin nhắn"}
                   </p>
                   <p className={`truncate italic ${isMe ? 'text-white/90' : 'text-on-surface/80'} font-medium`}>
                     {message.replyTo.content}
@@ -800,26 +959,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               </div>
             )}
 
-            {hasReactions && (
-              <div className={`absolute -bottom-3 ${isMe ? "right-2" : "left-2"} flex items-center gap-1 bg-white dark:bg-surface-container shadow-sm border border-outline-variant/20 rounded-full px-1.5 py-0.5 z-[20]`}>
-                {Object.entries(message.reactions || {}).map(([emoji, users]: [string, any]) => {
-                  const userCount = Array.isArray(users) ? users.length : 0;
-                  if (userCount === 0) return null;
-                  const hasMyReact = Array.isArray(users) && users.includes(user?.email);
-                  
+            {/* Invite Link Preview Bubble */}
+            {!isRecalled && message.content && (
+              (() => {
+                const matchInvite = message.content.match(/\/join\/(CONV#GROUP#[a-zA-Z0-9-]+)/);
+                if (matchInvite) {
                   return (
-                    <button
-                      key={emoji}
-                      onClick={() => handleReact(emoji, hasMyReact ? "remove" : "add")}
-                      className={`flex items-center gap-1 px-1 py-0.5 rounded-full text-[11px] font-bold transition-all ${hasMyReact ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "hover:bg-black/5 dark:hover:bg-white/5 text-on-surface-variant"}`}
-                    >
-                      <FluentEmoji emoji={emoji} className="w-3.5 h-3.5" />
-                      {userCount > 1 && <span className="ml-0.5">{userCount}</span>}
-                    </button>
+                    <div className="mt-2">
+                      <GroupInviteBubble groupId={matchInvite[1]} />
+                    </div>
                   );
-                })}
-              </div>
+                }
+                return null;
+              })()
             )}
+
+
 
             {!isRecalled && message.contactCard && (
               <div
@@ -952,7 +1107,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             {!isRecalled && (
               <div className="mt-2 space-y-2">
                 {message.audioUrl && (
-                  <WebAudioPlayer src={message.audioUrl} />
+                  <WebAudioPlayer 
+                    src={message.audioUrl} 
+                    title={message.content === "[Tin nhắn thoại]" ? "Tin nhắn thoại" : "File âm thanh"} 
+                    allowDownload={message.content !== "[Tin nhắn thoại]"} 
+                  />
                 )}
 
                 {message.media && message.media.length > 0 && (
@@ -1137,8 +1296,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                     }
                   }
 
-                  if (isAudioFile(f)) {
-                    return <WebAudioPlayer key={i} src={file.dataUrl} />;
+                  if (isAudioFile(f) && message.content === "[Tin nhắn thoại]") {
+                    return (
+                      <WebAudioPlayer 
+                        key={i} 
+                        src={file.dataUrl} 
+                        title="Tin nhắn thoại"
+                        allowDownload={false}
+                      />
+                    );
                   }
 
                   const handleDownload = async (e: React.MouseEvent) => {
@@ -1191,48 +1357,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               </div>
             )}
           </div>
-
-          {!isRecalled && !isCallOverlayActive && (
-            <div
-              ref={reactionDockRef}
-              className={`absolute ${hasReactions ? "-bottom-10" : "-bottom-4"} ${isMe ? "left-2" : "right-2"} z-[30]`}
-              onMouseEnter={() => setIsReactionDockOpen(true)}
-              onMouseLeave={() => setIsReactionDockOpen(false)}
-            >
-              <div className="absolute bottom-full h-3 left-0 right-0" />
-              <button
-                className="w-8 h-8 flex items-center justify-center bg-white dark:bg-surface-container border border-outline-variant/30 dark:border-outline-variant/40 rounded-full shadow-lg hover:bg-surface-container active:scale-90 transition-all text-on-surface-variant"
-                title="Thả cảm xúc"
-              >
-                <ThumbsUp
-                  size={16}
-                  className={`transition-colors ${isReactionDockOpen ? "text-primary" : ""}`}
-                />
-              </button>
-
-              <div
-                className={`absolute bottom-full mb-3 transition-all duration-300 bg-white/90 dark:bg-surface-container/90 backdrop-blur-xl border border-outline-variant/10 rounded-[32px] flex items-center p-2 gap-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.2)] z-[40] ${isMe ? "right-0" : "left-0"} ${isReactionDockOpen ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-4 scale-90 pointer-events-none"}`}
-              >
-                {[
-                  { e: "👍", label: "Thích" },
-                  { e: "❤️", label: "Yêu thích" },
-                  { e: "😄", label: "Cười" },
-                  { e: "😮", label: "Ngạc nhiên" },
-                  { e: "😭", label: "Buồn" },
-                  { e: "😡", label: "Giận dữ" },
-                ].map(({ e, label }) => (
-                  <button
-                    key={e}
-                    onClick={() => handleReact(e)}
-                    className="w-11 h-11 flex items-center justify-center hover:bg-primary/10 rounded-full transition-all hover:scale-150 active:scale-95 duration-200"
-                    title={label}
-                  >
-                    <FluentEmoji emoji={e} className="w-8 h-8 drop-shadow-md" alt={label} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {hasReactions && (
             <div

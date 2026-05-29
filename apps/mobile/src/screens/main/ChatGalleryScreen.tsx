@@ -8,24 +8,44 @@ import {
   Image,
   Dimensions,
   Linking,
-  Platform,
   Modal,
-  ScrollView
+  ScrollView,
+  ActivityIndicator
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Theme';
 import { useChatStore } from '../../store/chatStore';
-import { useAuth } from '../../context/AuthContext';
 import { normalizeAttachment } from '../../store/chatHelpers';
+import { downloadAndOpenFile } from '../../utils/fileHelper';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
 const ITEM_SIZE = (width - 32 - 16) / COLUMN_COUNT;
 
+const formatBytes = (value?: number) => {
+  const bytes = Number(value || 0);
+  if (!bytes) return 'Không rõ dung lượng';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+};
+
+const getHostName = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url.replace(/^https?:\/\//, '').split('/')[0] || 'Liên kết';
+  }
+};
+
 const ChatGalleryScreen = ({ route, navigation }: any) => {
   const { conversationId } = route.params;
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
   const { archiveAssets, fetchArchiveAssets, userProfiles } = useChatStore();
   
   const [activeTab, setActiveTab] = useState<'media' | 'file' | 'link'>('media');
@@ -39,7 +59,7 @@ const ChatGalleryScreen = ({ route, navigation }: any) => {
     const files: any[] = [];
     const links: any[] = [];
     
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
 
     // Use store items
     const storeMediaMessages = archiveAssets.media.items;
@@ -48,7 +68,7 @@ const ChatGalleryScreen = ({ route, navigation }: any) => {
 
     // Process Media
     storeMediaMessages.forEach(m => {
-      const all = [...(m.media || []), ...(m.files || [])];
+      const all = (m.media || m.files) ? [...(m.media || []), ...(m.files || [])] : [m];
       all.forEach((item: any) => {
         const normalized = normalizeAttachment(item);
         if (normalized.mimeType?.startsWith('image/') || normalized.mimeType?.startsWith('video/')) {
@@ -59,13 +79,14 @@ const ChatGalleryScreen = ({ route, navigation }: any) => {
 
     // Process Files
     storeFileMessages.forEach(m => {
-      (m.files || []).forEach((item: any) => {
+      const all = Array.isArray(m.files) && m.files.length > 0 ? m.files : [m];
+      all.forEach((item: any) => {
         const normalized = normalizeAttachment(item);
         const fileName = (normalized.name || '').toLowerCase();
         const mimeType = (normalized.mimeType || '').toLowerCase();
         const isSystemFile = fileName === 'contact.json' || fileName === 'location.json';
-        const isAudioRecording = mimeType.startsWith('audio/');
-        if (!isSystemFile && !isAudioRecording) {
+        const isMediaFile = mimeType.startsWith('image/') || mimeType.startsWith('video/');
+        if (!isSystemFile && !isMediaFile) {
           files.push({ ...normalized, messageId: m.id, createdAt: m.createdAt, senderId: m.senderId });
         }
       });
@@ -74,10 +95,11 @@ const ChatGalleryScreen = ({ route, navigation }: any) => {
     // Process Links
     storeLinkMessages.forEach(m => {
       const content = typeof m.content === 'string' ? m.content : '';
-      const matches = content.match(urlRegex);
+      const matches = m.url ? [m.url] : content.match(urlRegex);
       if (matches) {
         matches.forEach((url: string) => {
-          links.push({ url, createdAt: m.createdAt, senderId: m.senderId });
+          const cleanUrl = url.replace(/[),.;!?]+$/, '');
+          links.push({ url: cleanUrl, createdAt: m.createdAt, senderId: m.senderId, messageId: m.id });
         });
       }
     });
@@ -113,8 +135,10 @@ const ChatGalleryScreen = ({ route, navigation }: any) => {
   const currentTabState = archiveAssets[activeTab];
 
   React.useEffect(() => {
-    fetchArchiveAssets(conversationId, activeTab, true);
-  }, [conversationId, activeTab]);
+    (['media', 'file', 'link'] as const).forEach((type) => {
+      fetchArchiveAssets(conversationId, type, true);
+    });
+  }, [conversationId]);
 
   const loadMore = () => {
     if (currentTabState.cursor && !currentTabState.loading) {
@@ -126,6 +150,7 @@ const ChatGalleryScreen = ({ route, navigation }: any) => {
     if (currentTabState.loading) {
       return (
         <View style={styles.footerLoader}>
+          <ActivityIndicator size="small" color={Colors.primary} />
           <Text style={styles.footerLoaderText}>Đang tải thêm...</Text>
         </View>
       );
@@ -150,7 +175,7 @@ const ChatGalleryScreen = ({ route, navigation }: any) => {
         mimeType: item.mimeType
       })}
     >
-      <Image source={{ uri: item.dataUrl || item.url }} style={styles.mediaThumb} />
+      <Image source={{ uri: item.dataUrl || item.url }} style={styles.mediaThumb} resizeMode="cover" />
       <View style={styles.mediaOverlay}>
         {item.mimeType?.startsWith('video/') && (
           <View style={styles.playIconOverlay}>
@@ -176,32 +201,48 @@ const ChatGalleryScreen = ({ route, navigation }: any) => {
     if (mime.includes('sheet') || ext === 'xls' || ext === 'xlsx') return 'table_chart';
     if (mime.includes('powerpoint') || ext === 'ppt' || ext === 'pptx') return 'slideshow';
     if (mime.includes('zip') || mime.includes('rar') || ext === 'zip' || ext === 'rar') return 'folder_zip';
-    if (mime.includes('image')) return 'image';
-    if (mime.includes('video')) return 'videocam';
     if (mime.includes('audio')) return 'audio_file';
     return 'description';
   };
 
-  const renderFileItem = ({ item }: { item: any }) => (
-    <TouchableOpacity 
-      style={styles.fileItem}
-      onPress={() => Linking.openURL(item.dataUrl || item.url)}
-    >
-      <View style={styles.fileIconBox}>
-        <Text style={styles.fileIcon}>{getFileIcon(item.name, item.mimeType)}</Text>
-      </View>
-      <View style={styles.fileInfo}>
-        <Text style={styles.fileName} numberOfLines={1}>{item.name || 'Tệp tin'}</Text>
-        <Text style={styles.fileSize}>
-          {((item.size || 0) / 1024 / 1024).toFixed(2)} MB • {new Date(item.createdAt).toLocaleDateString('vi-VN')}
-        </Text>
-        {item.senderId && galleryData.senders.length > 1 && (
-          <Text style={styles.fileSender}>{getSenderName(item.senderId)}</Text>
-        )}
-      </View>
-      <Text style={styles.downloadIcon}>download</Text>
-    </TouchableOpacity>
-  );
+  const getFileAccent = (filename: string, mimeType: string) => {
+    const ext = filename?.split('.')?.pop()?.toUpperCase() || '';
+    const mime = mimeType?.toLowerCase() || '';
+    if (mime.includes('pdf') || ext === 'PDF') return { bg: '#fee2e2', color: '#dc2626', label: 'PDF' };
+    if (['DOC', 'DOCX'].includes(ext) || mime.includes('word')) return { bg: '#dbeafe', color: '#2563eb', label: ext || 'DOC' };
+    if (['XLS', 'XLSX'].includes(ext) || mime.includes('sheet')) return { bg: '#dcfce7', color: '#16a34a', label: ext || 'XLS' };
+    if (['PPT', 'PPTX'].includes(ext) || mime.includes('powerpoint')) return { bg: '#ffedd5', color: '#ea580c', label: ext || 'PPT' };
+    if (['ZIP', 'RAR', '7Z'].includes(ext) || mime.includes('zip') || mime.includes('rar')) return { bg: '#f3e8ff', color: '#7c3aed', label: ext || 'ZIP' };
+    if (mime.includes('audio')) return { bg: '#fef3c7', color: '#d97706', label: 'AUDIO' };
+    return { bg: '#eef2f7', color: '#475569', label: ext || 'FILE' };
+  };
+
+  const renderFileItem = ({ item }: { item: any }) => {
+    const accent = getFileAccent(item.name, item.mimeType);
+    return (
+      <TouchableOpacity 
+        style={styles.fileItem}
+        onPress={() => downloadAndOpenFile(item.dataUrl || item.url, item.name || 'file', item.mimeType)}
+      >
+        <View style={[styles.fileIconBox, { backgroundColor: accent.bg }]}>
+          <Text style={[styles.fileIcon, { color: accent.color }]}>{getFileIcon(item.name, item.mimeType)}</Text>
+          <Text style={[styles.fileExt, { color: accent.color }]} numberOfLines={1}>{accent.label}</Text>
+        </View>
+        <View style={styles.fileInfo}>
+          <Text style={styles.fileName} numberOfLines={2}>{item.name || 'Tệp tin'}</Text>
+          <Text style={styles.fileSize}>
+            {formatBytes(item.size)} · {new Date(item.createdAt).toLocaleDateString('vi-VN')}
+          </Text>
+          {item.senderId && galleryData.senders.length > 1 && (
+            <Text style={styles.fileSender}>{getSenderName(item.senderId)}</Text>
+          )}
+        </View>
+        <View style={styles.downloadCircle}>
+          <Text style={styles.downloadIcon}>download</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderLinkItem = ({ item }: { item: any }) => (
     <TouchableOpacity 
@@ -212,28 +253,32 @@ const ChatGalleryScreen = ({ route, navigation }: any) => {
         <Text style={styles.linkIcon}>link</Text>
       </View>
       <View style={styles.linkInfo}>
+        <Text style={styles.linkDomain} numberOfLines={1}>{getHostName(item.url)}</Text>
         <Text style={styles.linkUrl} numberOfLines={1}>{item.url}</Text>
         <Text style={styles.linkDate}>
           {new Date(item.createdAt).toLocaleDateString('vi-VN')}
-          {item.senderId && galleryData.senders.length > 1 ? ` • ${userProfiles[item.senderId]?.nickname || userProfiles[item.senderId]?.fullName || item.senderId}` : ''}
+          {item.senderId && galleryData.senders.length > 1 ? ` · ${getSenderName(item.senderId)}` : ''}
         </Text>
       </View>
+      <Text style={styles.openIcon}>open_in_new</Text>
     </TouchableOpacity>
   );
 
   const getSenderName = (senderId: string) => {
-    return userProfiles[senderId]?.nickname || userProfiles[senderId]?.fullName || userProfiles[senderId]?.fullname || senderId;
+    const normalized = String(senderId || '').replace(/^USER#/, '').trim().toLowerCase();
+    const profile = userProfiles[normalized] || userProfiles[senderId];
+    return profile?.nickname || profile?.fullName || profile?.fullname || normalized || senderId;
   };
 
   const getFilterLabel = () => {
     let label = '';
     if (filterSender) label += `Từ: ${getSenderName(filterSender)}`;
     if (dateFrom) {
-      if (label) label += ' • ';
+      if (label) label += ' · ';
       label += `Từ: ${dateFrom.toLocaleDateString('vi-VN')}`;
     }
     if (dateTo) {
-      if (label) label += ' • ';
+      if (label) label += ' · ';
       label += `Đến: ${dateTo.toLocaleDateString('vi-VN')}`;
     }
     return label;
@@ -272,19 +317,22 @@ const ChatGalleryScreen = ({ route, navigation }: any) => {
           style={[styles.tab, activeTab === 'media' && styles.activeTab]} 
           onPress={() => setActiveTab('media')}
         >
-          <Text style={[styles.tabText, activeTab === 'media' && styles.activeTabText]}>ẢNH/VIDEO</Text>
+          <Text style={[styles.tabText, activeTab === 'media' && styles.activeTabText]}>Ảnh/Video</Text>
+          <Text style={[styles.tabCount, activeTab === 'media' && styles.activeTabText]}>{galleryData.media.length}</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === 'file' && styles.activeTab]} 
           onPress={() => setActiveTab('file')}
         >
-          <Text style={[styles.tabText, activeTab === 'file' && styles.activeTabText]}>FILE</Text>
+          <Text style={[styles.tabText, activeTab === 'file' && styles.activeTabText]}>File</Text>
+          <Text style={[styles.tabCount, activeTab === 'file' && styles.activeTabText]}>{galleryData.files.length}</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === 'link' && styles.activeTab]} 
           onPress={() => setActiveTab('link')}
         >
-          <Text style={[styles.tabText, activeTab === 'link' && styles.activeTabText]}>LINK</Text>
+          <Text style={[styles.tabText, activeTab === 'link' && styles.activeTabText]}>Link</Text>
+          <Text style={[styles.tabCount, activeTab === 'link' && styles.activeTabText]}>{galleryData.links.length}</Text>
         </TouchableOpacity>
       </View>
 
@@ -539,7 +587,7 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
@@ -551,6 +599,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: 'bold',
     color: '#64748b',
+  },
+  tabCount: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 2,
+    fontWeight: '600',
   },
   activeTabText: {
     color: Colors.primary,
@@ -609,14 +663,17 @@ const styles = StyleSheet.create({
   fileItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#eef2f7',
+    borderRadius: 12,
+    marginBottom: 10,
+    backgroundColor: '#fff',
   },
   fileIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
+    width: 50,
+    height: 50,
+    borderRadius: 12,
     backgroundColor: '#eff6ff',
     justifyContent: 'center',
     alignItems: 'center',
@@ -624,17 +681,24 @@ const styles = StyleSheet.create({
   },
   fileIcon: {
     fontFamily: 'Material Symbols Outlined',
-    fontSize: 24,
+    fontSize: 22,
     color: '#3b82f6',
+  },
+  fileExt: {
+    fontSize: 8,
+    fontWeight: '800',
+    marginTop: -2,
   },
   fileInfo: {
     flex: 1,
+    minWidth: 0,
   },
   fileName: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '700',
     color: '#1e293b',
     marginBottom: 4,
+    flexShrink: 1,
   },
   fileSize: {
     fontSize: 12,
@@ -645,24 +709,35 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginTop: 2,
   },
+  downloadCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#f8fafc',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
   downloadIcon: {
     fontFamily: 'Material Symbols Outlined',
-    fontSize: 20,
+    fontSize: 19,
     color: '#94a3b8',
-    marginLeft: 8,
   },
   linkItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#eef2f7',
+    borderRadius: 12,
+    marginBottom: 10,
+    backgroundColor: '#fff',
   },
   linkIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: '#f1f5f9',
+    width: 50,
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: '#e0f2fe',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -670,19 +745,32 @@ const styles = StyleSheet.create({
   linkIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
-    color: '#475569',
+    color: '#0369a1',
   },
   linkInfo: {
     flex: 1,
+    minWidth: 0,
+  },
+  linkDomain: {
+    fontSize: 15,
+    color: '#0f172a',
+    fontWeight: '700',
+    marginBottom: 3,
   },
   linkUrl: {
-    fontSize: 15,
+    fontSize: 13,
     color: '#3b82f6',
-    marginBottom: 4,
+    marginBottom: 5,
   },
   linkDate: {
     fontSize: 12,
     color: '#64748b',
+  },
+  openIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 19,
+    color: '#94a3b8',
+    marginLeft: 8,
   },
   emptyText: {
     textAlign: 'center',
@@ -693,6 +781,7 @@ const styles = StyleSheet.create({
   footerLoader: {
     paddingVertical: 20,
     alignItems: 'center',
+    gap: 8,
   },
   footerLoaderText: {
     fontSize: 12,

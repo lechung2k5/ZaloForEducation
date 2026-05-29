@@ -15,6 +15,7 @@ export type UpdateProfileInput = {
   phone?: string;
   address?: string;
   bio?: string;
+  showOnlineStatus?: boolean;
 };
 
 @Injectable()
@@ -60,6 +61,7 @@ export class UserService {
       avatarUrl,
       backgroundUrl,
       status: record.status || 'offline',
+      showOnlineStatus: record.showOnlineStatus ?? true,
       createdAt: record.createdAt ?? '',
       updatedAt: record.updatedAt ?? '',
     };
@@ -144,11 +146,14 @@ export class UserService {
       phone:       typeof input.phone       === 'string' ? input.phone.trim()       : undefined,
       address:     typeof input.address     === 'string' ? input.address.trim()     : undefined,
       bio:         typeof input.bio         === 'string' ? input.bio.trim()         : undefined,
+      showOnlineStatus: input.showOnlineStatus !== undefined ? input.showOnlineStatus : undefined,
     };
 
     const updateEntries = Object.entries(normalizedInput).filter(
       ([, value]) => value !== undefined && value !== '',
     );
+    // Note: boolean 'false' should not be filtered out by `value !== ''`
+    // but the filter uses `!== ''` so `false !== ''` is true, which is correct.
 
     if (updateEntries.length === 0) {
       this.logger.warn(`[UserService.updateUserProfile] No valid fields to update for ${email}`);
@@ -186,6 +191,20 @@ export class UserService {
 
     const profileData = await this.getUserProfile(email);
     this.chatGateway.notifyProfileUpdate(email, profileData.profile);
+    
+    // Handle presence side-effect
+    if (input.showOnlineStatus !== undefined) {
+      const normalizedEmail = email.toLowerCase();
+      const presenceKey = `presence:${normalizedEmail}`;
+      if (input.showOnlineStatus === false) {
+        await this.redisService.del(presenceKey);
+        this.chatGateway.server.emit('presence_update', { email: normalizedEmail, status: 'offline' });
+      } else {
+        await this.redisService.set(presenceKey, 'online', 3600);
+        this.chatGateway.server.emit('presence_update', { email: normalizedEmail, status: 'online' });
+      }
+    }
+
     return profileData;
   }
 

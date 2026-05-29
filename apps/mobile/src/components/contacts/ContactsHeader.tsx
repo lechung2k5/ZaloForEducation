@@ -1,7 +1,8 @@
 import React from 'react';
+import { useTheme } from '../../context/ThemeContext';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import styles from '../../screens/main/style/ContactsScreen.styles';
+import { getContactsStyles } from '../../screens/main/style/ContactsScreen.styles';
 
 interface ContactsHeaderProps {
   insets: { top: number };
@@ -16,6 +17,8 @@ export const ContactsHeader: React.FC<ContactsHeaderProps> = ({
   setSearchText,
   onAddPress,
 }) => {
+  const { colors } = useTheme();
+  const styles = getContactsStyles(colors);
   return (
     <LinearGradient
       colors={["#0058bc", "#00418f"]}

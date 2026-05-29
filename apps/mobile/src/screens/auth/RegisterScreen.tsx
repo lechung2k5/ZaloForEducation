@@ -17,12 +17,14 @@ import { BlurView } from 'expo-blur';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import { Colors, Typography, Shadows } from '../../constants/Theme';
+import { useTheme } from '../../context/ThemeContext';
 
 interface RegisterProps {
   onNavigate?: (screen: string, params?: any) => void;
 }
 
 export default function RegisterScreen({ onNavigate }: RegisterProps) {
+  const { t } = useTheme();
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -52,7 +54,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
 
   const handleRequestOtp = async () => {
     if (!email.endsWith('@gmail.com')) {
-      Alert.alert('Lỗi', 'Chỉ chấp nhận tài khoản Gmail (@gmail.com)');
+      Alert.alert(t('common.error'), t('auth.reg_only_gmail'));
       return;
     }
 
@@ -73,10 +75,10 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
         if (response.status === 429 && data.retryAfter) {
           syncWithServer(data.retryAfter);
         }
-        Alert.alert('Lỗi', data.message);
+        Alert.alert(t('common.error'), data.message);
       }
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể kết nối server');
+      Alert.alert(t('common.error'), t('auth.forgot_cannot_connect'));
     } finally {
       setLoading(false);
     }
@@ -96,15 +98,15 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
       const data = await response.json();
       if (response.ok) {
         startCountdown();
-        Alert.alert('Thông báo', 'Đã gửi lại mã OTP mới.');
+        Alert.alert(t('common.notice'), t('auth.forgot_otp_sent'));
       } else {
         if (response.status === 429 && data.retryAfter) {
           syncWithServer(data.retryAfter);
         }
-        Alert.alert('Lỗi', data.message || 'Không thể gửi lại mã OTP');
+        Alert.alert(t('common.error'), data.message || t('auth.forgot_cannot_resend'));
       }
     } catch (error) {
-      Alert.alert('Lỗi', 'Lỗi kết nối server');
+      Alert.alert(t('common.error'), t('auth.forgot_cannot_connect'));
     } finally {
       setLoading(false);
     }
@@ -114,7 +116,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
     if (otp.length === 6) {
       setStep(3);
     } else {
-      Alert.alert('Lỗi', 'Mã OTP phải có 6 chữ số');
+      Alert.alert(t('common.error'), t('auth.forgot_otp_invalid'));
     }
   };
 
@@ -122,37 +124,37 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
     // 1. Validate Full Name
     const nameParts = fullName.trim().split(/\s+/);
     if (!fullName || nameParts.length < 2) {
-      Alert.alert('Lỗi', 'Họ tên phải bao gồm ít nhất 2 từ');
+      Alert.alert(t('common.error'), t('auth.reg_name_words'));
       return;
     }
     if (/[0-9!@#$%^&*(),.?":{}|<>]/.test(fullName)) {
-      Alert.alert('Lỗi', 'Họ tên không được chứa số hoặc ký tự đặc biệt');
+      Alert.alert(t('common.error'), t('auth.reg_name_chars'));
       return;
     }
 
     // 2. Validate Phone
     const phoneRegex = /^(0|84)(3|5|7|8|9)[0-9]{8}$/;
     if (!phoneRegex.test(phone)) {
-      Alert.alert('Lỗi', 'Số điện thoại Việt Nam không hợp lệ');
+      Alert.alert(t('common.error'), t('auth.reg_phone_invalid'));
       return;
     }
 
     // 3. Validate Date of Birth (DD-MM-YYYY)
     const dobRegex = /^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[012])-(19|20)\d\d$/;
     if (!dobRegex.test(dataOfBirth)) {
-      Alert.alert('Lỗi', 'Ngày sinh phải đúng định dạng DD-MM-YYYY');
+      Alert.alert(t('common.error'), t('auth.reg_dob_invalid'));
       return;
     }
 
     // 4. Validate Password Strength
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(password)) {
-      Alert.alert('Lỗi', 'Mật khẩu phải tối thiểu 8 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt');
+      Alert.alert(t('common.error'), t('auth.forgot_pass_invalid'));
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp!');
+      Alert.alert(t('common.error'), t('auth.forgot_pass_mismatch'));
       return;
     }
 
@@ -175,7 +177,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
 
       const data = await response.json();
       if (response.ok) {
-        Alert.alert('Thành công', 'Đăng ký tài khoản thành công!');
+        Alert.alert(t('common.notice'), t('auth.reg_success'));
         onNavigate && onNavigate('Login');
       } else {
         Alert.alert('Lỗi', data.message);
@@ -230,9 +232,9 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
           <View style={styles.cardContainer}>
             <BlurView intensity={80} tint="light" style={styles.glassCard}>
               <Text style={styles.cardTitle}>
-                {step === 1 && "Tạo tài khoản"}
-                {step === 2 && "Xác thực OTP"}
-                {step === 3 && "Thông tin cá nhân"}
+                {step === 1 && t('auth.reg_title')}
+                {step === 2 && t('auth.forgot_step2_title')}
+                {step === 3 && t('auth.reg_step3_title')}
               </Text>
 
               {step === 1 && (
@@ -240,13 +242,13 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                   <Text style={styles.subtitle}>Gia nhập cộng đồng học tập thông minh.</Text>
                   
                   <Input
-                    label="Email của bạn"
+                    label={t('auth.reg_your_email')}
                     placeholder="example@gmail.com"
                     value={email}
                     onChangeText={(val) => {
                       setEmail(val);
                       if (val && !val.endsWith('@gmail.com')) {
-                        setEmailError('Chỉ chấp nhận tài khoản (@gmail.com)');
+                        setEmailError(t('auth.reg_only_gmail'));
                       } else {
                         setEmailError('');
                       }
@@ -257,7 +259,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                   {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
                   
                   <Button 
-                    title={loading ? "Đang gửi..." : (countdown > 0 ? `Nhận mã sau (${countdown}s)` : "Nhận mã xác thực")} 
+                    title={loading ? t('common.sending') : (countdown > 0 ? t('auth.reg_get_code_wait', { time: countdown }) : t('auth.reg_get_code'))} 
                     onPress={handleRequestOtp} 
                     icon="arrow_forward"
                     disabled={loading || !!emailError || !email || countdown > 0}
@@ -270,7 +272,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                 <View style={styles.form}>
                   <Text style={styles.otpLabel}>Nhập mã OTP 6 chữ số gửi đến {'\n'}<Text style={{fontWeight: '700'}}>{email}</Text></Text>
                   <Input
-                    label="Mã OTP"
+                    label={t('auth.forgot_otp_label')}
                     placeholder="000000"
                     value={otp}
                     onChangeText={setOtp}
@@ -278,7 +280,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                     icon="pin"
                   />
                   <Button 
-                    title="Xác thực OTP" 
+                    title={t('auth.forgot_step2_title')} 
                     onPress={handleVerifyOtp} 
                     icon="arrow_forward"
                   />
@@ -292,11 +294,11 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                       fontWeight: '700',
                       textDecorationLine: countdown > 0 ? 'none' : 'underline'
                     }}>
-                      {countdown > 0 ? `Gửi lại mã (${countdown}s)` : 'Gửi lại mã OTP'}
+                      {countdown > 0 ? t('auth.forgot_resend_wait', { time: countdown }) : t('auth.forgot_resend_code')}
                     </Text>
                   </TouchableOpacity>
                   <Button 
-                    title="Quay lại" 
+                    title={t('auth.reg_back')} 
                     onPress={() => setStep(1)} 
                     variant="secondary" 
                   />
@@ -306,8 +308,8 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
               {step === 3 && (
                 <View style={styles.form}>
                   <Input 
-                    label="Họ và tên" 
-                    placeholder="Nguyễn Văn A" 
+                    label={t('auth.reg_fullname')} 
+                    placeholder={t('auth.reg_fullname_hint')} 
                     value={fullName} 
                     onChangeText={setFullName} 
                     icon="badge" 
@@ -315,7 +317,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                     onBlur={() => handleBlur('fullName')}
                   />
                   <Input 
-                    label="Số điện thoại" 
+                    label={t('auth.reg_phone')} 
                     placeholder="0901 234 567" 
                     value={phone} 
                     onChangeText={setPhone} 
@@ -325,7 +327,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                     onBlur={() => handleBlur('phone')}
                   />
                   <Input 
-                    label="Ngày sinh" 
+                    label={t('auth.reg_dob')} 
                     placeholder="DD-MM-YYYY" 
                     value={dataOfBirth} 
                     onChangeText={setDataOfBirth} 
@@ -353,7 +355,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                   </View>
 
                   <Input 
-                    label="Mật khẩu" 
+                    label={t('auth.password')} 
                     placeholder="••••••••" 
                     value={password} 
                     onChangeText={setPassword} 
@@ -366,12 +368,12 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                   {password.length > 0 && (
                     <View style={styles.strengthContainer}>
                       <View style={styles.strengthHeader}>
-                        <Text style={styles.strengthLabel}>Độ mạnh: <Text style={[
+                        <Text style={styles.strengthLabel}>{t('auth.forgot_strength')} <Text style={[
                           styles.strengthValue,
                           getPasswordStrength(password) <= 2 ? { color: Colors.error } : 
                           getPasswordStrength(password) === 3 ? { color: '#EAB308' } : { color: '#10B981' }
                         ]}>
-                          {['Rất yếu', 'Yếu', 'Trung bình', 'Mạnh', 'Rất mạnh'][getPasswordStrength(password)]}
+                          {[t('auth.forgot_strength_1'), t('auth.forgot_strength_2'), t('auth.forgot_strength_3'), t('auth.forgot_strength_4'), t('auth.forgot_strength_5')][getPasswordStrength(password)]}
                         </Text></Text>
                         <Text style={styles.strengthPercent}>{getPasswordStrength(password) * 25}%</Text>
                       </View>
@@ -391,7 +393,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                   )}
 
                   <Input 
-                    label="Xác nhận mật khẩu" 
+                    label={t('auth.forgot_confirm_pass')} 
                     placeholder="••••••••" 
                     value={confirmPassword} 
                     onChangeText={setConfirmPassword} 
@@ -402,7 +404,7 @@ export default function RegisterScreen({ onNavigate }: RegisterProps) {
                   />
                   
                   <Button 
-                    title={loading ? "Đang xử lý..." : "Hoàn tất đăng ký"} 
+                    title={loading ? t('common.processing') : t('auth.reg_submit')} 
                     onPress={handleRegister} 
                     icon="check_circle"
                     disabled={loading}

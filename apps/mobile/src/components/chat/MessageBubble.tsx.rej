@@ -1,0 +1,421 @@
+diff a/apps/mobile/src/components/chat/MessageBubble.tsx b/apps/mobile/src/components/chat/MessageBubble.tsx	(rejected hunks)
+@@ -172,7 +222,7 @@ const AudioPlayer = ({ url, isMe }: { url: string; isMe: boolean }) => {
+       </TouchableOpacity>
+       <View style={styles.audioProgress}>
+         <View style={styles.audioHeader}>
+-          <Text style={[styles.audioLabel, isMe && styles.audioLabelMe]}>Tin nhß║»n thoß║íi</Text>
++          <Text style={[styles.audioLabel, isMe && styles.audioLabelMe]} numberOfLines={1}>{displayTitle}</Text>
+           <Text style={[styles.audioTime, isMe && styles.audioTimeMe]}>
+             {duration > 0 ? formatTime(duration) : '--:--'}
+           </Text>
+@@ -294,10 +478,15 @@ export default function MessageBubble({
+   isSelectionMode?: boolean;
+   isSelected?: boolean;
+ }) {
++  const { colors, t, isDark } = useTheme();
++  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
++  const navigate = useNavigation();
++  const { user }: any = useAuth();
++
+   const isMediaOnly = (() => {
+     if (message.audioUrl || message.contactCard || message.location) return true;
+     if (!message.content) return true;
+-    const placeholders = ['[H├¼nh ß║únh]', '[Tin nhß║»n thoß║íi]', '[Ghi ├óm]', '[Tß╗çp tin]', '[Sticker]', '[ß║ónh/Video]', '[Danh thiß║┐p]', '[Vß╗ï tr├¡]'];
++    const placeholders = [t('msg_bubble.image'), '[Tin nhß║»n thoß║íi]', '[Ghi ├óm]', t('msg_bubble.file'), '[Sticker]', '[ß║ónh/Video]', '[Danh thiß║┐p]', '[Vß╗ï tr├¡]'];
+     if (placeholders.some(p => message.content.startsWith(p))) {
+       return (message.media && message.media.length > 0) || (message.files && message.files.length > 0) || !!message.audioUrl || !!message.contactCard || !!message.location;
+     }
+@@ -353,11 +539,12 @@ export default function MessageBubble({
+       },
+       onPanResponderRelease: (_, gestureState) => {
+         if (gestureState.dx > swipeThreshold) {
++          safeHaptic(Haptics.ImpactFeedbackStyle.Light);
+           onReply({
+             ...message,
+             senderName: (() => {
+               const replySender = String(message.senderId || "").trim().toLowerCase();
+-              if (replySender === String(user?.email || "").trim().toLowerCase()) return "Bß║ín";
++              if (replySender === String(user?.email || "").trim().toLowerCase()) return t('common.you');
+               const p = userProfiles?.[replySender];
+               return p?.nickname || p?.fullName || p?.fullname || replySender;
+             })()
+@@ -423,10 +610,10 @@ export default function MessageBubble({
+       const parsed = JSON.parse(message.content);
+       if (parsed.action) {
+         const getDisplayName = (email: string) => {
+-          if (!email) return "Ng╞░ß╗¥i d├╣ng";
++          if (!email) return t('common.user');
+           const myEmail = user?.email?.toLowerCase();
+           const targetEmail = email.trim().toLowerCase();
+-          if (targetEmail === myEmail) return "Bß║ín";
++          if (targetEmail === myEmail) return t('common.you');
+           const p = userProfiles?.[targetEmail];
+           return p?.nickname || p?.fullName || p?.fullname || email.split('@')[0];
+         };
+@@ -436,50 +623,53 @@ export default function MessageBubble({
+ 
+         switch (parsed.action) {
+           case 'member_added':
+-            displayContent = `${actorLabel} ─æ├ú th├¬m ${targetLabel} v├áo nh├│m`;
++            displayContent = t('chat.sys_member_added', { actor: actorLabel, target: targetLabel });
+             break;
+           case 'member_removed':
+           case 'member_kicked':
+-            displayContent = `${actorLabel} ─æ├ú x├│a ${targetLabel} khß╗Åi nh├│m`;
++            displayContent = t('chat.sys_member_removed', { actor: actorLabel, target: targetLabel });
+             break;
+           case 'member_left':
+-            displayContent = `${actorLabel} ─æ├ú rß╗¥i nh├│m`;
++            displayContent = t('chat.sys_member_left', { actor: actorLabel });
++            break;
++          case 'member_joined_link':
++            displayContent = t('chat.sys_member_joined_link', { actor: actorLabel });
+             break;
+           case 'promoted_to_deputy':
+-            displayContent = `${actorLabel} ─æ├ú bß╗ò nhiß╗çm ${targetLabel} l├ám ph├│ nh├│m`;
++            displayContent = t('chat.sys_promoted_deputy', { actor: actorLabel, target: targetLabel });
+             break;
+           case 'demoted_from_deputy':
+           case 'demoted_to_member':
+-            displayContent = `${actorLabel} ─æ├ú gß╗í chß╗⌐c vß╗Ñ cß╗ºa ${targetLabel} xuß╗æng l├ám th├ánh vi├¬n`;
++            displayContent = t('chat.sys_demoted_member', { actor: actorLabel, target: targetLabel });
+             break;
+           case 'ownership_transferred':
+           case 'transferred_owner':
+-            displayContent = `${actorLabel} ─æ├ú chuyß╗ân quyß╗ün tr╞░ß╗ƒng nh├│m cho ${targetLabel}`;
++            displayContent = t('chat.sys_transfer_owner', { actor: actorLabel, target: targetLabel });
+             break;
+           case 'pin_message':
+-            displayContent = `${actorLabel} ─æ├ú ghim mß╗Öt tin nhß║»n`;
++            displayContent = t('chat.sys_pin_message', { actor: actorLabel });
+             break;
+           case 'unpin_message':
+-            displayContent = `${actorLabel} ─æ├ú bß╗Å ghim tin nhß║»n`;
++            displayContent = t('chat.sys_unpin_message', { actor: actorLabel });
+             break;
+           case 'role_updated':
+-            const roleName = parsed.role === 'owner' ? 'Tr╞░ß╗ƒng nh├│m' : parsed.role === 'deputy' ? 'Ph├│ nh├│m' : 'Th├ánh vi├¬n';
+-            displayContent = `${actorLabel} ─æ├ú ─æß║╖t ${targetLabel} l├ám ${roleName}`;
++            const roleName = parsed.role === 'owner' ? t('chat.role_owner') : parsed.role === 'deputy' ? t('chat.role_deputy') : t('chat.role_member');
++            displayContent = t('chat.sys_role_updated', { actor: actorLabel, target: targetLabel, roleName });
+             break;
+           case 'info_updated':
+-            displayContent = `${actorLabel} ─æ├ú cß║¡p nhß║¡t th├┤ng tin nh├│m`;
++            displayContent = t('chat.sys_info_updated', { actor: actorLabel });
+             break;
+           case 'group_name_updated':
+-            displayContent = `${actorLabel} ─æ├ú ─æß╗òi t├¬n nh├│m`;
++            displayContent = t('chat.sys_name_updated', { actor: actorLabel });
+             break;
+           case 'group_avatar_updated':
+-            displayContent = `${actorLabel} ─æ├ú thay ─æß╗òi ß║únh ─æß║íi diß╗çn nh├│m`;
++            displayContent = t('chat.sys_avatar_updated', { actor: actorLabel });
+             break;
+           case 'group_created':
+-            displayContent = `${actorLabel} ─æ├ú tß║ío nh├│m`;
++            displayContent = t('chat.sys_group_created', { actor: actorLabel });
+             break;
+           default:
+-            displayContent = `${actorLabel} ─æ├ú thß╗▒c hiß╗çn mß╗Öt thay ─æß╗òi hß╗ç thß╗æng`;
++            displayContent = t('chat.sys_default', { actor: actorLabel });
+             break;
+         }
+       }
+@@ -518,257 +731,13 @@ export default function MessageBubble({
+               <Text style={[styles.replyHeader, isMe && styles.replyHeaderTextMe]} numberOfLines={1}>
+                 {(() => {
+                   const replySender = String(message.replyTo.senderId || "").trim().toLowerCase();
+-                  if (replySender === String(user?.email || "").trim().toLowerCase()) return "Bß║ín";
++                  if (replySender === String(user?.email || "").trim().toLowerCase()) return t('common.you');
+                   const p = userProfiles?.[replySender];
+-                  return p?.nickname || p?.fullName || p?.fullname || replySender || "Ng╞░ß╗¥i d├╣ng";
++                  return p?.nickname || p?.fullName || p?.fullname || replySender || t('common.user');
+                 })()}
+               </Text>
+               <Text style={[styles.replyContent, isMe && styles.replyContentTextMe]} numberOfLines={1}>
+-                {message.replyTo.content || (message.replyTo.media?.length ? "[H├¼nh ß║únh]" : message.replyTo.files?.length ? "[Tß╗çp tin]" : "Tin nhß║»n")}
+-              </Text>
+-            </View>
+-            {(message.replyTo.media && message.replyTo.media.length > 0) && (
+-              <Image
+-                source={{ uri: message.replyTo.media[0].url || message.replyTo.media[0].dataUrl }}
+-                style={styles.replyImagePreview}
+-              />
+-            )}
+-          </View>
+-        </TouchableOpacity>
+-      )}
+-
+-      {isRecalled ? (
+-        <Text style={[styles.messageText, styles.recalledText, isMe && styles.messageTextMe]}>
+-          Tin nhß║»n ─æ├ú ─æ╞░ß╗úc thu hß╗ôi
+-        </Text>
+-      ) : (
+-        <>
+-          {message.content && !isMediaOnly ? (
+-            <MentionText
+-              text={message.content}
+-              mentions={message.mentions || message.payload?.mentions}
+-              keyword={highlightKeyword}
+-              style={[styles.messageText, isMe ? styles.messageTextMe : styles.messageTextOther]}
+-            />
+-          ) : null}
+-
+-          {message.media && message.media.length > 0 && (
+-            <View style={styles.mediaContainer}>
+-              {(() => {
+-                const videos = message.media.filter(isVideoAttachment);
+-                const images = message.media.filter((m: any) => !isVideoAttachment(m));
+-
+-                return (
+-                  <>
+-                    {videos.length > 0 && (
+-                      <View style={[styles.videoGrid, images.length > 0 && { marginBottom: 8 }]}>
+-                        {videos.map((item: any, idx: number) => (
+-                          <TouchableOpacity
+-                            key={`vid-${idx}`}
+-                            style={[styles.videoBox, videos.length === 1 && styles.singleVideoBox]}
+-                            onPress={() => handleImagePress(item)}
+-                          >
+-                            <Image
+-                              source={(item.url || item.dataUrl) ? { uri: item.url || item.dataUrl } : DEFAULT_AVATAR}
+-                              style={styles.mediaImage}
+-                              resizeMode="cover"
+-                            />
+-                            <View style={styles.videoOverlay}>
+-                              <View style={styles.playButtonCircle}>
+-                                <Text style={styles.playIcon}>play_arrow</Text>
+-                              </View>
+-                              <View style={styles.videoBadge}>
+-                                <Text style={styles.videoBadgeText}>VIDEO</Text>
+-                              </View>
+-                            </View>
+-                          </TouchableOpacity>
+-                        ))}
+-                      </View>
+-                    )}
+-
+-                    {images.length > 0 && (
+-                      <View style={[
+-                        styles.imageGrid,
+-                        images.length === 1 && styles.singleMediaGrid,
+-                        (images.length === 2 || images.length === 4) && styles.twoColumnGrid
+-                      ]}>
+-                        {images.map((item: any, idx: number) => {
+-                          const isSticker = isStickerMedia(item);
+-                          return (
+-                            <TouchableOpacity
+-                              key={`img-${idx}`}
+-                              style={[
+-                                styles.imageBox,
+-                                images.length === 1 && styles.singleImageBox
+-                              ]}
+-                              onPress={() => handleImagePress(item)}
+-                            >
+-                              <Image
+-                                source={(item.url || item.dataUrl) ? { uri: item.url || item.dataUrl } : DEFAULT_AVATAR}
+-                                style={[
+-                                  styles.mediaImage,
+-                                  isSticker && styles.stickerImage,
+-                                  images.length === 1 && styles.singleMediaImage
+-                                ]}
+-                                resizeMode={isSticker ? "contain" : "cover"}
+-                              />
+-                            </TouchableOpacity>
+-                          );
+-                        })}
+-                      </View>
+-                    )}
+-                  </>
+-                );
+-              })()}
+-            </View>
+-          )}
+-
+-          {/* 1. Special Cards (Location/Contact) */}
+-          {message.location && (
+-            <View style={styles.fileList}>
+-              <TouchableOpacity
+-                style={[styles.specialCard, isMe && styles.specialCardMe]}
+-                onPress={() => {
+-                  const url = Platform.select({
+-                    ios: `maps:0,0?q=${message.location.latitude},${message.location.longitude}`,
+-                    android: `geo:0,0?q=${message.location.latitude},${message.location.longitude}`
+-                  });
+-                  if (url) Linking.openURL(url);
+-                }}
+-              >
+-                <View style={[styles.specialIconBox, { backgroundColor: '#fff1f2' }]}>
+-                  <Text style={[styles.specialIcon, { color: '#f43f5e' }]}>location_on</Text>
+-                </View>
+-                <View style={styles.fileInfo}>
+-                  <Text style={[styles.fileName, isMe && styles.fileNameMe]}>Vß╗ï tr├¡ hiß╗çn tß║íi</Text>
+-                  <Text style={[styles.fileSize, isMe && styles.fileSizeMe]}>{message.location.label || 'Nhß║Ñn ─æß╗â xem bß║ún ─æß╗ô'}</Text>
+-                </View>
+-              </TouchableOpacity>
+-            </View>
+-          )}
+-
+-          {message.contactCard && (
+-            <View style={styles.fileList}>
+-              <TouchableOpacity
+-                style={[styles.specialCard, isMe && styles.specialCardMe]}
+-                onPress={() => {
+-                  if (onNavigate) onNavigate('Profile', { userId: message.contactCard.email });
+-                }}
+-              >
+-                <View style={[styles.specialIconBox, { backgroundColor: '#f5f3ff' }]}>
+-                  <Image source={{ uri: message.contactCard.avatarUrl || 'https://via.placeholder.com/150' }} style={styles.specialAvatar} />
+-                </View>
+-                <View style={styles.fileInfo}>
+-                  <Text style={[styles.fileName, isMe && styles.fileNameMe]}>{message.contactCard.fullName || "Danh thiß║┐p"}</Text>
+-                  <Text style={[styles.fileSize, isMe && styles.fileSizeMe]}>Nhß║Ñn ─æß╗â xem trang c├í nh├ón</Text>
+-                </View>
+-              </TouchableOpacity>
+-            </View>
+-          )}
+-
+-          {/* 2. Audio Player */}
+-          {(() => {
+-            const audioUrl = message.audioUrl || message.files?.find((f: any) => String(f.mimeType || "").toLowerCase().startsWith("audio/"))?.url || message.files?.find((f: any) => String(f.mimeType || "").toLowerCase().startsWith("audio/"))?.dataUrl;
+-            if (audioUrl) {
+-              return (
+-                <View style={styles.fileList}>
+-                  <AudioPlayer url={audioUrl} isMe={isMe} />
+-                </View>
+-              );
+-            }
+-            return null;
+-          })()}
+-
+-          {/* 3. Standard Files */}
+-          {message.files && message.files.length > 0 && (
+-            <View style={styles.fileList}>
+-              {message.files.map((file: any, idx: number) => {
+-                const f = normalizeAttachment(file);
+-                return (
+-                  <TouchableOpacity
+-                    key={idx}
+-                    style={[styles.fileCard, isMe && styles.fileCardMe]}
+-                    onPress={() => handleFilePress(f)}
+-                  >
+-                    <View style={styles.fileIconBox}>
+-                      <Text style={styles.fileIcon}>{getFileIcon(f.mimeType, f.name)}</Text>
+-                    </View>
+-                    <View style={styles.fileInfo}>
+-                      <Text style={[styles.fileName, isMe && styles.fileNameMe]} numberOfLines={1}>{f.name}</Text>
+-                      <Text style={[styles.fileSize, isMe && styles.fileSizeMe]}>{formatFileSize(f.size)}</Text>
+-                    </View>
+-                  </TouchableOpacity>
+-                );
+-              })}
+-            </View>
+-          )}
+-
+-          {/* 4. Polls */}
+-          {!message.recalled && (message.poll || message.payload?.poll) && (
+-            <PollMessage
+-              messageId={message.id}
+-              topic={(message.poll || message.payload?.poll).topic || ''}
+-              options={(message.poll || message.payload?.poll).options || []}
+-              votes={(message.poll || message.payload?.poll).votes || {}}
+-              senderEmail={message.senderId}
+-              onVote={onVotePoll}
+-              onClosePoll={() => onClosePoll ? onClosePoll(message.id) : Promise.resolve()}
+-              isClosed={(message.poll || message.payload?.poll).isClosed}
+-              userProfiles={userProfiles}
+-            />
+-          )}
+-
+-          {/* 5. Reminders */}
+-          {!message.recalled && (message.reminder || message.payload?.reminder) && (
+-            <ReminderMessage
+-              messageId={message.id}
+-              content={(message.reminder || message.payload?.reminder).content || (message.reminder || message.payload?.reminder).title}
+-              time={(message.reminder || message.payload?.reminder).time}
+-              date={(message.reminder || message.payload?.reminder).date}
+-              repeatType={(message.reminder || message.payload?.reminder).repeatType}
+-            />
+-          )}
+-        </>
+-      )}
+-    </>
+-  );
+-
+-  return (
+-    <View style={[
+-      styles.container,
+-      isMe ? styles.containerMe : styles.containerOther,
+-      (message.poll || message.payload?.poll) && { alignSelf: 'center', width: '100%', paddingHorizontal: 10 },
+-      groupPosition === 'middle' || groupPosition === 'last' ? { marginBottom: 2 } : { marginBottom: 8 }
+-    ]}>
+-      {/* Swipe Reply Icon Indicator */}
+-      <Animated.View style={[
+-        styles.replySwipeIndicator,
+-        {
+-          opacity: replyIconOpacity,
+-          transform: [{ scale: replyIconScale }, { translateX: -20 }]
+-        }
+-      ]}>
+-        <Text style={styles.replySwipeIcon}>reply</Text>
+-      </Animated.View>
+-
+-      <Animated.View
+-        {...panResponder.panHandlers}
+-        style={[
+-          { flexDirection: 'row', flex: 1, alignItems: 'flex-end', justifyContent: (message.poll || message.payload?.poll) ? 'center' : (isMe ? 'flex-end' : 'flex-start') },
+-          { transform: [{ translateX }] }
+-        ]}
+-      >
+-        {!isMe && !(message.poll || message.payload?.poll) && (
+-          <View style={styles.avatarSpace}>
+-            {showAvatar ? (
+-              <Image
+-                source={userProfile?.avatarUrl ? { uri: userProfile.avatarUrl } : DEFAULT_AVATAR}
+-                style={styles.avatar}
+-              />
+-            ) : null}
+-          </View>
+-        )}
+-
++                {message.replyTo.content || (message.replyTo.media?.length ? t('msg_bubble.image') : message.replyTo.files?.length ? t('msg_bubble.file') : t("msg_bubble.message"))}
+         <View style={[
+           styles.bubbleWrapper,
+           isMe ? styles.bubbleWrapperMe : styles.bubbleWrapperOther,
+@@ -871,28 +838,27 @@ export default function MessageBubble({
+               {isMe && (
+                 <View style={styles.statusWrapper}>
+                   {message.status === 'sending' ? (
+-                    <View style={[styles.statusPill, { backgroundColor: '#eff6ff' }]}>
++                    <View style={[styles.statusPill, { backgroundColor: isDark ? 'rgba(74,143,255,0.12)' : '#eff6ff' }]}>
+                       <View style={styles.statusCircle} />
+-                      <Text style={styles.statusText}>─Éang gß╗¡i</Text>
++                      <Text style={styles.statusText}>{t('chat.status_sending')}</Text>
+                     </View>
+                   ) : message.status === 'error' ? (
+-                    <View style={[styles.statusPill, { backgroundColor: '#fef2f2' }]}>
++                    <View style={[styles.statusPill, { backgroundColor: isDark ? 'rgba(239,68,68,0.12)' : '#fef2f2' }]}>
+                       <View style={[styles.statusCircle, { borderColor: '#ef4444' }]}>
+                         <Text style={[styles.statusCheck, { color: '#ef4444' }]}>!</Text>
+                       </View>
+-                      <Text style={[styles.statusText, { color: '#dc2626' }]}>Lß╗ùi</Text>
++                      <Text style={[styles.statusText, { color: isDark ? '#f87171' : '#dc2626' }]}>{t('chat.status_error')}</Text>
+                     </View>
+                   ) : isSeen ? (
+-                    <View style={[styles.statusPill, { backgroundColor: '#e0f2fe' }]}>
+-                      <Image source={userProfile?.avatarUrl ? { uri: userProfile.avatarUrl } : DEFAULT_AVATAR} style={styles.seenAvatar} />
+-                      <Text style={[styles.statusText, { color: '#0369a1', fontWeight: '800' }]}>─É├ú xem</Text>
++                    <View style={[styles.statusPill, { backgroundColor: 'transparent', paddingHorizontal: 2, paddingVertical: 0 }]}>
++                      <Image source={getDisplayAvatar(user?.email, userProfile)} style={styles.seenAvatarUI} />
+                     </View>
+                   ) : (
+-                    <View style={[styles.statusPill, { backgroundColor: '#f8fafc' }]}>
++                    <View style={[styles.statusPill, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f8fafc' }]}>
+                       <View style={[styles.statusCircle, styles.statusSent]}>
+                         <Text style={styles.statusCheck}>Γ£ô</Text>
+                       </View>
+-                      <Text style={styles.statusText}>─É├ú gß╗¡i</Text>
++                      <Text style={styles.statusText}>{t('chat.status_sent')}</Text>
+                     </View>
+                   )}
+                 </View>

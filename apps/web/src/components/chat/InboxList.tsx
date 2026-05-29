@@ -484,7 +484,10 @@ const InboxList: React.FC = () => {
             const normalizedPartner = partnerEmail
               ? String(partnerEmail).trim().toLowerCase()
               : "";
-            const isOnline = normalizedPartner
+            
+            const showOnlineStatus = user?.showOnlineStatus !== false;
+
+            const isOnline = showOnlineStatus && normalizedPartner
               ? userProfiles[normalizedPartner]?.status === "online"
               : false;
             const isHidden = !!hiddenConversations[chat.id];
@@ -528,11 +531,26 @@ const InboxList: React.FC = () => {
                 onClick={() => {
                   if (isHidden) {
                     Swal.fire({
-                      icon: "info",
-                      title: t('inbox.hidden_warning_title'),
-                      text: t('inbox.hidden_warning_text'),
-                      timer: 2000,
-                      showConfirmButton: false,
+                      title: t('inbox.enter_pin_to_unlock'),
+                      input: "password",
+                      inputAttributes: {
+                        autocapitalize: "off",
+                        autocorrect: "off",
+                        pattern: "[0-9]*",
+                      },
+                      showCancelButton: true,
+                      confirmButtonText: t('inbox.unlock'),
+                      cancelButtonText: t('inbox.cancel'),
+                      confirmButtonColor: "#0068FF",
+                    }).then((result) => {
+                      if (result.isConfirmed) {
+                        const success = useChatStore.getState().unhideConversation(chat.id, result.value);
+                        if (success) {
+                          setActiveConversation(chat.id);
+                        } else {
+                          Swal.fire(t('inbox.invalid_pin'), "", "error");
+                        }
+                      }
                     });
                     return;
                   }
@@ -585,7 +603,7 @@ const InboxList: React.FC = () => {
                           style={{ color: conversationTag.color || "#ffb020" }}
                           title={t('inbox.tag', { name: conversationTag.name })}
                         >
-                          folder
+                          sell
                         </span>
                       )}
                       <p

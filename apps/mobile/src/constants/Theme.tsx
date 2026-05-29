@@ -21,22 +21,63 @@ export const Colors = {
   errorContainer: '#ffdad6',
   onErrorContainer: '#93000a',
 
-  background: '#f7f9fb',
-  onBackground: '#191c1e',
-  surface: '#f7f9fb',
-  onSurface: '#191c1e',
+  background: '#f8fafc',
+  onBackground: '#0f172a',
+  surface: '#ffffff',
+  onSurface: '#0f172a',
 
-  surfaceVariant: '#e0e3e5',
-  onSurfaceVariant: '#424753',
-  outline: '#727784',
-  outlineVariant: '#c2c6d5',
+  surfaceVariant: '#f1f5f9',
+  onSurfaceVariant: '#475569',
+  outline: '#94a3b8',
+  outlineVariant: '#cbd5e1',
 
   surfaceContainerLowest: '#ffffff',
-  surfaceContainerLow: '#f2f4f6',
-  surfaceContainer: '#eceef0',
-  surfaceContainerHigh: '#e6e8ea',
-  surfaceContainerHighest: '#e0e3e5',
-  surfaceDim: '#d8dadc',
+  surfaceContainerLow: '#f8fafc',
+  surfaceContainer: '#f1f5f9',
+  surfaceContainerHigh: '#e2e8f0',
+  surfaceContainerHighest: '#cbd5e1',
+  surfaceDim: '#cbd5e1',
+};
+
+export const LightColors = { ...Colors };
+
+export const DarkColors = {
+  primary: '#3b82f6',
+  onPrimary: '#ffffff',
+  primaryContainer: '#1e3a8a',
+  onPrimaryContainer: '#bfdbfe',
+
+  secondary: '#64748b',
+  onSecondary: '#ffffff',
+  secondaryContainer: '#334155',
+  onSecondaryContainer: '#cbd5e1',
+
+  tertiary: '#f59e0b',
+  onTertiary: '#ffffff',
+  tertiaryContainer: '#78350f',
+  onTertiaryContainer: '#fde68a',
+
+  error: '#ef4444',
+  onError: '#ffffff',
+  errorContainer: '#7f1d1d',
+  onErrorContainer: '#fecaca',
+
+  background: '#0f172a',
+  onBackground: '#f8fafc',
+  surface: '#1e293b',
+  onSurface: '#f1f5f9',
+
+  surfaceVariant: '#334155',
+  onSurfaceVariant: '#cbd5e1',
+  outline: '#64748b',
+  outlineVariant: '#475569',
+
+  surfaceContainerLowest: '#020617',
+  surfaceContainerLow: '#0f172a',
+  surfaceContainer: '#1e293b',
+  surfaceContainerHigh: '#334155',
+  surfaceContainerHighest: '#475569',
+  surfaceDim: '#020617',
 };
 
 // Platform-aware shadows:

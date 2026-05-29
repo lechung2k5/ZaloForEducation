@@ -56,6 +56,15 @@ export class ChatController {
     return await this.chatService.getConversationsByUser(email);
   }
 
+  @Get("groups/common")
+  async getCommonGroups(
+    @Query("email") targetEmail: string,
+    @Req() req: any,
+  ) {
+    if (!targetEmail) throw new BadRequestException("email query param is required");
+    return await this.chatService.getCommonGroups(req.user.email, targetEmail);
+  }
+
   @Get("conversations/:id")
   async getConversation(@Param("id") id: string, @Req() req: any) {
     const email = req.user.email;
@@ -198,7 +207,23 @@ export class ChatController {
   @Post("conversations/:id/join")
   async joinGroup(@Param("id") id: string, @Req() req: any) {
     const email = req.user.email;
-    return await this.chatService.joinGroupByLink(id, email);
+    const res = await this.chatService.joinGroupByLink(id, email);
+
+    if (!res.message) {
+      // Not already a member
+      const systemMsg = await this.messageService.sendMessage(
+        id,
+        "system",
+        JSON.stringify({
+          action: "member_joined_link",
+          actor: email,
+        }),
+        "system",
+      );
+      this.chatGateway.emitReceiveMessage(id, systemMsg);
+    }
+
+    return res;
   }
 
   @Delete("conversations/:id/members/:targetEmail")

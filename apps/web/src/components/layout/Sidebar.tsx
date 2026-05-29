@@ -18,9 +18,25 @@ const Sidebar: React.FC = () => {
   const { user, logout } = useAuth();
   const { isDark, t } = useTheme();
   const navigate = useNavigate();
-  const { conversations, setIsSearching, setSearchQuery } = useChatStore();
+  const { conversations, setIsSearching, setSearchQuery, pendingFriendRequestsCount, fetchPendingFriendRequestsCount } = useChatStore();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchPendingFriendRequestsCount();
+
+    const handleFriendRequestEvent = () => {
+      fetchPendingFriendRequestsCount();
+    };
+
+    window.addEventListener("friend-request-received", handleFriendRequestEvent);
+    window.addEventListener("friendship-updated", handleFriendRequestEvent);
+
+    return () => {
+      window.removeEventListener("friend-request-received", handleFriendRequestEvent);
+      window.removeEventListener("friendship-updated", handleFriendRequestEvent);
+    };
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -55,7 +71,7 @@ const Sidebar: React.FC = () => {
 
   const navItems = [
     { id: 'chat', icon: MessageSquare, label: t('sidebar.chat'), path: '/chat', hasBadge: hasUnreadMessages, count: totalUnreadCount },
-    { id: 'contacts', icon: Users, label: t('sidebar.contacts'), path: '/contacts', hasBadge: false },
+    { id: 'contacts', icon: Users, label: t('sidebar.contacts'), path: '/contacts', hasBadge: pendingFriendRequestsCount > 0, count: pendingFriendRequestsCount },
     { id: 'notifications', icon: Bell, label: t('sidebar.notifications'), path: '/notifications', hasBadge: false },
     { id: 'bot', icon: Bot, label: t('sidebar.bot'), path: '/bot', hasBadge: hasBotUnread, count: botUnreadCount },
   ];

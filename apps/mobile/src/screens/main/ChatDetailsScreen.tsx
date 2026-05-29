@@ -478,14 +478,13 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     loadMediaPreview();
   }, [conversationId, partnerEmail]);
 
-  const chatName = chat.alias || profile?.nickname || profile?.fullName || profile?.fullname || partnerEmail || chat.name || "Hội thoại";
-  const chatAvatar = profile?.avatarUrl || profile?.urlAvatar || chat.avatar || (chat.type === 'group' ? 'https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true' : 'https://via.placeholder.com/150');
+  const isBot = partnerEmail?.toLowerCase() === 'bot@unichat.system';
+  const chatName = isBot ? "UniChat Bot" : (chat.alias || profile?.nickname || profile?.fullName || profile?.fullname || partnerEmail || chat.name || "Hội thoại");
+  const chatAvatar = isBot ? "https://ui-avatars.com/api/?name=Bot&background=0ea5e9&color=fff&bold=true" : (profile?.avatarUrl || profile?.urlAvatar || chat.avatar || (chat.type === 'group' ? 'https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true' : 'https://via.placeholder.com/150'));
   const isMuted = isConversationMuted(conversationId);
   const wallpaper = WALLPAPERS.find((item) => item.key === wallpaperKey) || WALLPAPERS[0];
   const isPinned = !!chat?.pinned;
   const isHidden = !!chat?.hidden;
-
-  const isBot = partnerEmail === 'bot@UniChat.system';
 
   const allAttachments = messages.flatMap((m: any) => {
     const arr = [...(m.media || []), ...(m.files || [])];
@@ -1094,7 +1093,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
         <View style={styles.profileBox}>
           <TouchableOpacity 
             activeOpacity={0.8}
-            onPress={chat.type === 'group' ? handleUpdateGroupAvatar : (partnerEmail ? handleOpenProfile : undefined)}
+            onPress={chat.type === 'group' ? handleUpdateGroupAvatar : (!isBot && partnerEmail ? handleOpenProfile : undefined)}
           >
             <Image source={{ uri: chatAvatar }} style={styles.largeAvatar} />
             {chat.type === 'group' && (
@@ -1103,7 +1102,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
               </View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity onPress={chat.type === 'group' ? undefined : handleOpenProfile} disabled={chat.type === 'group' || !partnerEmail} activeOpacity={partnerEmail ? 0.85 : 1}>
+          <TouchableOpacity onPress={chat.type === 'group' || isBot ? undefined : handleOpenProfile} disabled={chat.type === 'group' || isBot || !partnerEmail} activeOpacity={!isBot && partnerEmail ? 0.85 : 1}>
             <Text style={styles.profileName}>{chatName}</Text>
           </TouchableOpacity>
           
@@ -1211,7 +1210,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
 
         <View style={styles.divider} />
 
-        {renderMenuItem("report", "Báo xấu", undefined, handleReportConversation, '#ef4444')}
+        {!isBot && renderMenuItem("report", "Báo xấu", undefined, handleReportConversation, '#ef4444')}
         {!isBot && renderMenuItem("block", "Quản lý chặn", undefined, handleBlockUser)}
         {renderMenuItem("storage", "Dung lượng trò chuyện", undefined, handleConversationStorage)}
         {renderMenuItem("delete_outline", "Xóa lịch sử trò chuyện", undefined, handleClearChat, '#ef4444')}

@@ -681,7 +681,7 @@ const ContactsPage: React.FC = () => {
   const handleSearchGmail = async () => {
     const normalizedEmail = gmailSearchEmail.trim().toLowerCase();
     if (!normalizedEmail) {
-      setGmailSearchMessage("Vui lòng nhập Gmail cần tìm.");
+      setGmailSearchMessage("Vui lòng nhập Email hoặc Số điện thoại cần tìm.");
       setGmailSearchResult(null);
       return;
     }
@@ -689,7 +689,9 @@ const ContactsPage: React.FC = () => {
     setGmailSearchLoading(true);
     setGmailSearchMessage("");
     try {
-      const res = await chatGet("/friends/search", { email: normalizedEmail });
+      const isPhone = /^\\d+$/.test(normalizedEmail) || !normalizedEmail.includes('@');
+      const params = isPhone ? { phone: normalizedEmail } : { email: normalizedEmail };
+      const res = await chatGet("/friends/search", params);
       setGmailSearchResult(res.data || null);
 
       if (!res.data?.found) {
