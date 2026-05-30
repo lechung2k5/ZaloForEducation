@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme } from '../context/ThemeContext';
+import { Colors } from '../constants/Theme';
 import { useChatStore } from '../store/chatStore';
 import { BOT_EMAIL } from '../constants/bot';
 
@@ -18,7 +18,7 @@ import LoginOtpScreen from '../screens/auth/LoginOtpScreen';
 // Main Screens
 import HomeScreen from '../screens/main/HomeScreen';
 import ChatScreen from '../screens/main/ChatScreen';
-
+import BotChatScreen from '../screens/BotChatScreen';
 import SessionsScreen from '../screens/main/SessionsScreen';
 import NotificationScreen from '../screens/main/NotificationScreen';
 import SearchScreen from '../screens/main/SearchScreen';
@@ -42,21 +42,23 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const AiChatWrapper = (props: any) => (
-  <ChatScreen 
-    {...props}
-    onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)}
-    goBack={() => props.navigation.goBack()}
-    params={{ targetEmail: BOT_EMAIL }} 
-  />
+  <View style={{ flex: 1 }}>
+    <ChatScreen 
+      {...props}
+      onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)}
+      goBack={undefined} // No back in tab
+      params={{ targetEmail: BOT_EMAIL }} 
+    />
+  </View>
 );
 
-function TabIcon({ name, focused, colors }: { name: string; focused: boolean; colors: any }) {
+function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   return (
     <Text
       style={{
         fontFamily: 'Material Symbols Outlined',
         fontSize: 26,
-        color: focused ? colors.primary : '#757575',
+        color: focused ? Colors.primary : '#757575',
         textAlign: 'center',
       }}
     >
@@ -68,7 +70,6 @@ function TabIcon({ name, focused, colors }: { name: string; focused: boolean; co
 function TabNavigator({ onLogout }: { onLogout: any }) {
   const insets = useSafeAreaInsets();
   const { conversations, pendingFriendRequestsCount } = useChatStore();
-  const { colors, t } = useTheme();
 
   const totalUnread = (conversations || []).reduce((acc, conv) => {
     // Check if it's a bot conversation
@@ -85,7 +86,7 @@ function TabNavigator({ onLogout }: { onLogout: any }) {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: '#757575',
         tabBarLabelStyle: {
           fontSize: 11,
@@ -96,9 +97,9 @@ function TabNavigator({ onLogout }: { onLogout: any }) {
           height: 65 + (insets.bottom > 0 ? insets.bottom - 10 : 10),
           paddingTop: 10,
           paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
-          backgroundColor: colors.surface,
+          backgroundColor: '#fff',
           borderTopWidth: 1,
-          borderTopColor: colors.outlineVariant,
+          borderTopColor: '#eee',
           elevation: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
@@ -112,16 +113,16 @@ function TabNavigator({ onLogout }: { onLogout: any }) {
           else if (route.name === 'AI') iconName = 'smart_toy';
           else if (route.name === 'ProfileTab') iconName = 'person';
 
-          return <TabIcon name={iconName} focused={focused} colors={colors} />;
+          return <TabIcon name={iconName} focused={focused} />;
         },
       })}
     >
       <Tab.Screen 
         name="Messages" 
         options={{ 
-          tabBarLabel: t('nav.messages'),
+          tabBarLabel: 'Tin nhắn',
           tabBarBadge: totalUnread > 0 ? totalUnread : undefined,
-          tabBarBadgeStyle: { backgroundColor: colors.primary, fontSize: 10 }
+          tabBarBadgeStyle: { backgroundColor: Colors.primary, fontSize: 10 }
         }}
       >
         {(props: any) => <HomeScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} params={{ tab: 'messages' }} />}
@@ -129,27 +130,21 @@ function TabNavigator({ onLogout }: { onLogout: any }) {
       <Tab.Screen 
         name="Contacts" 
         options={{ 
-          tabBarLabel: t('nav.contacts'),
+          tabBarLabel: 'Danh bạ',
           tabBarBadge: pendingFriendRequestsCount > 0 ? pendingFriendRequestsCount : undefined,
-          tabBarBadgeStyle: { backgroundColor: colors.error, fontSize: 10 }
+          tabBarBadgeStyle: { backgroundColor: '#ef4444', fontSize: 10 }
         }}
       >
         {(props: any) => <HomeScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} params={{ tab: 'contacts' }} />}
       </Tab.Screen>
       <Tab.Screen 
         name="AI" 
-        component={View} 
+        component={AiChatWrapper} 
         options={{ 
-          tabBarLabel: t('nav.ai'),
-        }}
-        listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            e.preventDefault();
-            navigation.navigate('BotChat');
-          },
-        })}
+          tabBarLabel: 'AI Assistant',
+        }} 
       />
-      <Tab.Screen name="ProfileTab" options={{ tabBarLabel: t('nav.profile') }}>
+      <Tab.Screen name="ProfileTab" options={{ tabBarLabel: 'Cá nhân' }}>
         {(props: any) => <ProfileScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} goBack={() => props.navigation.goBack()} onLogout={onLogout} params={props.route.params} />}
       </Tab.Screen>
     </Tab.Navigator>
@@ -184,9 +179,6 @@ export function RootNavigator({ user, onLogout }: { user: any; onLogout: any }) 
           </Stack.Screen>
           <Stack.Screen name="Chat">
             {(props: any) => <ChatScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} goBack={() => props.navigation.goBack()} params={props.route?.params} />}
-          </Stack.Screen>
-          <Stack.Screen name="BotChat">
-            {(props: any) => <AiChatWrapper {...props} />}
           </Stack.Screen>
           <Stack.Screen name="Sessions">
             {(props: any) => <SessionsScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} goBack={() => props.navigation.goBack()} params={props.route?.params} />}

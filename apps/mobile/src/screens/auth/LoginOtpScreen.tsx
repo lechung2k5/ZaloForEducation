@@ -11,7 +11,6 @@ import { BlurView } from 'expo-blur';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import { Colors, Typography, Shadows } from '../../constants/Theme';
-import { useTheme } from '../../context/ThemeContext';
 import { apiRequest } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { useOtpCountdown } from '../../hooks/useOtpCountdown';
@@ -28,7 +27,6 @@ interface LoginOtpProps {
 }
 
 export default function LoginOtpScreen({ onNavigate, goBack, params }: LoginOtpProps) {
-  const { t } = useTheme();
   const { login } = useAuth();
   const { email, deviceId, deviceName, deviceType } = params || {};
   const [otp, setOtp] = useState('');
@@ -37,14 +35,14 @@ export default function LoginOtpScreen({ onNavigate, goBack, params }: LoginOtpP
 
   useEffect(() => {
     if (!email) {
-      Alert.alert(t('common.error'), t('auth.otp_missing_info'));
+      Alert.alert('Lỗi', 'Thiếu thông tin xác thực. Vui lòng đăng nhập lại.');
       if (onNavigate) onNavigate('Login');
     }
   }, []);
 
   const handleVerifyOtp = async () => {
     if (otp.length !== 6) {
-      Alert.alert(t('common.error'), t('auth.forgot_otp_invalid'));
+      Alert.alert('Lỗi', 'Mã OTP phải có 6 chữ số');
       return;
     }
 
@@ -69,11 +67,11 @@ export default function LoginOtpScreen({ onNavigate, goBack, params }: LoginOtpP
         if (data.retryAfter) {
           syncWithServer(data.retryAfter);
         }
-        Alert.alert(t('common.error'), data.message || t('auth.otp_invalid_code'));
+        Alert.alert('Lỗi', data.message || 'Mã OTP không chính xác');
       }
     } catch (error: any) {
       console.error('[DEBUG] Verify OTP error:', error);
-      Alert.alert(t('common.error'), t('auth.forgot_cannot_connect') + ': ' + error.message);
+      Alert.alert('Lỗi', 'Lỗi kết nối server: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -89,7 +87,7 @@ export default function LoginOtpScreen({ onNavigate, goBack, params }: LoginOtpP
       });
 
       startCountdown();
-      Alert.alert(t('common.notice'), t('auth.otp_resend_success'));
+      Alert.alert('Thông báo', 'Đã gửi lại mã OTP mới về email của bạn.');
     } catch (error: any) {
       if (error.retryAfter) {
         syncWithServer(error.retryAfter);
@@ -122,13 +120,13 @@ export default function LoginOtpScreen({ onNavigate, goBack, params }: LoginOtpP
             <BlurView intensity={80} tint="light" style={styles.glassCard}>
               <Text style={styles.cardTitle}>Xác thực đăng nhập</Text>
               <Text style={styles.subtitle}>
-                {t('auth.otp_desc')}
+                Vì lý do bảo mật, vui lòng nhập mã OTP đã được gửi về hộp thư:{"\n"}
                 <Text style={{ fontWeight: 'bold', color: Colors.primary }}>{email}</Text>
               </Text>
 
               <View style={styles.form}>
                 <Input
-                  label={t('auth.verification_code')}
+                  label="Mã xác thực"
                   placeholder="000000"
                   value={otp}
                   onChangeText={setOtp}
@@ -138,7 +136,7 @@ export default function LoginOtpScreen({ onNavigate, goBack, params }: LoginOtpP
                 />
                 
                 <Button 
-                  title={loading ? t('common.verifying') : t('auth.otp_confirm_btn')} 
+                  title={loading ? 'Đang xác thực...' : 'Xác nhận đăng nhập'} 
                   onPress={handleVerifyOtp} 
                   disabled={loading} 
                   icon="verified" 
@@ -154,12 +152,12 @@ export default function LoginOtpScreen({ onNavigate, goBack, params }: LoginOtpP
                     fontWeight: '700',
                     textDecorationLine: countdown === 0 ? 'underline' : 'none'
                   }}>
-                    {countdown > 0 ? t('auth.forgot_resend_wait', { time: countdown }) : t('auth.forgot_resend_code')}
+                    {countdown > 0 ? `Gửi lại mã (${countdown}s)` : 'Gửi lại mã OTP'}
                   </Text>
                 </TouchableOpacity>
 
                 <Button 
-                  title={t('auth.otp_back_login')} 
+                  title="Quay lại đăng nhập" 
                   variant="secondary" 
                   onPress={() => goBack && goBack()} 
                   icon="arrow_back" 

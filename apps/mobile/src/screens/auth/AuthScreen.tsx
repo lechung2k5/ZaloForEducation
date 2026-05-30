@@ -4,10 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import { Colors, Typography, Shadows } from '../../constants/Theme';
-import { useTheme } from '../../context/ThemeContext';
 
 export default function AuthScreen() {
-  const { t } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -17,12 +15,12 @@ export default function AuthScreen() {
   };
 
   const handleMagicLink = () => {
-    alert(t('auth.magic_link_sent') + " " + email);
+    alert("Gửi thư Magic link vào email " + email);
   }
 
   const ForgotPasswordLink = () => (
     <TouchableOpacity onPress={handleMagicLink}>
-      <Text style={styles.forgotPasswordText}>{t('auth.forgot_pass')}</Text>
+      <Text style={styles.forgotPasswordText}>Forgot password?</Text>
     </TouchableOpacity>
   );
 
@@ -32,13 +30,13 @@ export default function AuthScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.card}>
             <View style={styles.header}>
-              <Text style={styles.title}>{t('auth.portal_login')}</Text>
-              <Text style={styles.subtitle}>{t('auth.portal_subtitle')}</Text>
+              <Text style={styles.title}>Portal Login</Text>
+              <Text style={styles.subtitle}>Please log in to your account or request magic link</Text>
             </View>
 
             <View style={styles.form}>
               <Input
-                label={t('auth.uni_email')}
+                label="University Email"
                 placeholder="student.name@university.edu"
                 value={email}
                 onChangeText={setEmail}
@@ -46,7 +44,7 @@ export default function AuthScreen() {
               />
 
               <Input
-                label={t('auth.password')}
+                label="Password"
                 placeholder="••••••••"
                 value={password}
                 onChangeText={setPassword}
@@ -54,14 +52,14 @@ export default function AuthScreen() {
                 rightElement={<ForgotPasswordLink />}
               />
 
-              <Button title={t('auth.login')} onPress={handleLogin} variant="primary" />
-              <Button title={t('auth.send_magic_link')} onPress={handleMagicLink} variant="secondary" />
+              <Button title="Sign In" onPress={handleLogin} variant="primary" />
+              <Button title="Gửi Magic Link OTP Tới Gmail" onPress={handleMagicLink} variant="secondary" />
             </View>
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>{t('auth.new_to_portal')}</Text>
+              <Text style={styles.footerText}>New to the portal? </Text>
               <TouchableOpacity>
-                 <Text style={styles.registerText}>{t('auth.register_now')}</Text>
+                 <Text style={styles.registerText}>Register now</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -11,7 +11,6 @@ import { BlurView } from 'expo-blur';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import { Colors, Typography, Shadows } from '../../constants/Theme';
-import { useTheme } from '../../context/ThemeContext';
 import { useOtpCountdown } from '../../hooks/useOtpCountdown';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
@@ -21,7 +20,6 @@ interface ForgotPasswordProps {
 }
 
 export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps) {
-  const { t } = useTheme();
   const [step, setStep] = useState(1); // 1: email, 2: otp, 3: new password
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -45,7 +43,7 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
   };
 
   const handleSendOtp = async () => {
-    if (!email) { Alert.alert(t('common.error'), t('auth.forgot_email_empty')); return; }
+    if (!email) { Alert.alert('Lỗi', 'Vui lòng nhập email!'); return; }
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/auth/forgot-password/request-otp`, {
@@ -61,10 +59,10 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
         if (res.status === 429 && data.retryAfter) {
           syncWithServer(data.retryAfter);
         }
-        Alert.alert(t('common.error'), data.message);
+        Alert.alert('Lỗi', data.message);
       }
     } catch {
-      Alert.alert(t('common.error'), t('auth.forgot_cannot_connect'));
+      Alert.alert('Lỗi', 'Không thể kết nối server');
     } finally {
       setLoading(false);
     }
@@ -82,22 +80,22 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
       const data = await res.json();
       if (res.ok) {
         startCountdown();
-        Alert.alert(t('common.notice'), t('auth.forgot_otp_sent'));
+        Alert.alert('Thông báo', 'Đã gửi lại mã OTP mới.');
       } else {
         if (res.status === 429 && data.retryAfter) {
           syncWithServer(data.retryAfter);
         }
-        Alert.alert(t('common.error'), data.message || t('auth.forgot_cannot_resend'));
+        Alert.alert('Lỗi', data.message || 'Không thể gửi lại mã OTP');
       }
     } catch {
-      Alert.alert(t('common.error'), t('auth.forgot_cannot_connect'));
+      Alert.alert('Lỗi', 'Lỗi kết nối server');
     } finally {
       setLoading(false);
     }
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.length !== 6) { Alert.alert(t('common.error'), t('auth.forgot_otp_invalid')); return; }
+    if (otp.length !== 6) { Alert.alert('Lỗi', 'Mã OTP phải có 6 chữ số'); return; }
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/auth/forgot-password/verify-otp`, {
@@ -121,11 +119,11 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
   const handleResetPassword = async () => {
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(newPassword)) {
-      Alert.alert(t('common.error'), t('auth.forgot_pass_invalid'));
+      Alert.alert('Lỗi', 'Mật khẩu phải tối thiểu 8 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt');
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert(t('common.error'), t('auth.forgot_pass_mismatch')); return;
+      Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp!'); return;
     }
     setLoading(true);
     try {
@@ -173,32 +171,32 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
                   <Text style={styles.cardTitle}>Giao dịch thành công</Text>
                   <Text style={[styles.subtitle, { textAlign: 'center', marginBottom: 32 }]}>Mật khẩu của bạn đã được đặt lại thành công. Vui lòng đăng nhập hệ thống.</Text>
                   <View style={{ width: '100%' }}>
-                    <Button title={t('auth.forgot_login_now')} onPress={() => onNavigate && onNavigate('Login')} icon="login" />
+                    <Button title="Đăng nhập ngay" onPress={() => onNavigate && onNavigate('Login')} icon="login" />
                   </View>
                 </View>
               ) : (
                 <>
                   <Text style={styles.cardTitle}>
-                    {step === 1 ? t('auth.forgot_step1_title') : (step === 2 ? t('auth.forgot_step2_title') : t('auth.forgot_step3_title'))}
+                    {step === 1 ? 'Khôi phục tài khoản' : (step === 2 ? 'Xác thực mã OTP' : 'Tạo mật khẩu mới')}
                   </Text>
                   <Text style={styles.subtitle}>
-                    {step === 1 && t('auth.forgot_step1_desc')}
-                    {step === 2 && t('auth.forgot_step2_desc') + email}
-                    {step === 3 && t('auth.forgot_step3_desc')}
+                    {step === 1 && 'Nhập Email để lấy lại mật khẩu. Chúng tôi sẽ gửi mã xác thực gồm 6 chữ số.'}
+                    {step === 2 && `Mã xác thực đã được gửi về hộp thư \n${email}`}
+                    {step === 3 && 'Thiết lập mật khẩu vững vàng để bảo vệ dữ liệu học tập.'}
                   </Text>
 
                   {/* Bước 1: Email */}
                   {step === 1 && (
                     <View style={styles.form}>
                       <Input
-                        label={t('auth.forgot_email_label')}
+                        label="Email Gmail"
                         placeholder="example@gmail.com"
                         value={email}
                         onChangeText={setEmail}
                         keyboardType="email-address"
                         icon="alternate_email"
                       />
-                      <Button title={loading ? t('common.sending') : t('auth.forgot_send_code')} onPress={handleSendOtp} disabled={loading} icon="send" />
+                      <Button title={loading ? 'Đang gửi...' : 'Gửi mã xác thực'} onPress={handleSendOtp} disabled={loading} icon="send" />
                     </View>
                   )}
 
@@ -206,14 +204,14 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
                   {step === 2 && (
                     <View style={styles.form}>
                       <Input
-                        label={t('auth.forgot_otp_label')}
+                        label="Mã OTP"
                         placeholder="000000"
                         value={otp}
                         onChangeText={setOtp}
                         keyboardType="number-pad"
                         icon="pin"
                       />
-                      <Button title={loading ? t('common.verifying') : t('auth.forgot_verify_otp')} onPress={handleVerifyOtp} disabled={loading} icon="verified" />
+                      <Button title={loading ? 'Đang xác thực...' : 'Xác thực OTP'} onPress={handleVerifyOtp} disabled={loading} icon="verified" />
                       
                       <TouchableOpacity 
                         onPress={handleResendOtp} 
@@ -225,11 +223,11 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
                           fontWeight: '700',
                           textDecorationLine: countdown === 0 ? 'underline' : 'none'
                         }}>
-                          {countdown > 0 ? t('auth.forgot_resend_wait', { time: countdown }) : t('auth.forgot_resend_code')}
+                          {countdown > 0 ? `Gửi lại mã (${countdown}s)` : 'Gửi lại mã OTP'}
                         </Text>
                       </TouchableOpacity>
 
-                      <Button title={t('auth.forgot_change_email')} variant="secondary" onPress={() => setStep(1)} icon="replay" />
+                      <Button title="Đổi email lấy mã" variant="secondary" onPress={() => setStep(1)} icon="replay" />
                     </View>
                   )}
 
@@ -237,8 +235,8 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
                   {step === 3 && (
                     <View style={styles.form}>
                       <Input
-                        label={t('auth.forgot_new_pass')}
-                        placeholder={t('auth.forgot_new_pass_hint')}
+                        label="Mật khẩu mới"
+                        placeholder="Tối thiểu 8 ký tự"
                         value={newPassword}
                         onChangeText={setNewPassword}
                         secureTextEntry
@@ -250,12 +248,12 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
                       {newPassword.length > 0 && (
                         <View style={styles.strengthContainer}>
                           <View style={styles.strengthHeader}>
-                            <Text style={styles.strengthLabel}>{t('auth.forgot_strength')} <Text style={[
+                            <Text style={styles.strengthLabel}>Độ mạnh: <Text style={[
                               styles.strengthValue,
                               getPasswordStrength(newPassword) <= 2 ? { color: Colors.error } : 
                               getPasswordStrength(newPassword) === 3 ? { color: '#EAB308' } : { color: '#10B981' }
                             ]}>
-                              {[t('auth.forgot_strength_1'), t('auth.forgot_strength_2'), t('auth.forgot_strength_3'), t('auth.forgot_strength_4'), t('auth.forgot_strength_5')][getPasswordStrength(newPassword)]}
+                              {['Rất yếu', 'Yếu', 'Trung bình', 'Mạnh', 'Rất mạnh'][getPasswordStrength(newPassword)]}
                             </Text></Text>
                             <Text style={styles.strengthPercent}>{getPasswordStrength(newPassword) * 25}%</Text>
                           </View>
@@ -275,8 +273,8 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
                       )}
 
                       <Input
-                        label={t('auth.forgot_confirm_pass')}
-                        placeholder={t('auth.forgot_confirm_hint')}
+                        label="Xác nhận mật khẩu"
+                        placeholder="Nhập lại chính xác"
                         value={confirmPassword}
                         onChangeText={setConfirmPassword}
                         secureTextEntry
@@ -284,7 +282,7 @@ export default function ForgotPasswordScreen({ onNavigate }: ForgotPasswordProps
                         hasError={touchedFields.confirmPassword && (newPassword !== confirmPassword)}
                         onBlur={() => handleBlur('confirmPassword')}
                       />
-                      <Button title={loading ? t('common.setting_up') : t('auth.forgot_reset_btn')} onPress={handleResetPassword} disabled={loading} icon="done_all" />
+                      <Button title={loading ? 'Đang thiết lập...' : 'Xác nhận đổi mật khẩu'} onPress={handleResetPassword} disabled={loading} icon="done_all" />
                     </View>
                   )}
 

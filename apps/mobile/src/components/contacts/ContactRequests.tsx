@@ -1,7 +1,6 @@
 import React from 'react';
-import { useTheme } from '../../context/ThemeContext';
 import { View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { getContactsStyles } from '../../screens/main/style/ContactsScreen.styles';
+import styles from '../../screens/main/style/ContactsScreen.styles';
 
 interface ContactRequestsProps {
   incomingRequests: any[];
@@ -14,7 +13,7 @@ interface ContactRequestsProps {
   sendingRequestMap: Record<string, boolean>;
 }
 
-export const ContactRequests = ({
+export const ContactRequests: React.FC<ContactRequestsProps> = ({
   incomingRequests,
   visibleSuggestions,
   profileMap,
@@ -23,9 +22,7 @@ export const ContactRequests = ({
   onSkipSuggestion,
   onSendSuggestionRequest,
   sendingRequestMap,
-}: ContactRequestsProps) => {
-  const { t, colors } = useTheme();
-  const styles = getContactsStyles(colors);;
+}) => {
   const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
 
   return (
@@ -55,13 +52,13 @@ export const ContactRequests = ({
                     style={styles.rejectButton}
                     onPress={() => onReject(email)}
                   >
-                    <Text style={styles.rejectText}>{t('common.decline')}</Text>
+                    <Text style={styles.rejectText}>Từ chối</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.acceptButton}
                     onPress={() => onAccept(email)}
                   >
-                    <Text style={styles.acceptText}>{t('common.accept')}</Text>
+                    <Text style={styles.acceptText}>Đồng ý</Text>
                   </TouchableOpacity>
                 </View>
               </View>

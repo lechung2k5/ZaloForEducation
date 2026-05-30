@@ -1,8 +1,8 @@
 import { StyleSheet } from 'react-native';
 import { Colors, Typography } from '../../../constants/Theme';
 
-export const getContactsStyles = (colors: any) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.surface },
+export default StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#fff" },
   header: {
     paddingHorizontal: 14,
     paddingBottom: 12,
@@ -13,7 +13,7 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
   searchBarWrap: {
     flex: 1,
     height: 38,
-    backgroundColor: colors.surfaceVariant,
+    backgroundColor: "rgba(255,255,255,0.18)",
     borderRadius: 19,
     flexDirection: "row",
     alignItems: "center",
@@ -23,13 +23,13 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
   headerIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 20,
-    color: colors.onPrimary,
+    color: "rgba(255,255,255,0.8)",
   },
   headerSearchInput: {
     flex: 1,
     ...Typography.body,
     fontSize: 14,
-    color: colors.surface,
+    color: "#fff",
     paddingVertical: 0,
   },
   headerAction: {
@@ -42,13 +42,13 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
   headerActionIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 22,
-    color: colors.surface,
+    color: "#fff",
   },
 
   sectionTabs: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomColor: "#edf1f7",
     paddingHorizontal: 8,
   },
   sectionTabItem: {
@@ -61,7 +61,7 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
   sectionTabText: {
     ...Typography.label,
     fontSize: 14,
-    color: colors.onSurfaceVariant,
+    color: "#5f6f86",
   },
   sectionTabActiveText: { color: "#1f8fff" },
 
@@ -80,19 +80,19 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
     height: 34,
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: "#d7dfec",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
   },
   toolIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 18,
-    color: colors.onSurfaceVariant,
+    color: "#5f6f86",
   },
-  toolText: { ...Typography.label, fontSize: 13, color: colors.onSurfaceVariant },
+  toolText: { ...Typography.label, fontSize: 13, color: "#5f6f86" },
 
   summaryRow: {
     flexDirection: "row",
@@ -100,16 +100,16 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: colors.surfaceContainer,
+    backgroundColor: "#f7f9fc",
   },
-  summaryText: { ...Typography.label, fontSize: 12, color: colors.onSurfaceVariant },
+  summaryText: { ...Typography.label, fontSize: 12, color: "#5f6f86" },
 
   groupHeader: {
     paddingHorizontal: 14,
     paddingVertical: 6,
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: "#e7edf7",
   },
-  groupHeaderText: { ...Typography.heading, fontSize: 11, color: colors.onSurfaceVariant },
+  groupHeaderText: { ...Typography.heading, fontSize: 11, color: "#5f6f86" },
 
   contactRow: {
     flexDirection: "row",
@@ -117,14 +117,14 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 11,
     borderTopWidth: 1,
-    borderTopColor: colors.outlineVariant,
+    borderTopColor: "#edf1f7",
   },
   avatarWrap: { position: "relative" },
   avatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: "#e7edf7",
   },
   statusDot: {
     position: "absolute",
@@ -134,13 +134,13 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
     height: 11,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: colors.surface,
-    backgroundColor: colors.outline,
+    borderColor: "#fff",
+    backgroundColor: "#94a3b8",
   },
   onlineDot: { backgroundColor: "#22c55e" },
   contactInfo: { flex: 1, marginLeft: 12 },
-  contactName: { ...Typography.heading, fontSize: 15, color: colors.onSurface },
-  contactSub: { ...Typography.body, fontSize: 12, color: colors.onSurfaceVariant, marginTop: 1 },
+  contactName: { ...Typography.heading, fontSize: 15, color: "#1f2733" },
+  contactSub: { ...Typography.body, fontSize: 12, color: "#738098", marginTop: 1 },
   contactAction: {
     width: 32,
     height: 32,
@@ -151,14 +151,14 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
   contactActionIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 20,
-    color: colors.onSurfaceVariant,
+    color: "#738098",
   },
 
   center: {
     paddingVertical: 40,
     alignItems: "center",
   },
-  emptyText: { ...Typography.body, fontSize: 14, color: colors.onSurfaceVariant },
+  emptyText: { ...Typography.body, fontSize: 14, color: "#738098" },
 
   requestItem: {
     flexDirection: "row",
@@ -167,30 +167,30 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: colors.outlineVariant,
+    borderTopColor: "#edf1f7",
   },
   requestAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: "#e7edf7",
   },
   requestBtnRow: { flexDirection: "row", gap: 6 },
   rejectButton: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: "#d7dfec",
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  rejectText: { ...Typography.label, fontSize: 11, color: colors.onSurfaceVariant },
+  rejectText: { ...Typography.label, fontSize: 11, color: "#5f6f86" },
   acceptButton: {
     borderRadius: 8,
     backgroundColor: "#1f8fff",
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  acceptText: { ...Typography.label, fontSize: 11, color: colors.surface },
+  acceptText: { ...Typography.label, fontSize: 11, color: "#fff" },
 
   suggestItem: {
     flexDirection: "row",
@@ -199,23 +199,23 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: colors.outlineVariant,
+    borderTopColor: "#edf1f7",
   },
   skipBtn: {
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: "#d7dfec",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  skipText: { ...Typography.label, fontSize: 11, color: colors.onSurfaceVariant },
+  skipText: { ...Typography.label, fontSize: 11, color: "#5f6f86" },
   addBtn: {
     borderRadius: 8,
     backgroundColor: "#1f8fff",
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  addText: { ...Typography.label, fontSize: 11, color: colors.surface },
+  addText: { ...Typography.label, fontSize: 11, color: "#fff" },
 
   groupRow: {
     flexDirection: "row",
@@ -224,7 +224,7 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: colors.outlineVariant,
+    borderTopColor: "#edf1f7",
   },
   groupOpenIcon: {
     fontFamily: "Material Symbols Outlined",
@@ -242,7 +242,7 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingBottom: 20,
@@ -250,34 +250,34 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
   },
   sheetItem: {
     borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomColor: "#edf1f7",
     paddingVertical: 13,
   },
-  sheetText: { ...Typography.body, fontSize: 15, color: colors.onSurface },
+  sheetText: { ...Typography.body, fontSize: 15, color: "#1f2733" },
 
   nicknameModal: {
     marginHorizontal: 20,
     marginBottom: 90,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderRadius: 14,
     padding: 14,
   },
-  nickTitle: { ...Typography.heading, fontSize: 15, color: colors.onSurface },
+  nickTitle: { ...Typography.heading, fontSize: 15, color: "#1f2733" },
   nickHint: {
     ...Typography.body,
     fontSize: 12,
-    color: colors.onSurfaceVariant,
+    color: "#738098",
     marginTop: 2,
   },
   nickInput: {
     marginTop: 10,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: "#d7dfec",
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
     ...Typography.body,
-    color: colors.onSurface,
+    color: "#1f2733",
   },
   nickActions: {
     flexDirection: "row",
@@ -287,12 +287,12 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
   },
   cancelBtn: {
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: "#d7dfec",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  cancelText: { ...Typography.label, fontSize: 12, color: colors.onSurfaceVariant },
+  cancelText: { ...Typography.label, fontSize: 12, color: "#5f6f86" },
   saveBtn: {
     borderRadius: 8,
     backgroundColor: "#1f8fff",
@@ -300,12 +300,12 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
     paddingVertical: 8,
   },
   disabledBtn: { opacity: 0.55 },
-  saveText: { ...Typography.label, fontSize: 12, color: colors.surface },
+  saveText: { ...Typography.label, fontSize: 12, color: "#fff" },
 
   profileModal: {
     marginHorizontal: 20,
     marginBottom: 90,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderRadius: 14,
     padding: 14,
     gap: 12,
@@ -319,28 +319,28 @@ export const getContactsStyles = (colors: any) => StyleSheet.create({
     width: 62,
     height: 62,
     borderRadius: 31,
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: "#e7edf7",
   },
-  profileName: { ...Typography.heading, fontSize: 16, color: colors.onSurface },
-  profileEmail: { ...Typography.body, fontSize: 12, color: colors.onSurfaceVariant },
+  profileName: { ...Typography.heading, fontSize: 16, color: "#1f2733" },
+  profileEmail: { ...Typography.body, fontSize: 12, color: "#738098" },
   profileLoadingRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  profileLoadingText: { ...Typography.body, fontSize: 12, color: colors.onSurfaceVariant },
+  profileLoadingText: { ...Typography.body, fontSize: 12, color: "#6d7a90" },
   profileInfoWrap: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: "#e3e9f4",
     padding: 10,
     gap: 6,
-    backgroundColor: colors.surfaceContainerLowest,
+    backgroundColor: "#fafcff",
   },
   profileInfoRow: {
     ...Typography.body,
     fontSize: 13,
-    color: colors.onSurface,
+    color: "#2a3340",
   },
   profileActions: {
     flexDirection: "row",

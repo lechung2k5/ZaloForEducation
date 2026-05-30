@@ -25,19 +25,18 @@ import { useChatStore } from '../../store/chatStore';
 import SafeImage from '../../components/common/SafeImage';
 import { PinModal } from '../../components/home/PinModal';
 import Alert from '../../utils/Alert';
-import { useTheme } from '../../context/ThemeContext';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DEFAULT_AVATAR = require('../../../assets/logo_blue.png');
 const RESULTS_PER_PAGE = 5;
 
-const getTagConfig = (t: any) => ({
-  CONTACT: { label: t('search.contact'), color: '#0068FF' },
-  CONVERSATION: { label: t('search.conversation'), color: '#9c27b0' },
-  MESSAGE: { label: t('search.message_type'), color: '#00AA44' },
-  FILE: { label: t('search.file'), color: '#FF6600' },
-});
+const TAG_CONFIG = {
+  CONTACT: { label: 'LIÊN HỆ', color: '#0068FF' },
+  CONVERSATION: { label: 'HỘI THOẠI', color: '#9c27b0' },
+  MESSAGE: { label: 'TIN NHẮN', color: '#00AA44' },
+  FILE: { label: 'TỆP TIN', color: '#FF6600' },
+};
 
 // ─── Utility: keyword highlighter ────────────────────────────────────────────
 
@@ -116,8 +115,6 @@ interface SearchItemProps {
 
 const SearchItem = memo(
   ({ item, isActive, isHighlighting, highlightAnim, query, onPress, userProfiles }: SearchItemProps) => {
-    const { t } = useTheme();
-    const TAG_CONFIG = getTagConfig(t);
     const tag = TAG_CONFIG[item.type as keyof typeof TAG_CONFIG];
     const isFile = item.type === 'FILE';
     const isMessage = item.type === 'MESSAGE';
@@ -131,11 +128,11 @@ const SearchItem = memo(
     const title = isContact 
       ? (profile?.nickname || profile?.fullName || profile?.fullname || item.fullName || item.displayName || item.sender?.name || '')
       : isConversation
-      ? (item.name || t('search.unnamed_group'))
-      : (profile?.nickname || profile?.fullName || profile?.fullname || item.sender?.name || item.displayName || t('search.user'));
+      ? (item.name || 'Nhóm không tên')
+      : (profile?.nickname || profile?.fullName || profile?.fullname || item.sender?.name || item.displayName || 'Người dùng');
     
     const subtitle = isConversation 
-      ? (item.isHiddenMatch ? t('search.unlock_to_view') : `${item.memberCount} ${t('chat_details.members').toLowerCase()}`)
+      ? (item.isHiddenMatch ? 'Mở khóa để xem nội dung' : `${item.memberCount} thành viên`)
       : (isMessage || isFile) ? item.content : '';
     const fileMeta = isFile ? formatFileSize(item.size) : null;
 
@@ -234,7 +231,6 @@ interface SearchScreenProps {
 
 export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) {
   const insets = useSafeAreaInsets();
-  const { t } = useTheme();
   const inputRef = useRef<TextInput>(null);
 
   // Per-item highlight tracking: Map<itemId, Animated.Value>
@@ -414,16 +410,16 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
           .map((c) => ({
             ...c,
             type: 'CONVERSATION',
-            name: t('search.hidden_chat'),
-            displayName: t('search.hidden_chat'),
-            content: t('search.unlock_to_view'),
+            name: 'Trò chuyện bị ẩn',
+            displayName: 'Trò chuyện bị ẩn',
+            content: 'Mở khóa để xem nội dung',
             memberCount: c.members?.length || 0,
             isHiddenMatch: true, // flag
           }));
 
         if (hiddenMatches.length > 0) {
           baseSections.unshift({
-            title: t('search.hidden_chat'),
+            title: 'Trò chuyện bị ẩn',
             data: hiddenMatches,
             actualDataCount: hiddenMatches.length,
             isExpanded: true,
@@ -483,7 +479,7 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
           onPress={() => toggleSectionExpansion(section.title)}
         >
           <Text style={styles.sectionExpandText}>
-            {t('search.view_more', { title: section.title.toLowerCase() })} ({section.actualDataCount - RESULTS_PER_PAGE})
+            Xem thêm {section.title.toLowerCase()} ({section.actualDataCount - RESULTS_PER_PAGE})
           </Text>
           <Text style={styles.sectionExpandIcon}>expand_more</Text>
         </TouchableOpacity>
@@ -522,7 +518,7 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
           <TextInput
             ref={inputRef}
             style={styles.searchInput}
-            placeholder={t('common.search_placeholder')}
+            placeholder="Tìm tên, email, tin nhắn..."
             placeholderTextColor="rgba(0,0,0,0.4)"
             value={query}
             onChangeText={handleChangeText}
@@ -548,12 +544,12 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
       ) : showRecents ? (
         <View style={{ flex: 1 }}>
           <View style={styles.sectionHeaderContainer}>
-            <Text style={styles.sectionTitle}>{t('search.recent_searches')}</Text>
+            <Text style={styles.sectionTitle}>Tìm kiếm gần đây</Text>
             <TouchableOpacity
               style={styles.clearHistoryBtn}
               onPress={clearRecentSearches}
             >
-              <Text style={styles.clearHistoryText}>{t('search.clear_all')}</Text>
+              <Text style={styles.clearHistoryText}>Xóa tất cả</Text>
             </TouchableOpacity>
           </View>
           <FlatList
@@ -585,12 +581,12 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
       ) : query.trim().length >= 2 ? (
         <View style={styles.centered}>
           <Text style={styles.emptyIcon}>search_off</Text>
-          <Text style={styles.emptyText}>{t('search.no_results')}</Text>
+          <Text style={styles.emptyText}>Không tìm thấy kết quả nào</Text>
         </View>
       ) : (
         <View style={styles.centered}>
           <Text style={styles.emptyIcon}>edit_note</Text>
-          <Text style={styles.emptyText}>{t('search.type_to_search')}</Text>
+          <Text style={styles.emptyText}>Nhập ít nhất 2 ký tự để tìm kiếm</Text>
         </View>
       )}
 
@@ -607,7 +603,7 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
                 handleSelect(pinTargetItem, onNavigate);
               }, 100);
             } else {
-              Alert.alert(t('common.error'), t('home.wrong_pin'));
+              Alert.alert('Thất bại', 'Mã PIN không chính xác.');
             }
           }
         }}

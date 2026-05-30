@@ -1,5 +1,4 @@
 import React from 'react';
-import { useTheme } from '../../context/ThemeContext';
 import { View, Text, TouchableOpacity, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { Colors } from '../../constants/Theme';
 import { useChatStore } from '../../store/chatStore';
@@ -19,7 +18,6 @@ export const ClassifyFilterModal: React.FC<ClassifyFilterModalProps> = ({
   onSelectFilter,
   onManageTags,
 }) => {
-  const { t } = useTheme();
   const { tags } = useChatStore();
 
   if (!isVisible) return null;
@@ -28,19 +26,19 @@ export const ClassifyFilterModal: React.FC<ClassifyFilterModalProps> = ({
     <Pressable style={styles.overlay} onPress={onClose}>
       <Pressable style={styles.actionSheet} onPress={(e) => e.stopPropagation()}>
         <View style={styles.header}>
-          <Text style={styles.headerText}>{t('home.filter_by')}</Text>
+          <Text style={styles.headerText}>Phân loại theo</Text>
         </View>
         <ScrollView style={{ maxHeight: 300 }}>
           <View style={styles.actionList}>
             <TouchableOpacity style={styles.actionListItem} onPress={() => { onSelectFilter(null); onClose(); }}>
               <View style={[styles.colorBox, { backgroundColor: '#f0f0f0' }]} />
-              <Text style={[styles.actionListText, currentTag === null && { color: Colors.primary, fontWeight: 'bold' }]}>{t('common.all')}</Text>
+              <Text style={[styles.actionListText, currentTag === null && { color: Colors.primary, fontWeight: 'bold' }]}>Tất cả</Text>
               {currentTag === null && <Text style={[styles.actionListIcon, { color: Colors.primary, marginLeft: 'auto' }]}>check</Text>}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionListItem} onPress={() => { onSelectFilter("none"); onClose(); }}>
               <View style={[styles.colorBox, { backgroundColor: '#e5e7eb' }]} />
-              <Text style={[styles.actionListText, currentTag === "none" && { color: Colors.primary, fontWeight: 'bold' }]}>{t('home.no_tag')}</Text>
+              <Text style={[styles.actionListText, currentTag === "none" && { color: Colors.primary, fontWeight: 'bold' }]}>Không có thẻ</Text>
               {currentTag === "none" && <Text style={[styles.actionListIcon, { color: Colors.primary, marginLeft: 'auto' }]}>check</Text>}
             </TouchableOpacity>
 
@@ -56,7 +54,7 @@ export const ClassifyFilterModal: React.FC<ClassifyFilterModalProps> = ({
         <View style={styles.divider} />
         <TouchableOpacity style={styles.actionListItem} onPress={() => { onClose(); onManageTags(); }}>
           <Text style={styles.actionListIcon}>sell</Text>
-          <Text style={styles.actionListText}>{t('home.manage_tags')}</Text>
+          <Text style={styles.actionListText}>Quản lý thẻ phân loại</Text>
         </TouchableOpacity>
       </Pressable>
     </Pressable>

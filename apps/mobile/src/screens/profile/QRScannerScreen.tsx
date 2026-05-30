@@ -3,7 +3,6 @@ import { StyleSheet, Text, View, TouchableOpacity, Modal, Platform, ActivityIndi
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { apiRequest } from '../../utils/api';
 import Alert from '../../utils/Alert';
-import { useTheme } from '../../context/ThemeContext';
 import * as LocalAuthentication from 'expo-local-authentication';
 
 interface QRScannerProps {
@@ -12,27 +11,15 @@ interface QRScannerProps {
 }
 
 const QRScannerScreen = ({ onNavigate, goBack }: QRScannerProps) => {
-  const { t } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [confirmModal, setConfirmModal] = useState(false);
   const [qrCodeId, setQrCodeId] = useState<string | null>(null);
-  const [qrType, setQrType] = useState<'login' | 'group'>('login');
-  const [groupId, setGroupId] = useState<string | null>(null);
 
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     setScanned(true);
     setQrCodeId(data);
-    
-    const groupMatch = data.match(/(CONV#GROUP#[a-zA-Z0-9-]+)/);
-    if (groupMatch) {
-      setQrType('group');
-      setGroupId(groupMatch[1]);
-    } else {
-      setQrType('login');
-    }
-    
     setConfirmModal(true);
   };
 
@@ -42,8 +29,8 @@ const QRScannerScreen = ({ onNavigate, goBack }: QRScannerProps) => {
     
     if (securityLevel > 0) {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: t('qr.security_prompt'),
-        fallbackLabel: t('qr.use_device_pin'),
+        promptMessage: 'Xác thực bảo mật để tiếp tục',
+        fallbackLabel: 'Sử dụng mật mã máy',
       });
 
       if (!result.success) return;
@@ -61,54 +48,20 @@ const QRScannerScreen = ({ onNavigate, goBack }: QRScannerProps) => {
       });
       
       if (response.ok) {
-        Alert.alert(t('common.success'), t('qr.login_success'));
+        Alert.alert('Thành công', 'Đã đăng nhập thành công trên máy tính!');
         setConfirmModal(false);
         goBack();
       } else {
-        Alert.alert(t('common.error'), response.message || t('qr.login_error'));
+        Alert.alert('Lỗi', response.message || 'Không thể xác nhận đăng nhập.');
         setScanned(false);
         setConfirmModal(false);
       }
     } catch (error) {
-      Alert.alert(t('common.error'), t('qr.server_error'));
+      Alert.alert('Lỗi', 'Có lỗi xảy ra kết nối tới máy chủ.');
       setScanned(false);
       setConfirmModal(false);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const confirmJoinGroup = async () => {
-    if (!groupId) return;
-    setLoading(true);
-    try {
-      const response = await apiRequest(`/chat/conversations/${encodeURIComponent(groupId)}/join`, {
-        method: 'POST',
-      });
-      
-      if (response.ok) {
-        Alert.alert(t('common.success'), t('qr.join_group_success'));
-        setConfirmModal(false);
-        goBack();
-      } else {
-        Alert.alert(t('common.error'), response.message || t('qr.join_group_error'));
-        setScanned(false);
-        setConfirmModal(false);
-      }
-    } catch (error) {
-      Alert.alert(t('common.error'), t('qr.server_error'));
-      setScanned(false);
-      setConfirmModal(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const confirmAction = () => {
-    if (qrType === 'group') {
-      confirmJoinGroup();
-    } else {
-      confirmLogin();
     }
   };
 
@@ -116,7 +69,7 @@ const QRScannerScreen = ({ onNavigate, goBack }: QRScannerProps) => {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#006af5" />
-        <Text style={{ marginTop: 10 }}>{t('qr.checking_camera')}</Text>
+        <Text style={{ marginTop: 10 }}>Đang kiểm tra quyền Camera...</Text>
       </View>
     );
   }
@@ -124,12 +77,12 @@ const QRScannerScreen = ({ onNavigate, goBack }: QRScannerProps) => {
   if (!permission.granted) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{t('qr.need_camera')}</Text>
+        <Text style={styles.errorText}>Ứng dụng cần quyền Camera để quét mã QR.</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={requestPermission}>
-          <Text style={styles.retryText}>{t('qr.grant_permission')}</Text>
+          <Text style={styles.retryText}>Cấp quyền ngay</Text>
         </TouchableOpacity>
         <TouchableOpacity style={{ marginTop: 20 }} onPress={goBack}>
-          <Text style={{ color: '#666' }}>{t('common.back')}</Text>
+          <Text style={{ color: '#666' }}>Quay lại</Text>
         </TouchableOpacity>
       </View>
     );
@@ -141,7 +94,7 @@ const QRScannerScreen = ({ onNavigate, goBack }: QRScannerProps) => {
         <TouchableOpacity onPress={goBack} style={styles.backBtn}>
           <Text style={styles.backIcon}>arrow_back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('qr.title')}</Text>
+        <Text style={styles.headerTitle}>Quét mã QR</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -172,7 +125,9 @@ const QRScannerScreen = ({ onNavigate, goBack }: QRScannerProps) => {
           <View style={styles.unfocusedSide} />
         </View>
         <View style={styles.unfocusedBottom}>
-           <Text style={styles.instructionText}>{t('qr.instruction')}</Text>
+           <Text style={styles.instructionText}>
+             Đặt mã QR vào giữa khung hình để đăng nhập nhanh
+           </Text>
         </View>
       </View>
 
@@ -187,20 +142,17 @@ const QRScannerScreen = ({ onNavigate, goBack }: QRScannerProps) => {
             <View style={styles.modalIconBox}>
               <Text style={styles.modalIcon}>important_devices</Text>
             </View>
-            <Text style={styles.modalTitle}>
-              {qrType === 'group' ? t('qr.join_group') : t('qr.confirm_login')}
-            </Text>
+            <Text style={styles.modalTitle}>Xác nhận đăng nhập</Text>
             
             {loading ? (
               <View style={{ alignItems: 'center', marginVertical: 20 }}>
                 <ActivityIndicator size="large" color="#006af5" />
-                <Text style={{ marginTop: 12, color: '#666', fontWeight: '500' }}>{t('common.processing')}</Text>
+                <Text style={{ marginTop: 12, color: '#666', fontWeight: '500' }}>Đang xác nhận...</Text>
               </View>
             ) : (
               <>
                 <Text style={styles.modalDesc}>
-                  {qrType === 'group' 
-                    ? t('qr.confirm_join_group') : t('qr.confirm_login_pc')}
+                  Bạn có đồng ý đăng nhập tài khoản UniChat trên máy tính này không?
                 </Text>
 
                 <View style={styles.modalActions}>
@@ -212,16 +164,14 @@ const QRScannerScreen = ({ onNavigate, goBack }: QRScannerProps) => {
                     }}
                     disabled={loading}
                   >
-                    <Text style={styles.cancelText}>{t('common.cancel')}</Text>
+                    <Text style={styles.cancelText}>Hủy bỏ</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.confirmBtn} 
-                    onPress={confirmAction}
+                    onPress={confirmLogin}
                     disabled={loading}
                   >
-                    <Text style={styles.confirmText}>
-                      {qrType === 'group' ? t('common.join') : t('common.login')}
-                    </Text>
+                    <Text style={styles.confirmText}>Đăng nhập</Text>
                   </TouchableOpacity>
                 </View>
               </>

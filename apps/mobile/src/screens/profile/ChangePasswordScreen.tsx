@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -13,8 +13,7 @@ import {
     Platform
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Shadows, Typography } from '../../constants/Theme';
-import { useTheme } from '../../context/ThemeContext';
+import { Colors, Shadows, Typography } from '../../constants/Theme';
 import { apiRequest } from '../../utils/api';
 import Alert from '../../utils/Alert';
 import { useAuth } from '../../context/AuthContext';
@@ -26,8 +25,6 @@ interface ChangePasswordProps {
 }
 
 export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePasswordProps) {
-  const { colors, t, isDark } = useTheme();
-  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
     const { logout, user } = useAuth() as any;
     const [step, setStep] = useState(1); // 1: Passwords, 2: OTP
     const [loading, setLoading] = useState(false);
@@ -44,17 +41,17 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
 
     const handleRequest = async () => {
         if (!currentPassword || !newPassword || !confirmPassword) {
-            Alert.alert(t('common.error'), t('auth.pass_empty'));
+            Alert.alert('Lỗi', 'Vui lòng điền đầy đủ các trường.');
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            Alert.alert(t('common.error'), t('auth.err_password_match'));
+            Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp.');
             return;
         }
 
         if (newPassword === currentPassword) {
-            Alert.alert(t('common.error'), t('auth.pass_same'));
+            Alert.alert('Lỗi', 'Mật khẩu mới không được trùng với mật khẩu hiện tại.');
             return;
         }
 
@@ -65,13 +62,13 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
                 body: JSON.stringify({ currentPassword, newPassword })
             });
             startCountdown();
-            Alert.alert(t('common.success'), res.message || t('auth.otp_sent'));
+            Alert.alert('Thành công', res.message || 'Mã OTP đã được gửi về email của bạn.');
             setStep(2);
         } catch (err: any) {
             if (err.retryAfter) {
               syncWithServer(err.retryAfter);
             }
-            Alert.alert(t('common.error'), err.message || t('auth.err_change_pass'));
+            Alert.alert('Lỗi', err.message || 'Không thể yêu cầu đổi mật khẩu.');
         } finally {
             setLoading(false);
         }
@@ -79,7 +76,7 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
 
     const handleConfirm = async () => {
         if (otp.length < 6) {
-            Alert.alert(t('common.error'), t('auth.err_otp_length'));
+            Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ mã OTP.');
             return;
         }
 
@@ -99,7 +96,7 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
             if (err.retryAfter) {
                 syncWithServer(err.retryAfter);
             }
-            Alert.alert(t('common.error'), err.message || t('auth.err_otp_verify'));
+            Alert.alert('Lỗi', err.message || 'Xác thực OTP thất bại.');
         } finally {
             setLoading(false);
         }
@@ -113,8 +110,8 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
                         <Text style={styles.headerIcon}>arrow_back</Text>
                     </TouchableOpacity>
                     <View style={styles.headerTitleWrap}>
-                        <Text style={styles.headerTitle}>{t('auth.change_password')}</Text>
-                        <Text style={styles.headerSubtitle}>{t('auth.verify_2fa')}</Text>
+                        <Text style={styles.headerTitle}>Đổi mật khẩu</Text>
+                        <Text style={styles.headerSubtitle}>Xác thực 2 lớp qua Email</Text>
                     </View>
                 </View>
             </LinearGradient>
@@ -127,16 +124,16 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
                     {step === 1 ? (
                         <View style={styles.formCard}>
                             <Text style={styles.instructions}>
-                                {t('auth.change_pass_instructions')}<Text style={{fontWeight:'700'}}>{user?.email}</Text>
+                                Nhập mật khẩu hiện tại và mật khẩu mới để tiếp tục. Mã xác thực sẽ được gửi về email: <Text style={{fontWeight:'700'}}>{user?.email}</Text>
                             </Text>
 
                             <View style={styles.inputGroup}>
-                                <Text style={styles.label}>{t('auth.current_pass')}</Text>
+                                <Text style={styles.label}>Mật khẩu hiện tại</Text>
                                 <View style={styles.inputWrapper}>
                                     <Text style={styles.fieldIcon}>lock</Text>
                                     <TextInput
                                         style={styles.input}
-                                        placeholder={t('auth.current_pass')}
+                                        placeholder="Nhập mật khẩu cũ"
                                         secureTextEntry={!showCurrentPassword}
                                         value={currentPassword}
                                         onChangeText={setCurrentPassword}
@@ -148,12 +145,12 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
                             </View>
 
                             <View style={styles.inputGroup}>
-                                <Text style={styles.label}>{t('auth.new_pass')}</Text>
+                                <Text style={styles.label}>Mật khẩu mới</Text>
                                 <View style={styles.inputWrapper}>
                                     <Text style={styles.fieldIcon}>password</Text>
                                     <TextInput
                                         style={styles.input}
-                                        placeholder={t('auth.new_pass')}
+                                        placeholder="Nhập mật khẩu mới"
                                         secureTextEntry={!showNewPassword}
                                         value={newPassword}
                                         onChangeText={setNewPassword}
@@ -162,16 +159,16 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
                                         <Text style={styles.eyeIcon}>{showNewPassword ? 'visibility_off' : 'visibility'}</Text>
                                     </TouchableOpacity>
                                 </View>
-                                <Text style={styles.hint}>{t('auth.new_pass_hint')}</Text>
+                                <Text style={styles.hint}>Tối thiểu 8 ký tự, gồm chữ hoa, thường, số và ký tự đặc biệt.</Text>
                             </View>
 
                             <View style={styles.inputGroup}>
-                                <Text style={styles.label}>{t('auth.confirm_password')}</Text>
+                                <Text style={styles.label}>Xác nhận mật khẩu mới</Text>
                                 <View style={styles.inputWrapper}>
                                     <Text style={styles.fieldIcon}>check_circle</Text>
                                     <TextInput
                                         style={styles.input}
-                                        placeholder={t('auth.confirm_password')}
+                                        placeholder="Nhập lại mật khẩu mới"
                                         secureTextEntry={!showNewPassword}
                                         value={confirmPassword}
                                         onChangeText={setConfirmPassword}
@@ -187,7 +184,7 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
                                 {loading ? (
                                     <ActivityIndicator color="#fff" />
                                 ) : (
-                                    <Text style={styles.submitText}>{t('common.continue')}</Text>
+                                    <Text style={styles.submitText}>Tiếp tục</Text>
                                 )}
                             </TouchableOpacity>
                         </View>
@@ -197,8 +194,8 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
                                 <View style={styles.otpIconBadge}>
                                     <Text style={styles.otpIcon}>mark_email_unread</Text>
                                 </View>
-                                <Text style={styles.otpTitle}>{t('auth.enter_otp_title')}</Text>
-                                <Text style={styles.otpSubtitle}>{t('auth.enter_otp_subtitle')}</Text>
+                                <Text style={styles.otpTitle}>Nhập mã xác thực</Text>
+                                <Text style={styles.otpSubtitle}>Mã OTP 6 số đã được gửi tới Gmail của bạn.</Text>
                             </View>
 
                             <View style={styles.otpInputWrapper}>
@@ -222,7 +219,7 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
                                     <ActivityIndicator color="#fff" />
                                 ) : (
                                     <Text style={styles.submitText}>
-                                        {step === 1 ? (countdown > 0 ? t('common.continue') + ' (' + countdown + 's)' : t('common.continue')) : t('auth.confirm_change')}
+                                        {step === 1 ? (countdown > 0 ? `Tiếp tục (${countdown}s)` : 'Tiếp tục') : 'Xác nhận & Đổi mật khẩu'}
                                     </Text>
                                 )}
                             </TouchableOpacity>
@@ -233,14 +230,14 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
                                     onPress={handleRequest}
                                     disabled={countdown > 0 || loading}
                                 >
-                                    <Text style={[styles.resendText, (countdown > 0 || loading) && { color: colors.outline, textDecorationLine: 'none' }]}>
-                                        {countdown > 0 ? t('auth.resend_code') + ' (' + countdown + 's)' : t('auth.resend_otp')}
+                                    <Text style={[styles.resendText, (countdown > 0 || loading) && { color: Colors.outline, textDecorationLine: 'none' }]}>
+                                        {countdown > 0 ? `Gửi lại mã (${countdown}s)` : 'Gửi lại mã OTP'}
                                     </Text>
                                 </TouchableOpacity>
                             )}
 
                             <TouchableOpacity style={styles.resendBtn} onPress={() => setStep(1)}>
-                                <Text style={styles.resendText}>{t('auth.back_to_pass')}</Text>
+                                <Text style={styles.resendText}>Quay lại nhập mật khẩu</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -250,10 +247,10 @@ export default function ChangePasswordScreen({ onNavigate, goBack }: ChangePassw
     );
 }
 
-const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: Colors.background,
     },
     header: {
         paddingTop: Platform.OS === 'android' ? 40 : 10,
@@ -304,7 +301,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     instructions: {
         ...Typography.body,
         fontSize: 14,
-        color: colors.onSurfaceVariant,
+        color: Colors.onSurfaceVariant,
         lineHeight: 20,
         marginBottom: 24,
     },
@@ -315,7 +312,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         ...Typography.body,
         fontWeight: '700',
         fontSize: 14,
-        color: colors.onSurface,
+        color: Colors.onSurface,
         marginBottom: 8,
         marginLeft: 4,
     },
@@ -331,7 +328,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fieldIcon: {
         fontFamily: 'Material Symbols Outlined',
         fontSize: 20,
-        color: colors.primary,
+        color: Colors.primary,
         marginRight: 10,
     },
     input: {
@@ -339,23 +336,23 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
         height: 52,
         ...Typography.body,
         fontSize: 15,
-        color: colors.onSurface,
+        color: Colors.onSurface,
     },
     eyeIcon: {
         fontFamily: 'Material Symbols Outlined',
         fontSize: 20,
-        color: colors.onSurfaceVariant,
+        color: Colors.onSurfaceVariant,
         padding: 8,
     },
     hint: {
         fontSize: 11,
-        color: colors.onSurfaceVariant,
+        color: Colors.onSurfaceVariant,
         marginTop: 6,
         marginLeft: 4,
         fontStyle: 'italic',
     },
     submitButton: {
-        backgroundColor: colors.primary,
+        backgroundColor: Colors.primary,
         height: 56,
         borderRadius: 18,
         alignItems: 'center',
@@ -386,17 +383,17 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     otpIcon: {
         fontFamily: 'Material Symbols Outlined',
         fontSize: 32,
-        color: colors.primary,
+        color: Colors.primary,
     },
     otpTitle: {
         ...Typography.heading,
         fontSize: 18,
-        color: colors.onSurface,
+        color: Colors.onSurface,
     },
     otpSubtitle: {
         ...Typography.body,
         fontSize: 14,
-        color: colors.onSurfaceVariant,
+        color: Colors.onSurfaceVariant,
         textAlign: 'center',
         marginTop: 8,
     },
@@ -407,7 +404,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     otpInput: {
         fontSize: 36,
         fontWeight: '800',
-        color: colors.primary,
+        color: Colors.primary,
         letterSpacing: 10,
         textAlign: 'center',
         width: '100%',
@@ -421,9 +418,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     },
     resendText: {
         ...Typography.body,
-        color: colors.primary,
+        color: Colors.primary,
         fontWeight: '700',
         fontSize: 14,
     }
 });
-

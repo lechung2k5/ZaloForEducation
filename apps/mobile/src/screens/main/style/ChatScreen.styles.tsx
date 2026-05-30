@@ -1,64 +1,29 @@
 import { StyleSheet, Platform } from 'react-native';
 import { Colors, Typography } from '../../../constants/Theme';
 
-// Dark theme palette — mirrors the web dark mode colors
-const D = {
-  bg:            '#0a0e27',   // --color-background dark
-  surface:       '#121621',   // --color-surface dark
-  surfaceHigh:   '#1f2438',   // --color-surface-container dark
-  surfaceVar:    '#2a2f42',   // --color-surface-variant dark
-  outline:       '#464d5f',   // --color-outline dark
-  outlineVar:    '#3a3f52',   // --color-outline-variant dark
-  onSurface:     '#e8eef7',   // --color-on-surface dark
-  onSurfaceVar:  '#9ca3b5',   // --color-on-surface-variant dark
-  primary:       '#4a8fff',   // accent blue suitable for dark bg
-  primaryDim:    '#2563eb',
-  white:         '#ffffff',
-  danger:        '#ef4444',
-};
-
-export const getStyles = (colors: any, isDark: boolean) => {
-  const D = {
-    bg:            colors.background,
-    surface:       colors.surface,
-    surfaceHigh:   colors.primaryContainer,
-    surfaceVar:    colors.surfaceVariant,
-    outline:       colors.outline,
-    outlineVar:    colors.outlineVariant,
-    onSurface:     colors.onSurface,
-    onSurfaceVar:  colors.onSurfaceVariant,
-    primary:       colors.primary,
-    primaryDim:    colors.primary,
-    white:         isDark ? '#ffffff' : '#ffffff',
-    danger:        colors.error,
-  };
-
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: D.bg,
-    },
-
-  // ── Header ──────────────────────────────────────────────────
+export default StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f7f9fb',
+  },
   header: {
     paddingHorizontal: 12,
     paddingBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
-    backgroundColor: '#00174d',  // deep navy — matches web header gradient
   },
   headerBack: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 26,
-    color: D.white,
+    color: "#fff",
   },
   headerAvatar: { width: 38, height: 38, borderRadius: 19 },
-  headerName: { ...Typography.heading, fontSize: 15, color: D.white },
-  headerSub: { ...Typography.body, fontSize: 12, color: 'rgba(255,255,255,0.75)' },
+  headerName: { ...Typography.heading, fontSize: 15, color: "#fff" },
+  headerSub: { ...Typography.body, fontSize: 12, color: "rgba(255,255,255,0.8)" },
   headerIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 15,
     paddingRight: 4,
   },
@@ -66,34 +31,33 @@ export const getStyles = (colors: any, isDark: boolean) => {
     padding: 2,
   },
   headerIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: D.white,
+    color: "#fff",
   },
-  avatarContainer: { position: 'relative' },
+  avatarContainer: { position: "relative" },
   onlineBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     right: 0,
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#4cd964',
+    backgroundColor: "#4cd964",
     borderWidth: 2,
-    borderColor: '#00174d',
+    borderColor: "#fff",
     zIndex: 11,
   },
 
-  // ── Pin Banner ───────────────────────────────────────────────
   pinBannerContainer: {
     paddingHorizontal: 0,
-    backgroundColor: D.surface,
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: D.outlineVar,
+    borderBottomColor: '#f1f1f1',
     zIndex: 20,
   },
   pinBanner: {
-    backgroundColor: D.surface,
+    backgroundColor: '#fff',
   },
   pinBannerMain: {
     height: 48,
@@ -105,7 +69,7 @@ export const getStyles = (colors: any, isDark: boolean) => {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(74,143,255,0.15)',
+    backgroundColor: '#eff6ff',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -113,7 +77,7 @@ export const getStyles = (colors: any, isDark: boolean) => {
   pinBannerIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 16,
-    color: D.primary,
+    color: '#0058bc',
   },
   pinBannerContent: {
     flex: 1,
@@ -122,17 +86,17 @@ export const getStyles = (colors: any, isDark: boolean) => {
   pinBannerLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: D.primary,
+    color: '#0058bc',
     marginBottom: 1,
   },
   pinBannerText: {
     fontSize: 13,
-    color: D.onSurface,
+    color: '#1f2631',
   },
   pinBannerCount: {
     fontSize: 13,
     fontWeight: '700',
-    color: D.primary,
+    color: '#0058bc',
   },
   pinBannerToggle: {
     padding: 8,
@@ -140,12 +104,12 @@ export const getStyles = (colors: any, isDark: boolean) => {
   pinBannerToggleIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 20,
-    color: D.onSurfaceVar,
+    color: '#5f697a',
   },
   pinExpandedList: {
     borderTopWidth: 1,
-    borderTopColor: D.outlineVar,
-    backgroundColor: D.surface,
+    borderTopColor: '#f1f1f1',
+    backgroundColor: '#fff',
     paddingBottom: 4,
   },
   pinExpandedItem: {
@@ -154,12 +118,12 @@ export const getStyles = (colors: any, isDark: boolean) => {
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: D.bg,
+    borderBottomColor: '#f9f9f9',
   },
   pinExpandedIdx: {
     fontSize: 11,
     fontWeight: '700',
-    color: D.onSurfaceVar,
+    color: '#5f697a',
     width: 20,
   },
   pinExpandedContent: {
@@ -167,7 +131,7 @@ export const getStyles = (colors: any, isDark: boolean) => {
   },
   pinExpandedText: {
     fontSize: 13,
-    color: D.onSurface,
+    color: '#1f2631',
   },
   pinExpandedUnpin: {
     padding: 8,
@@ -175,7 +139,7 @@ export const getStyles = (colors: any, isDark: boolean) => {
   pinExpandedUnpinIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 18,
-    color: D.danger,
+    color: '#ef4444',
   },
 
   listContent: {
@@ -184,15 +148,14 @@ export const getStyles = (colors: any, isDark: boolean) => {
     paddingBottom: 20,
   },
 
-  // ── Action Sheet (long press menu) ──────────────────────────
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
     zIndex: 1000,
   },
   actionSheet: {
-    backgroundColor: D.surfaceHigh,
+    backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -200,9 +163,9 @@ export const getStyles = (colors: any, isDark: boolean) => {
     paddingTop: 16,
   },
   reactionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(0,0,0,0.03)",
     borderRadius: 30,
     padding: 8,
     marginBottom: 24,
@@ -216,96 +179,95 @@ export const getStyles = (colors: any, isDark: boolean) => {
     marginHorizontal: 4,
   },
   actionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-start",
     gap: 16,
     marginBottom: 20,
   },
   actionItem: {
     width: (Platform.OS === 'ios' ? 70 : 80),
-    alignItems: 'center',
+    alignItems: "center",
     gap: 8,
   },
   actionIconBox: {
     width: 50,
     height: 50,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   actionIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 24,
   },
   actionText: {
     ...Typography.body,
     fontSize: 12,
-    fontWeight: '700',
-    color: D.onSurfaceVar,
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#4b5563",
+    textAlign: "center",
   },
   actionList: {
     borderTopWidth: 1,
-    borderTopColor: D.outlineVar,
+    borderTopColor: "rgba(0,0,0,0.05)",
     paddingTop: 12,
     gap: 4,
   },
   actionListItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     gap: 12,
   },
   actionListIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 22,
-    color: D.onSurfaceVar,
+    color: "#4b5563",
   },
   actionListText: {
     ...Typography.body,
     fontSize: 15,
-    fontWeight: '600',
-    color: D.onSurface,
+    fontWeight: "600",
+    color: "#1f2937",
   },
 
-  // ── Forward Modal ────────────────────────────────────────────
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
   forwardSheet: {
-    backgroundColor: D.surfaceHigh,
+    backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '80%',
+    maxHeight: "80%",
     paddingBottom: 40,
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: D.outlineVar,
+    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   modalTitle: {
     ...Typography.heading,
     fontSize: 18,
-    color: D.onSurface,
+    color: "#111827",
   },
   closeIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: D.onSurfaceVar,
+    color: "#6b7280",
   },
   forwardList: {
     padding: 10,
   },
   forwardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 12,
     gap: 12,
     borderRadius: 16,
@@ -314,70 +276,67 @@ export const getStyles = (colors: any, isDark: boolean) => {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: D.surfaceVar,
+    backgroundColor: "#f3f4f6",
   },
   forwardName: {
     flex: 1,
     ...Typography.body,
     fontSize: 15,
-    fontWeight: '700',
-    color: D.onSurface,
+    fontWeight: "700",
+    color: "#1f2937",
   },
   forwardSendIcon: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 20,
-    color: D.primary,
+    color: Colors.primary,
   },
   forwardCard: {
-    backgroundColor: D.surfaceHigh,
+    backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '80%',
+    maxHeight: "80%",
     paddingBottom: 20,
   },
   forwardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: D.outlineVar,
+    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   forwardTitle: {
     ...Typography.heading,
     fontSize: 16,
-    color: D.onSurface,
+    color: "#1f2631",
   },
   forwardClose: {
-    fontFamily: 'Material Symbols Outlined',
+    fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: D.onSurfaceVar,
+    color: "#6b7280",
   },
   forwardSearch: {
     padding: 12,
   },
   forwardSearchInput: {
-    backgroundColor: D.surfaceVar,
+    backgroundColor: "#f3f4f6",
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 40,
     ...Typography.body,
     fontSize: 14,
-    color: D.onSurface,
   },
   forwardSendBtn: {
-    backgroundColor: D.primary,
+    backgroundColor: Colors.primary,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
   forwardSendText: {
     ...Typography.label,
-    color: D.white,
+    color: "#fff",
     fontSize: 12,
   },
-
-  // ── Scroll to bottom button ──────────────────────────────────
   scrollToBottomBtn: {
     position: 'absolute',
     bottom: 100,
@@ -385,33 +344,33 @@ export const getStyles = (colors: any, isDark: boolean) => {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: D.primary,
+    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   scrollToBottomIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
-    color: D.white,
+    color: '#fff',
   },
   jumpToLatestBadge: {
     position: 'absolute',
     top: -35,
-    backgroundColor: D.surface,
+    backgroundColor: '#fff',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 15,
     borderWidth: 1,
-    borderColor: D.outlineVar,
+    borderColor: '#e5e7eb',
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 2,
     alignItems: 'center',
     justifyContent: 'center',
@@ -420,24 +379,22 @@ export const getStyles = (colors: any, isDark: boolean) => {
   jumpToLatestText: {
     fontSize: 11,
     fontWeight: '700',
-    color: D.primary,
+    color: '#0058bc',
   },
-
-  // ── Mute modals ──────────────────────────────────────────────
   muteModalCard: {
-    width: '100%',
+    width: "100%",
     maxWidth: 360,
     borderRadius: 16,
-    backgroundColor: D.surfaceHigh,
+    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 14,
   },
   muteMenuCard: {
-    width: '100%',
+    width: "100%",
     maxWidth: 360,
     borderRadius: 16,
-    backgroundColor: D.surfaceHigh,
+    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
@@ -445,51 +402,51 @@ export const getStyles = (colors: any, isDark: boolean) => {
   muteMenuItem: {
     height: 44,
     borderRadius: 10,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
+    alignItems: "flex-start",
+    justifyContent: "center",
     paddingHorizontal: 10,
   },
   muteMenuItemText: {
     ...Typography.body,
     fontSize: 14,
-    color: D.onSurface,
+    color: "#1f2631",
   },
   muteMenuPrimaryText: {
     ...Typography.label,
-    color: D.primary,
+    color: "#0058bc",
   },
   muteMenuDivider: {
     height: 1,
-    backgroundColor: D.outlineVar,
+    backgroundColor: "#edf1f7",
     marginVertical: 6,
   },
   muteMenuCancelBtn: {
     height: 40,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: D.surfaceVar,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f5f8fd",
     marginTop: 2,
   },
   muteMenuCancelText: {
     ...Typography.label,
     fontSize: 12,
-    color: D.onSurfaceVar,
+    color: "#5f697a",
   },
   muteModalTitle: {
     ...Typography.heading,
     fontSize: 17,
-    color: D.onSurface,
+    color: "#1f2631",
   },
   muteModalSubtitle: {
     ...Typography.body,
     fontSize: 12,
-    color: D.onSurfaceVar,
+    color: "#6e7683",
     marginTop: 4,
     marginBottom: 12,
   },
   muteInputsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
   },
   muteInputGroup: {
@@ -498,23 +455,23 @@ export const getStyles = (colors: any, isDark: boolean) => {
   muteInputLabel: {
     ...Typography.label,
     fontSize: 11,
-    color: D.onSurfaceVar,
+    color: "#5f697a",
     marginBottom: 6,
   },
   muteTimeInput: {
     height: 40,
     borderWidth: 1,
-    borderColor: D.outline,
+    borderColor: "#dbe3ef",
     borderRadius: 10,
     paddingHorizontal: 10,
     ...Typography.body,
     fontSize: 14,
-    color: D.onSurface,
-    backgroundColor: D.surfaceVar,
+    color: "#1f2631",
+    backgroundColor: "#f9fbff",
   },
   muteModalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "flex-end",
     gap: 8,
     marginTop: 14,
   },
@@ -523,28 +480,27 @@ export const getStyles = (colors: any, isDark: boolean) => {
     height: 34,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: D.outline,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: D.surfaceVar,
+    borderColor: "#dbe3ef",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
   },
   muteModalCancelText: {
     ...Typography.label,
     fontSize: 12,
-    color: D.onSurfaceVar,
+    color: "#5f697a",
   },
   muteModalApplyBtn: {
     paddingHorizontal: 14,
     height: 34,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: D.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0058bc",
   },
-    muteModalApplyText: {
-      ...Typography.label,
-      fontSize: 12,
-      color: D.white,
-    },
-  });
-};
+  muteModalApplyText: {
+    ...Typography.label,
+    fontSize: 12,
+    color: "#fff",
+  }
+});

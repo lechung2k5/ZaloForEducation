@@ -1,4 +1,3 @@
-import { useTheme } from '../../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -34,8 +33,6 @@ interface ProfileMoreProps {
 }
 
 export default function ProfileMoreScreen({ onNavigate }: ProfileMoreProps) {
-  const { colors, t } = useTheme();
-  const styles = React.useMemo(() => getStyles(colors), [colors]);
   const storage = AsyncStorage;
   const [displayName, setDisplayName] = useState('Người dùng');
 
@@ -118,10 +115,10 @@ export default function ProfileMoreScreen({ onNavigate }: ProfileMoreProps) {
   );
 }
 
-const getStyles = (colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#f1f1f4',
   },
   header: {
     height: 74,
@@ -139,23 +136,23 @@ const getStyles = (colors: any) => StyleSheet.create({
   headerIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 28,
-    color: colors.surface,
+    color: '#fff',
   },
   headerTitle: {
     ...Typography.heading,
-    color: colors.onPrimaryContainer,
+    color: '#d8f2ff',
     fontSize: 18,
     flex: 1,
   },
   body: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#f1f1f4',
   },
   bodyContent: {
     paddingBottom: 24,
   },
   group: {
-    backgroundColor: colors.background,
+    backgroundColor: '#f2f2f2',
   },
   row: {
     minHeight: 66,
@@ -164,11 +161,11 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   rowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomColor: '#d9d9dc',
   },
   rowText: {
     ...Typography.body,
-    color: colors.onSurface,
+    color: '#1f2329',
     fontSize: 15,
     lineHeight: 22,
   },
@@ -180,7 +177,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.heading,
-    color: colors.primary,
+    color: '#1c7dad',
     fontSize: 16,
   },
 });

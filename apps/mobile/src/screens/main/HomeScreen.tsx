@@ -12,11 +12,12 @@ import {
   Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getStyles } from './style/HomeScreen.styles';
-import { useTheme } from '../../context/ThemeContext';
+import styles from './style/HomeScreen.styles';
+import { Colors } from '../../constants/Theme';
 import Alert from '../../utils/Alert';
 import { useAuth } from '../../context/AuthContext';
-
+import { apiRequest, chatGet, chatPost, chatPatch, chatUpload } from '../../utils/api';
+import SocketService from '../../utils/socket';
 import { getMessagePreview } from '../../utils/chatUtils';
 import { useChatStore } from '../../store/chatStore';
 import { useConversations } from "../../hooks/queries/useConversations";
@@ -54,8 +55,6 @@ export default function HomeScreen({
   params: directParams,
 }: any) {
   const insets = useSafeAreaInsets();
-  const { colors, t, isDark } = useTheme();
-  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const { user, profileVersion, checkSessionStatus, logout }: any = useAuth();
   
   const { 
@@ -106,11 +105,10 @@ export default function HomeScreen({
   const normalizeEmail = (email: string) => String(email || "").trim().toLowerCase();
 
   const getDisplayName = (email: string) => {
-    if (!email) return t('common.user');
+    if (!email) return "Người dùng";
     const normalizedEmail = normalizeEmail(email);
-    if (normalizedEmail === "bot@unichat.system") return "UniChat Bot";
     if (normalizedEmail === normalizeEmail(user?.email)) {
-      return user?.nickname || user?.fullName || user?.fullname || t('common.you');
+      return user?.nickname || user?.fullName || user?.fullname || "Bạn";
     }
     const p = userProfiles[normalizedEmail] || {};
     return p?.nickname || p?.fullName || p?.fullname || normalizedEmail;
@@ -119,7 +117,6 @@ export default function HomeScreen({
   const getDisplayAvatar = (email?: string) => {
     const normalizedEmail = email ? normalizeEmail(email) : "";
     if (!normalizedEmail) return DEFAULT_AVATAR;
-    if (normalizedEmail === "bot@unichat.system") return { uri: "https://api.dicebear.com/9.x/bottts/png?seed=UniChat&backgroundColor=0284c7" };
     if (normalizedEmail === normalizeEmail(user?.email)) {
        return user?.avatarUrl ? { uri: user.avatarUrl } : DEFAULT_AVATAR;
     }
@@ -130,7 +127,7 @@ export default function HomeScreen({
 
   const getConversationPreview = (conv: Conversation) => {
     const isMe = conv?.lastMessageSenderId === user?.email;
-    const prefix = isMe ? t('common.you_colon') : '';
+    const prefix = isMe ? 'Bạn: ' : '';
 
     // Create a mock message object to use getMessagePreview
     const mockMsg = {
@@ -141,7 +138,7 @@ export default function HomeScreen({
     };
 
     const preview = getMessagePreview(mockMsg);
-    if (preview === t('chat.message_label') && !mockMsg.content) return t('chat.no_messages');
+    if (preview === 'Tin nhắn' && !mockMsg.content) return 'Chưa có tin nhắn';
     
     return `${prefix}${preview}`;
   };
@@ -196,9 +193,9 @@ export default function HomeScreen({
   };
 
   const handleLogoutPress = () => {
-    Alert.alert(t('profile.logout'), t('profile.logout_confirm'), [
-      { text: t('common.cancel'), style: "cancel" },
-      { text: t('profile.logout'), style: "destructive", onPress: logout },
+    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
+      { text: "Hủy", style: "cancel" },
+      { text: "Đăng xuất", style: "destructive", onPress: logout },
     ]);
   };
 
@@ -225,14 +222,14 @@ export default function HomeScreen({
               {/* Filter Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8, paddingTop: 4 }}>
                 <TouchableOpacity onPress={() => setChatFilter("all")}>
-                  <Text style={[chatFilter === "all" ? { color: colors.primary, fontWeight: '700' } : { color: colors.onSurfaceVariant, fontWeight: '500' }]}>{t('home.all')}</Text>
+                  <Text style={[chatFilter === "all" ? { color: Colors.primary, fontWeight: '700' } : { color: Colors.onSurfaceVariant, fontWeight: '500' }]}>Tất cả</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setChatFilter("unread")} style={{ marginLeft: 20 }}>
-                  <Text style={[chatFilter === "unread" ? { color: colors.primary, fontWeight: '700' } : { color: colors.onSurfaceVariant, fontWeight: '500' }]}>{t('home.unread')}</Text>
+                  <Text style={[chatFilter === "unread" ? { color: Colors.primary, fontWeight: '700' } : { color: Colors.onSurfaceVariant, fontWeight: '500' }]}>Chưa đọc</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setClassifyOpen(true)} style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ color: tagFilter ? colors.primary : colors.onSurfaceVariant, fontWeight: '500', marginRight: 4 }}>{t('home.classify')}</Text>
-                  <Text style={{ fontFamily: 'Material Symbols Outlined', color: tagFilter ? colors.primary : colors.onSurfaceVariant, fontSize: 18 }}>filter_list</Text>
+                  <Text style={{ color: tagFilter ? Colors.primary : Colors.onSurfaceVariant, fontWeight: '500', marginRight: 4 }}>Phân loại</Text>
+                  <Text style={{ fontFamily: 'Material Symbols Outlined', color: tagFilter ? Colors.primary : Colors.onSurfaceVariant, fontSize: 18 }}>filter_list</Text>
                 </TouchableOpacity>
               </View>
 
@@ -383,7 +380,7 @@ export default function HomeScreen({
               onPress={() => { setIsAddMenuOpen(false); navigation.navigate('Search'); }}
             >
               <Text style={styles.addMenuIcon}>person_add</Text>
-              <Text style={styles.addMenuLabel}>{t('home.add_friend')}</Text>
+              <Text style={styles.addMenuLabel}>Thêm bạn</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -391,19 +388,19 @@ export default function HomeScreen({
               onPress={() => { setIsAddMenuOpen(false); navigation.navigate('CreateGroup'); }}
             >
               <Text style={styles.addMenuIcon}>group_add</Text>
-              <Text style={styles.addMenuLabel}>{t('home.create_group')}</Text>
+              <Text style={styles.addMenuLabel}>Tạo nhóm</Text>
             </TouchableOpacity>
 
             <View style={styles.addMenuDivider} />
 
             <TouchableOpacity style={styles.addMenuItem}>
               <Text style={styles.addMenuIcon}>videocam</Text>
-              <Text style={styles.addMenuLabel}>{t('home.create_group_call')}</Text>
+              <Text style={styles.addMenuLabel}>Tạo cuộc gọi nhóm</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.addMenuItem}>
               <Text style={styles.addMenuIcon}>devices</Text>
-              <Text style={styles.addMenuLabel}>{t('home.login_devices')}</Text>
+              <Text style={styles.addMenuLabel}>Thiết bị đăng nhập</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -411,4 +408,3 @@ export default function HomeScreen({
     </View>
   );
 }
-

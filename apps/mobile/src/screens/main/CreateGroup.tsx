@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useTheme } from '../../context/ThemeContext';
 import {
   View,
   Text,
@@ -33,7 +32,6 @@ interface Friend {
 }
 
 const CreateGroupScreen = ({ navigation }: any) => {
-  const { t } = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { fetchConversations, userProfiles, conversations } = useChatStore();
@@ -198,7 +196,7 @@ const CreateGroupScreen = ({ navigation }: any) => {
 
   const handleCreateGroup = async () => {
     if (selectedEmails.size < 2)
-      return Alert.alert(t('common.error'), t('group.min_members'));
+      return Alert.alert("Lỗi", "Chọn ít nhất 2 thành viên");
 
     setCreating(true);
     try {
@@ -217,7 +215,7 @@ const CreateGroupScreen = ({ navigation }: any) => {
       let finalGroupName = groupName.trim();
       if (!finalGroupName) {
         const names = selectedMembersList.map(m => m.displayName.split(" ").slice(-1)[0]).join(", ");
-        finalGroupName = `${t('group.default_name_prefix')} ${names}`;
+        finalGroupName = `Nhóm của ${names}`;
         if (finalGroupName.length > 50) {
           finalGroupName = finalGroupName.substring(0, 47) + "...";
         }
@@ -233,10 +231,10 @@ const CreateGroupScreen = ({ navigation }: any) => {
         await fetchConversations();
         navigation.replace("Chat", { conversationId: res.data.id });
       } else {
-        Alert.alert(t('common.error'), res.message || t('group.create_error'));
+        Alert.alert("Lỗi", res.message || "Không thể tạo nhóm");
       }
     } catch (err: any) {
-      Alert.alert(t('common.error'), t('common.error_occurred'));
+      Alert.alert("Lỗi", "Đã có lỗi xảy ra");
     } finally {
       setCreating(false);
     }
@@ -255,14 +253,14 @@ const CreateGroupScreen = ({ navigation }: any) => {
           >
             <Text style={styles.headerIcon}>arrow_back</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('group.create_group')}</Text>
+          <Text style={styles.headerTitle}>Tạo nhóm</Text>
           <View style={{ width: 44 }} />
         </View>
 
         <View style={styles.contentLarge}>
           {/* Left Panel: Group Setup */}
           <View style={styles.leftPanel}>
-            <Text style={styles.sectionTitle}>{t('group.group_info')}</Text>
+            <Text style={styles.sectionTitle}>Thông tin nhóm</Text>
 
             <View style={styles.avatarSection}>
               <TouchableOpacity
@@ -283,11 +281,11 @@ const CreateGroupScreen = ({ navigation }: any) => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>{t('group.group_name')}</Text>
+              <Text style={styles.label}>Tên nhóm</Text>
               <View style={styles.nameInputWrapper}>
                 <TextInput
                   style={styles.nameInputLarge}
-                  placeholder={t('group.group_name_placeholder')}
+                  placeholder="Nhập tên nhóm..."
                   value={groupName}
                   onChangeText={handleGroupNameChange}
                   maxLength={50}
@@ -301,12 +299,12 @@ const CreateGroupScreen = ({ navigation }: any) => {
           {/* Right Panel: Member Selection */}
           <View style={styles.rightPanel}>
             <View style={styles.searchWrapper}>
-              <Text style={styles.sectionTitle}>{t('group.select_members')}</Text>
+              <Text style={styles.sectionTitle}>Chọn thành viên</Text>
               <View style={styles.searchContainer}>
                 <Text style={styles.searchIcon}>search</Text>
                 <TextInput
                   style={styles.searchInput}
-                  placeholder={t('group.search_placeholder')}
+                  placeholder="Tìm tên hoặc email"
                   value={searchText}
                   onChangeText={setSearchText}
                   placeholderTextColor="#94a3b8"
@@ -393,7 +391,7 @@ const CreateGroupScreen = ({ navigation }: any) => {
             ) : (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
-                  {loading ? t('common.loading') : t('group.no_friends_found')}
+                  {loading ? "Đang tải..." : "Không tìm thấy bạn bè"}
                 </Text>
               </View>
             )}
@@ -402,7 +400,7 @@ const CreateGroupScreen = ({ navigation }: any) => {
             {selectedMembersList.length > 0 && (
               <View style={styles.selectedPreviewLarge}>
                 <Text style={styles.selectedCountLarge}>
-                  {t('group.selected')}: {selectedMembersList.length}
+                  Đã chọn: {selectedMembersList.length}
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {selectedMembersList.map((member) => (
@@ -429,7 +427,7 @@ const CreateGroupScreen = ({ navigation }: any) => {
             style={styles.buttonSecondary}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.buttonSecondaryText}>{t('common.cancel')}</Text>
+            <Text style={styles.buttonSecondaryText}>Hủy</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
@@ -444,7 +442,7 @@ const CreateGroupScreen = ({ navigation }: any) => {
             ) : (
               <>
                 <Text style={styles.buttonPrimaryIcon}>group_add</Text>
-                <Text style={styles.buttonPrimaryText}>{t('group.create_group')}</Text>
+                <Text style={styles.buttonPrimaryText}>Tạo nhóm</Text>
               </>
             )}
           </TouchableOpacity>
@@ -463,7 +461,7 @@ const CreateGroupScreen = ({ navigation }: any) => {
         >
           <Text style={styles.headerIcon}>close</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('group.new_group')}</Text>
+        <Text style={styles.headerTitle}>Nhóm mới</Text>
         <TouchableOpacity
           onPress={handleCreateGroup}
           disabled={creating || !canCreateGroup}
@@ -472,7 +470,7 @@ const CreateGroupScreen = ({ navigation }: any) => {
           {creating ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.headerText}>{t('common.create')}</Text>
+            <Text style={styles.headerText}>Tạo</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -496,11 +494,11 @@ const CreateGroupScreen = ({ navigation }: any) => {
           </TouchableOpacity>
         </Animated.View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.label}>{t('group.group_name')}</Text>
+          <Text style={styles.label}>Tên nhóm</Text>
           <View style={styles.nameInputWrapper}>
             <TextInput
               style={styles.nameInput}
-              placeholder={t('group.group_name_placeholder')}
+              placeholder="Nhập tên nhóm..."
               value={groupName}
               onChangeText={handleGroupNameChange}
               maxLength={50}
@@ -515,7 +513,7 @@ const CreateGroupScreen = ({ navigation }: any) => {
         <Text style={styles.searchIcon}>search</Text>
         <TextInput
           style={styles.searchInput}
-          placeholder={t('group.search_placeholder')}
+          placeholder="Tìm tên hoặc email"
           value={searchText}
           onChangeText={setSearchText}
           placeholderTextColor="#94a3b8"
@@ -567,7 +565,7 @@ const CreateGroupScreen = ({ navigation }: any) => {
       {selectedEmails.size > 0 && (
         <View style={styles.selectedContainer}>
           <Text style={styles.selectedLabel}>
-            {t('group.selected')} {selectedEmails.size}
+            Đã chọn {selectedEmails.size}
           </Text>
           <ScrollView
             horizontal
@@ -641,7 +639,7 @@ const CreateGroupScreen = ({ navigation }: any) => {
           ) : (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>
-                {searchText ? t('group.no_friends_found') : t('group.no_friends')}
+                {searchText ? "Không tìm thấy bạn bè" : "Bạn chưa có bạn bè"}
               </Text>
             </View>
           )

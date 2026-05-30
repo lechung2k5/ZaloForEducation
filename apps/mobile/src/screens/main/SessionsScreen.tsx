@@ -1,4 +1,3 @@
-import { useTheme } from '../../context/ThemeContext';
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
@@ -31,8 +30,6 @@ interface SessionsScreenProps {
 }
 
 export default function SessionsScreen({ onNavigate, goBack }: SessionsScreenProps) {
-  const { colors, t } = useTheme();
-  const styles = React.useMemo(() => getStyles(colors), [colors]);
   const [activeSessions, setActiveSessions] = useState<Session[]>([]);
   const [loginHistory, setLoginHistory] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -297,55 +294,55 @@ export default function SessionsScreen({ onNavigate, goBack }: SessionsScreenPro
   );
 }
 
-const getStyles = (colors: any) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#f7f9fb' },
   header: {
     height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    backgroundColor: colors.surface,
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomColor: Colors.outlineVariant,
   },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  icon: { fontFamily: 'Material Symbols Outlined', fontSize: 24, color: colors.onSurface },
-  headerTitle: { ...Typography.heading, fontSize: 18, color: colors.primary, marginLeft: 8 },
+  icon: { fontFamily: 'Material Symbols Outlined', fontSize: 24, color: Colors.onSurface },
+  headerTitle: { ...Typography.heading, fontSize: 18, color: Colors.primary, marginLeft: 8 },
   
   scrollContent: { padding: 20 },
   infoBox: { marginBottom: 24 },
-  infoTitle: { ...Typography.heading, fontSize: 24, color: colors.onSurface, marginBottom: 8 },
-  infoSubtitle: { ...Typography.body, fontSize: 14, color: colors.onSurfaceVariant, lineHeight: 20 },
+  infoTitle: { ...Typography.heading, fontSize: 24, color: Colors.onSurface, marginBottom: 8 },
+  infoSubtitle: { ...Typography.body, fontSize: 14, color: Colors.onSurfaceVariant, lineHeight: 20 },
   
   sessionList: { marginBottom: 24 },
   sessionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: '#fff',
     padding: 16,
     borderRadius: 20,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: Colors.outlineVariant,
     ...Shadows.soft,
   },
-  sessionCardActive: { borderColor: colors.primaryContainer, backgroundColor: 'rgba(0, 65, 143, 0.02)' },
+  sessionCardActive: { borderColor: Colors.primaryContainer, backgroundColor: 'rgba(0, 65, 143, 0.02)' },
   sessionIconBox: {
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: colors.surfaceContainerHighest,
+    backgroundColor: Colors.surfaceContainerHighest,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
   },
-  sessionIcon: { fontFamily: 'Material Symbols Outlined', fontSize: 24, color: colors.primary },
+  sessionIcon: { fontFamily: 'Material Symbols Outlined', fontSize: 24, color: Colors.primary },
   sessionInfo: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  deviceName: { ...Typography.heading, fontSize: 15, color: colors.onSurface },
-  currentBadge: { backgroundColor: colors.primaryContainer, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginLeft: 8 },
-  currentText: { color: colors.primary, fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
-  lastActive: { ...Typography.body, fontSize: 12, color: colors.outline },
+  deviceName: { ...Typography.heading, fontSize: 15, color: Colors.onSurface },
+  currentBadge: { backgroundColor: Colors.primaryContainer, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginLeft: 8 },
+  currentText: { color: Colors.primary, fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
+  lastActive: { ...Typography.body, fontSize: 12, color: Colors.outline },
   
   warningBox: {
     flexDirection: 'row',
@@ -368,7 +365,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     ...Shadows.medium,
   },
-  logoutAllText: { ...Typography.heading, color: colors.surface, fontSize: 16 },
+  logoutAllText: { ...Typography.heading, color: '#fff', fontSize: 16 },
   revokeBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -382,7 +379,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  sectionLabel: { ...Typography.heading, fontSize: 16, color: colors.primary, marginBottom: 12, marginLeft: 4 },
+  sectionLabel: { ...Typography.heading, fontSize: 16, color: Colors.primary, marginBottom: 12, marginLeft: 4 },
   historyCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -391,38 +388,38 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 16,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
+    borderColor: Colors.outlineVariant,
     opacity: 0.8,
   },
   historyIconBox: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: colors.surface,
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
-  historyIcon: { fontFamily: 'Material Symbols Outlined', fontSize: 20, color: colors.outline },
-  historyName: { ...Typography.heading, fontSize: 14, color: colors.onSurfaceVariant },
-  historyTime: { ...Typography.body, fontSize: 11, color: colors.outline },
+  historyIcon: { fontFamily: 'Material Symbols Outlined', fontSize: 20, color: Colors.outline },
+  historyName: { ...Typography.heading, fontSize: 14, color: Colors.onSurfaceVariant },
+  historyTime: { ...Typography.body, fontSize: 11, color: Colors.outline },
   historyBadge: { 
-    backgroundColor: colors.surfaceContainerHighest, 
+    backgroundColor: Colors.surfaceContainerHighest, 
     paddingHorizontal: 6, 
     paddingVertical: 2, 
     borderRadius: 4 
   },
-  historyBadgeText: { color: colors.outline, fontSize: 9, fontWeight: '800' },
+  historyBadgeText: { color: Colors.outline, fontSize: 9, fontWeight: '800' },
   emptyCard: {
     padding: 24,
-    backgroundColor: colors.surface,
+    backgroundColor: '#fff',
     borderRadius: 16,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: colors.outlineVariant,
+    borderColor: Colors.outlineVariant,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
   },
-  emptyText: { ...Typography.body, fontSize: 13, color: colors.outline, fontStyle: 'italic' },
+  emptyText: { ...Typography.body, fontSize: 13, color: Colors.outline, fontStyle: 'italic' },
 });

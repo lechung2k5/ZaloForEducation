@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { getStyles } from '../../screens/main/style/ChatScreen.styles';
+import styles from '../../screens/main/style/ChatScreen.styles';
 import { getMessagePreview } from '../../utils/chatUtils';
-import { useTheme } from '../../context/ThemeContext';
 
 interface PinBannerProps {
   activePinnedMessages: any[];
@@ -19,9 +18,6 @@ export const PinBanner: React.FC<PinBannerProps> = ({
   onJumpToMessage,
   onUnpin,
 }) => {
-  const { t, colors, isDark } = useTheme();
-  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
-  
   if (activePinnedMessages.length === 0) return null;
 
   return (
@@ -36,12 +32,12 @@ export const PinBanner: React.FC<PinBannerProps> = ({
           </View>
           <View style={styles.pinBannerContent}>
             {activePinnedMessages.length > 1 && !isPinsExpanded ? (
-              <Text style={styles.pinBannerCount}>{t('chat.n_pinned_messages', { count: activePinnedMessages.length })}</Text>
+              <Text style={styles.pinBannerCount}>{activePinnedMessages.length} tin nhắn ghim</Text>
             ) : (
               <>
-                <Text style={styles.pinBannerLabel}>{t('chat.pinned_messages_label')}</Text>
+                <Text style={styles.pinBannerLabel}>TIN NHẮN ĐÃ GHIM</Text>
                 <Text style={styles.pinBannerText} numberOfLines={1}>
-                  {activePinnedMessages[0].isPlaceholder ? t('chat.loading_msg') : getMessagePreview(activePinnedMessages[0])}
+                  {activePinnedMessages[0].isPlaceholder ? "Đang tải tin nhắn..." : getMessagePreview(activePinnedMessages[0])}
                 </Text>
               </>
             )}
@@ -73,7 +69,7 @@ export const PinBanner: React.FC<PinBannerProps> = ({
                   }}
                 >
                   <Text style={styles.pinExpandedText} numberOfLines={1}>
-                    {m.isPlaceholder ? t('chat.loading') : getMessagePreview(m)}
+                    {m.isPlaceholder ? "Đang tải..." : getMessagePreview(m)}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => onUnpin(m.id)} style={styles.pinExpandedUnpin}>

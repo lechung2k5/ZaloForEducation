@@ -25,7 +25,7 @@
         "foregroundImage": "./assets/logo_white.png",
         "backgroundColor": "#00418f"
       },
-      "edgeToEdgeEnabled": false,
+      "edgeToEdgeEnabled": true,
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",

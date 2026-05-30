@@ -1,4 +1,3 @@
-import { useTheme } from '../../context/ThemeContext';
 import React, {
   useCallback,
   useEffect,
@@ -13,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Alert from "../../utils/Alert";
 import SocketService from "../../utils/socket";
-import { getContactsStyles } from "./style/ContactsScreen.styles";
+import styles from "./style/ContactsScreen.styles";
 import { chatGet, chatPost, chatPatch } from "../../utils/api";
 import { 
   friendEmailOf, 
@@ -23,7 +22,6 @@ import {
   daysUntilNextBirthday 
 } from "../../utils/contactUtils";
 import { useContacts } from "../../hooks/queries/useContacts";
-import { useChatStore } from '../../store/chatStore';
 
 // Components
 import { ContactsHeader } from "../../components/contacts/ContactsHeader";
@@ -33,8 +31,6 @@ import { GroupsList } from "../../components/contacts/GroupsList";
 import { BlockedList } from "../../components/contacts/BlockedList";
 import { ContactRequests } from "../../components/contacts/ContactRequests";
 import { ContactModals } from "../../components/contacts/ContactModals";
-
-const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
 
 export default function ContactsScreen({
   user,
@@ -49,8 +45,6 @@ export default function ContactsScreen({
   onOpenGroupConversation: (conv: any) => void;
   onNavigate?: (screen: string, params?: any) => void;
 }) {
-  const { t, colors } = useTheme();
-  const styles = getContactsStyles(colors);
   const insets = useSafeAreaInsets();
 
   const [loading, setLoading] = useState(false);
@@ -59,8 +53,7 @@ export default function ContactsScreen({
   const [friendships, setFriendships] = useState<any[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
-  const profileMap = useChatStore((state) => state.userProfiles);
-  const loadMultipleProfiles = useChatStore((state) => state.loadMultipleProfiles);
+  const [profileMap, setProfileMap] = useState<Record<string, any>>({});
   const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
 
   const [searchText, setSearchText] = useState("");
@@ -85,9 +78,42 @@ export default function ContactsScreen({
   }, [profileMap]);
 
   const ensureProfiles = useCallback(async (emails: string[]) => {
-    if (!emails || emails.length === 0) return;
-    await loadMultipleProfiles(emails);
-  }, [loadMultipleProfiles]);
+    const targets = Array.from(
+      new Set(
+        (emails || [])
+          .filter(Boolean)
+          .map((email) => String(email).toLowerCase()),
+      ),
+    );
+    if (targets.length === 0) return;
+
+    const missing = targets.filter((email) => !profileMapRef.current[email]);
+    if (missing.length === 0) return;
+
+    try {
+      const results = await Promise.all(
+        missing.map(async (email) => {
+          const res = await chatGet("/friends/search", { email });
+          const payload = res?.data || {};
+          if (res?.ok && payload?.found && payload?.user) {
+            return [email, payload.user];
+          }
+          return null;
+        }),
+      );
+
+      const patch: Record<string, any> = {};
+      results.forEach((entry) => {
+        if (entry) patch[entry[0] as string] = entry[1];
+      });
+
+      if (Object.keys(patch).length > 0) {
+        setProfileMap((prev) => ({ ...prev, ...patch }));
+      }
+    } catch (error) {
+      console.warn("Cannot load contact profiles", error);
+    }
+  }, []);
 
   const { data: contactsData, isLoading: contactsLoading, refetch: refetchContacts } = useContacts();
 
@@ -136,7 +162,7 @@ export default function ContactsScreen({
           nickname,
           isCloseFriend: Boolean(item?.closeFriend),
           displayName,
-          avatarUrl: profile.avatarUrl || DEFAULT_AVATAR,
+          avatarUrl: profile.avatarUrl || profile.urlAvatar || profile.avatar || "",
           status: profile.status,
           profile,
         };
@@ -179,12 +205,9 @@ export default function ContactsScreen({
     return (suggestions || []).filter((item) => !skippedSuggestions[item.email]);
   }, [skippedSuggestions, suggestions]);
 
-  const showOnlineStatus = user?.showOnlineStatus !== false;
-
   const recentlyOnlineCount = useMemo(() => {
-    if (!showOnlineStatus) return 0;
     return acceptedFriends.filter((item: any) => String(item.status || "").toLowerCase() === "online").length;
-  }, [acceptedFriends, showOnlineStatus]);
+  }, [acceptedFriends]);
 
   const handleAccept = async (senderEmail: string) => {
     if (!senderEmail || busyAction) return;
@@ -302,9 +325,15 @@ export default function ContactsScreen({
     setProfileFriend({ ...friend, email, profile: profileMap[email] || {} });
     setProfileLoading(true);
     try {
-      await loadMultipleProfiles([email]);
-      const currentProfiles = useChatStore.getState().userProfiles;
-      setProfileFriend((prev: any) => prev?.email === email ? { ...prev, profile: currentProfiles[email] || prev.profile } : prev);
+      const res = await chatGet("/friends/search", { email });
+      if (res?.ok && res.data?.user) {
+        setProfileMap((prev: any) => ({ ...prev, [email]: res.data.user }));
+        setProfileFriend((prev: any) => prev?.email === email ? {
+          ...prev,
+          avatarUrl: res.data.user.avatarUrl || res.data.user.urlAvatar || res.data.user.avatar || prev.avatarUrl || "",
+          profile: res.data.user,
+        } : prev);
+      }
     } catch (error) {
       console.warn("Load profile failed", error);
     } finally {
@@ -355,7 +384,6 @@ export default function ContactsScreen({
               onOpenProfile={openProfile}
               onOpenActionSheet={setActionFriend}
               searchText={searchText}
-              showOnlineStatus={showOnlineStatus}
             />
           </>
         )}

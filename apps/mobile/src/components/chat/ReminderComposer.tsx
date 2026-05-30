@@ -1,4 +1,3 @@
-import { useTheme } from '../../context/ThemeContext';
 import React, { useMemo, useState } from "react";
 import {
   View,
@@ -106,7 +105,6 @@ export default function ReminderComposer({
   onClose,
   onCreate,
 }: ReminderComposerProps) {
-  const { t } = useTheme();
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(getDefaultDate());
   const [time, setTime] = useState(getDefaultTime());
@@ -141,17 +139,17 @@ export default function ReminderComposer({
   const handleCreate = () => {
     const normalizedTitle = title.trim();
     if (!normalizedTitle) {
-      Alert.alert(t('chat.status_error'), t('chat.invalid_time'));
+      Alert.alert("Lỗi", "Vui lòng nhập tiêu đề nhắc hẹn");
       return;
     }
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      Alert.alert(t('chat.status_error'), t('chat.invalid_time'));
+      Alert.alert("Lỗi", "Ngày không hợp lệ. Dùng định dạng YYYY-MM-DD");
       return;
     }
 
     if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(time)) {
-      Alert.alert(t('chat.status_error'), t('chat.invalid_time'));
+      Alert.alert("Lỗi", "Giờ không hợp lệ. Dùng định dạng HH:mm");
       return;
     }
 

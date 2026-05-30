@@ -198,7 +198,6 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
     SocketService.off('call:upgrade_declined');
     SocketService.off('friend_request_received');
     SocketService.off('friendship_updated');
-    SocketService.off('presence_update');
 
     SocketService.on('force_logout', (data: any) => {
       if (handleForceLogoutRef.current) {
@@ -222,24 +221,7 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       if (data && data.profile) updateUser(data.profile);
     });
 
-    SocketService.on('presence_update', (data: any) => {
-      const email = String(data?.email || '').trim().toLowerCase();
-      if (!email) return;
-      const status = data?.status;
-      if (status !== 'online' && status !== 'offline') return;
-
-      const chatStore = useChatStore.getState();
-      const existing = chatStore.userProfiles[email] || {};
-      chatStore.upsertProfiles({
-        [email]: {
-          ...existing,
-          email,
-          status,
-        },
-      });
-    });
-
-    SocketService.on('receiveMessage', async (data: any) => {
+    SocketService.on('receiveMessage', (data: any) => {
       const chatStore = useChatStore.getState();
       chatStore.addMessage(data);
 
@@ -270,14 +252,6 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       const isMe = String(data.senderId || '').replace(/^USER#/, "").trim().toLowerCase() === String(chatStore.currentUserEmail || '').trim().toLowerCase();
       
       if ((AppState.currentState !== 'active' || !isActiveChat) && !isMe && !chatStore.isConversationMuted(convId)) {
-        let settings: any = { notifications: true, messageSound: true };
-        try {
-          const raw = await AsyncStorage.getItem('mobile_settings');
-          if (raw) settings = { ...settings, ...JSON.parse(raw) };
-        } catch(e) {}
-
-        if (settings.notifications === false) return;
-
         const getProfileName = (email: string) => {
           if (!email) return 'Người dùng';
           const profiles = chatStore.userProfiles;
@@ -393,7 +367,7 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       }
     });
 
-    SocketService.on('call:incoming', async (data: any) => {
+    SocketService.on('call:incoming', (data: any) => {
       const { callState, activeCallId, receiveIncomingCall } = useCallStore.getState();
       if (callState !== 'IDLE') {
         if (activeCallId !== data.callId) {
@@ -410,14 +384,6 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       receiveIncomingCall(data.callerProfile, data.callType, data.convId, data.callId);
 
       if (AppState.currentState !== 'active') {
-        let settings: any = { notifications: true, messageSound: true, callVibrate: true };
-        try {
-          const raw = await AsyncStorage.getItem('mobile_settings');
-          if (raw) settings = { ...settings, ...JSON.parse(raw) };
-        } catch(e) {}
-
-        if (settings.notifications === false) return;
-
         if (Platform.OS === 'android' && NativeModules.ChimeModule?.wakeUpScreen) {
           NativeModules.ChimeModule.wakeUpScreen();
         }
@@ -440,6 +406,7 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
             categoryIdentifier: 'incoming_call',
             autoDismiss: false,
             sticky: true,
+            vibrate: [0, 500, 1000, 500, 1000, 500],
           },
           trigger: null,
         });
@@ -692,7 +659,6 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       SocketService.off('call:upgrade_declined');
       SocketService.off('friend_request_received');
       SocketService.off('friendship_updated');
-      SocketService.off('presence_update');
       subscription.remove();
       responseListener.remove();
     };

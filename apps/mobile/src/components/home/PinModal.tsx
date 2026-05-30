@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useTheme } from '../../context/ThemeContext';
 import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Colors } from '../../constants/Theme';
 
@@ -16,12 +15,11 @@ export const PinModal: React.FC<PinModalProps> = ({
   onClose,
   onSubmit,
 }) => {
-  const { t } = useTheme();
   const [pin, setPin] = useState('');
 
   const handleSubmit = () => {
     if (pin.length < 4) {
-      Alert.alert(t('common.error'), t('home.pin_min_length'));
+      Alert.alert("Lỗi", "Mã PIN phải có ít nhất 4 ký tự");
       return;
     }
     onSubmit(pin);
@@ -41,12 +39,12 @@ export const PinModal: React.FC<PinModalProps> = ({
       >
         <View style={styles.modalContent}>
           <Text style={styles.title}>
-            {isSettingPin ? t('home.create_pin') : t('home.enter_pin')}
+            {isSettingPin ? "Tạo mã PIN để khóa" : "Nhập mã PIN để mở khóa"}
           </Text>
           <Text style={styles.subtitle}>
             {isSettingPin 
-              ? t('home.create_pin_desc')
-              : t('home.enter_pin_desc')}
+              ? "Trò chuyện này sẽ bị ẩn khỏi danh sách. Bạn cần nhập mã PIN để mở lại."
+              : "Vui lòng nhập mã PIN đã cài đặt để mở khóa trò chuyện."}
           </Text>
           
           <TextInput
@@ -56,20 +54,20 @@ export const PinModal: React.FC<PinModalProps> = ({
             keyboardType="number-pad"
             secureTextEntry
             maxLength={6}
-            placeholder={t('home.pin_placeholder')}
+            placeholder="Nhập mã PIN (4-6 số)"
             autoFocus
           />
           
           <View style={styles.buttonContainer}>
             <TouchableOpacity style={styles.buttonCancel} onPress={handleClose}>
-              <Text style={styles.buttonCancelText}>{t('common.cancel')}</Text>
+              <Text style={styles.buttonCancelText}>Hủy</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.buttonSubmit, pin.length < 4 && { opacity: 0.5 }]} 
               onPress={handleSubmit}
               disabled={pin.length < 4}
             >
-              <Text style={styles.buttonSubmitText}>{t('common.confirm')}</Text>
+              <Text style={styles.buttonSubmitText}>Xác nhận</Text>
             </TouchableOpacity>
           </View>
         </View>

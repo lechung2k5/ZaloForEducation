@@ -1,15 +1,15 @@
 import { StyleSheet, Platform } from "react-native";
-import { Typography } from "../../../constants/Theme";
+import { Colors, Typography } from "../../../constants/Theme";
 
-const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
+export default StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#f7f9fb" },
   keyboardAvoidingContainer: { flex: 1 },
   header: { paddingBottom: 14, paddingHorizontal: 16 },
   headerContent: { flexDirection: "row", alignItems: "center", gap: 8 },
   searchContainer: {
     flex: 1,
     height: 38,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: 10,
     flexDirection: "row",
     alignItems: "center",
@@ -18,15 +18,15 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   searchIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 20,
-    color: '#ffffff',
+    color: "#fff",
     marginRight: 8,
   },
-  searchInput: { flex: 1, color: '#ffffff', ...Typography.body, fontSize: 15 },
+  searchInput: { flex: 1, color: "#fff", ...Typography.body, fontSize: 15 },
   iconButton: { padding: 4 },
   headerIconText: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: '#ffffff',
+    color: "#fff",
   },
   headerIcons: {
     flexDirection: "row",
@@ -41,7 +41,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     backgroundColor: "#ff3b30",
     borderRadius: 5,
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: "#0058bc",
     zIndex: 1,
   },
 
@@ -49,28 +49,28 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   scrollContainer: { flex: 1 },
 
   sectionHeader: { padding: 16, paddingBottom: 8 },
-  sectionTitle: { ...Typography.heading, fontSize: 18, color: colors.onPrimaryContainer },
+  sectionTitle: { ...Typography.heading, fontSize: 18, color: "#00418f" },
 
   chatList: { paddingBottom: 110 },
   chatItem: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderBottomWidth: Platform.OS === "android" ? 1 : 0.5,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomColor: "#eceef0",
   },
   chatItemMentioned: {
-    backgroundColor: colors.primaryContainer,
+    backgroundColor: "#eef6ff",
     borderLeftWidth: 3,
-    borderLeftColor: colors.primary,
+    borderLeftColor: Colors.primary,
   },
   avatar: {
     width: 54,
     height: 54,
     borderRadius: 27,
     marginRight: 14,
-    backgroundColor: colors.surfaceVariant,
+    backgroundColor: "#e0e3e5",
   },
   avatarContainer: { position: "relative" },
   unreadBadge: {
@@ -85,7 +85,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: colors.surface,
+    borderColor: "#fff",
     zIndex: 10,
   },
   onlineBadge: {
@@ -97,11 +97,11 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 6,
     backgroundColor: "#4cd964", // Vibrant Green
     borderWidth: 2,
-    borderColor: colors.surface,
+    borderColor: "#fff",
     zIndex: 11,
   },
   unreadBadgeText: {
-    color: colors.surface,
+    color: "#fff",
     fontSize: 10,
     fontWeight: "900",
   },
@@ -123,12 +123,12 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginTop: 4,
   },
   mentionPillText: {
-    color: colors.primary,
+    color: Colors.primary,
     fontSize: 10,
     fontWeight: "800",
   },
   lastMsgMentioned: {
-    color: colors.primary,
+    color: Colors.primary,
     fontWeight: "800",
   },
   chatInfo: { flex: 1 },
@@ -140,19 +140,19 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   chatName: {
     ...Typography.heading,
     fontSize: 15,
-    color: colors.onSurface,
+    color: "#191c1e",
     flex: 1,
     marginRight: 8,
   },
-  chatTime: { ...Typography.body, fontSize: 12, color: colors.onSurfaceVariant },
+  chatTime: { ...Typography.body, fontSize: 12, color: "#727784" },
   chatRight: {
     alignItems: "flex-end",
     justifyContent: "flex-start",
     minWidth: 50,
   },
-  lastMsg: { ...Typography.body, fontSize: 13, color: colors.onSurfaceVariant, flex: 1 },
+  lastMsg: { ...Typography.body, fontSize: 13, color: "#727784", flex: 1 },
 
-  chatPane: { flex: 1, backgroundColor: colors.background },
+  chatPane: { flex: 1, backgroundColor: "#f7f9fb" },
   chatPaneHeader: {
     paddingHorizontal: 12,
     paddingBottom: 12,
@@ -163,10 +163,10 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   chatPaneBack: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 26,
-    color: colors.surface,
+    color: "#fff",
   },
   chatPaneAvatar: { width: 38, height: 38, borderRadius: 19 },
-  chatPaneName: { ...Typography.heading, fontSize: 15, color: colors.surface },
+  chatPaneName: { ...Typography.heading, fontSize: 15, color: "#fff" },
   chatPaneSub: { ...Typography.body, fontSize: 12, color: "rgba(255,255,255,0.8)" },
   chatHeaderIcons: {
     flexDirection: "row",
@@ -180,14 +180,14 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   chatHeaderIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: colors.surface,
+    color: "#fff",
   },
 
   pinStrip: { paddingHorizontal: 10, paddingTop: 8, gap: 6 },
   pinItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#e0e6f0",
     borderRadius: 10,
@@ -198,10 +198,10 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   pinIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 16,
-    color: colors.primary,
+    color: "#0058bc",
   },
   pinText: { flex: 1, ...Typography.body, fontSize: 12, color: "#2f3a4a" },
-  pinUnpin: { ...Typography.label, fontSize: 11, color: colors.primary },
+  pinUnpin: { ...Typography.label, fontSize: 11, color: "#0058bc" },
 
   messagesContainer: { flex: 1 },
   messageRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
@@ -215,8 +215,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderWidth: 1,
   },
   messageBubbleMe: { backgroundColor: "#dfefff", borderColor: "#c8dcff" },
-  messageBubbleOther: { backgroundColor: colors.surface, borderColor: "#e3e8f0" },
-  messageText: { ...Typography.body, fontSize: 14, color: colors.onSurface },
+  messageBubbleOther: { backgroundColor: "#fff", borderColor: "#e3e8f0" },
+  messageText: { ...Typography.body, fontSize: 14, color: "#1f2631" },
   recalledText: { fontStyle: "italic", opacity: 0.72 },
   replyBlock: {
     backgroundColor: "rgba(255,255,255,0.6)",
@@ -226,7 +226,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     padding: 6,
     marginBottom: 6,
   },
-  replySender: { ...Typography.label, fontSize: 11, color: colors.primary },
+  replySender: { ...Typography.label, fontSize: 11, color: "#0058bc" },
   replyContent: { ...Typography.body, fontSize: 12, color: "#5f6570" },
   messageImage: {
     width: 190,
@@ -248,7 +248,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 20,
     color: "#51617a",
   },
-  messageFileName: { ...Typography.label, fontSize: 12, color: colors.onSurface },
+  messageFileName: { ...Typography.label, fontSize: 12, color: "#1f2631" },
   messageFileSize: { ...Typography.body, fontSize: 11, color: "#7a8391" },
 
   replyComposer: {
@@ -259,9 +259,9 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderTopColor: "#e5eaf2",
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
   },
-  replyComposerTitle: { ...Typography.label, fontSize: 12, color: colors.primary },
+  replyComposerTitle: { ...Typography.label, fontSize: 12, color: "#0058bc" },
   replyComposerText: { ...Typography.body, fontSize: 12, color: "#6e7683" },
   replyComposerCancel: {
     ...Typography.heading,
@@ -269,7 +269,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: "#6e7683",
   },
 
-  attachmentStrip: { maxHeight: 56, backgroundColor: colors.surface },
+  attachmentStrip: { maxHeight: 56, backgroundColor: "#fff" },
   attachmentChip: {
     height: 34,
     flexDirection: "row",
@@ -298,7 +298,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: "#e5eaf2",
     paddingHorizontal: 10,
@@ -330,8 +330,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     paddingBottom: 8,
     ...Typography.body,
     fontSize: 14,
-    color: colors.onSurface,
-    backgroundColor: colors.surface,
+    color: "#1f2631",
+    backgroundColor: "#fff",
   },
   sendButton: {
     width: 38,
@@ -339,38 +339,38 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary,
+    backgroundColor: "#0058bc",
   },
   sendButtonText: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 20,
-    color: colors.surface,
+    color: "#fff",
   },
 
   friendItem: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderBottomWidth: Platform.OS === "android" ? 1 : 0.5,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomColor: "#eceef0",
   },
   friendAvatar: { width: 48, height: 48, borderRadius: 24, marginRight: 16 },
   friendInfo: { flex: 1 },
-  friendName: { ...Typography.heading, fontSize: 16, color: colors.onSurface },
-  friendStatus: { ...Typography.body, fontSize: 12, color: colors.onSurfaceVariant },
+  friendName: { ...Typography.heading, fontSize: 16, color: "#191c1e" },
+  friendStatus: { ...Typography.body, fontSize: 12, color: "#727784" },
   friendAction: { padding: 8 },
   friendActionIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: colors.onPrimaryContainer,
+    color: "#00418f",
   },
 
   searchResultCard: {
     marginHorizontal: 16,
     marginBottom: 10,
     padding: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#e0e6f0",
@@ -387,22 +387,22 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginRight: 10,
     backgroundColor: "#e8edf5",
   },
-  searchResultName: { ...Typography.heading, fontSize: 15, color: colors.onSurface },
+  searchResultName: { ...Typography.heading, fontSize: 15, color: "#1f2631" },
   searchResultEmail: { ...Typography.body, fontSize: 12, color: "#6d7685" },
   searchResultHint: { ...Typography.body, fontSize: 12, color: "#5f697a" },
   searchResultPrimaryButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#0058bc",
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 9,
   },
-  searchResultPrimaryText: { ...Typography.label, fontSize: 13, color: colors.surface },
+  searchResultPrimaryText: { ...Typography.label, fontSize: 13, color: "#fff" },
 
   pendingSection: {
     marginHorizontal: 16,
     marginBottom: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#e0e6f0",
@@ -411,7 +411,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   pendingSectionTitle: {
     ...Typography.heading,
     fontSize: 14,
-    color: colors.onSurface,
+    color: "#1f2631",
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: 4,
@@ -424,15 +424,15 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#edf1f7",
   },
-  pendingName: { ...Typography.heading, fontSize: 14, color: colors.onSurface },
+  pendingName: { ...Typography.heading, fontSize: 14, color: "#1f2631" },
   pendingEmail: { ...Typography.body, fontSize: 11, color: "#6d7685" },
   pendingAcceptButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#0058bc",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
-  pendingAcceptText: { ...Typography.label, fontSize: 12, color: colors.surface },
+  pendingAcceptText: { ...Typography.label, fontSize: 12, color: "#fff" },
 
   centeredView: {
     flex: 1,
@@ -443,35 +443,35 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   aiIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 80,
-    color: colors.onPrimaryContainer,
+    color: "#00418f",
     marginBottom: 20,
     opacity: 0.8,
   },
   aiTitle: {
     ...Typography.heading,
     fontSize: 24,
-    color: colors.onSurface,
+    color: "#191c1e",
     marginBottom: 8,
   },
   aiSubtitle: {
     ...Typography.body,
     fontSize: 16,
-    color: colors.onSurfaceVariant,
+    color: "#727784",
     textAlign: "center",
   },
 
   profileHeader: {
     alignItems: "center",
     padding: 32,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant,
+    borderBottomColor: "#eceef0",
   },
   largeAvatarBox: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: colors.primary,
+    backgroundColor: "#0058bc",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -480,16 +480,16 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   profileName: {
     ...Typography.heading,
     fontSize: 22,
-    color: colors.onSurface,
+    color: "#191c1e",
     marginBottom: 4,
   },
-  profileEmail: { ...Typography.body, fontSize: 14, color: colors.onSurfaceVariant },
+  profileEmail: { ...Typography.body, fontSize: 14, color: "#727784" },
   menuContainer: { padding: 16, paddingTop: 24 },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderRadius: 16,
     marginBottom: 12,
   },
@@ -502,7 +502,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginRight: 16,
   },
   menuIcon: { fontFamily: "Material Symbols Outlined", fontSize: 22 },
-  menuLabel: { flex: 1, ...Typography.heading, fontSize: 16, color: colors.onSurface },
+  menuLabel: { flex: 1, ...Typography.heading, fontSize: 16, color: "#191c1e" },
   menuArrow: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 20,
@@ -510,7 +510,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: colors.outlineVariant,
+    backgroundColor: "#eceef0",
     marginVertical: 12,
     marginHorizontal: 8,
   },
@@ -528,12 +528,12 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 20,
     color: "#5a6781",
   },
-  fileHistoryName: { ...Typography.label, fontSize: 13, color: colors.onSurface },
+  fileHistoryName: { ...Typography.label, fontSize: 13, color: "#1f2631" },
   fileHistoryMeta: { ...Typography.body, fontSize: 11, color: "#7a8391" },
 
   floatingTabBar: {
     position: "absolute",
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     flexDirection: "row",
     alignItems: "center",
     borderTopWidth: 1,
@@ -553,12 +553,12 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   tabIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: colors.onSurfaceVariant,
+    color: "#727784",
     marginBottom: 4,
   },
-  tabIconActive: { color: colors.onPrimaryContainer },
-  tabLabel: { ...Typography.label, fontSize: 10, color: colors.onSurfaceVariant },
-  tabLabelActive: { color: colors.onPrimaryContainer },
+  tabIconActive: { color: "#00418f" },
+  tabLabel: { ...Typography.label, fontSize: 10, color: "#727784" },
+  tabLabelActive: { color: "#00418f" },
   tabBadge: {
     position: "absolute",
     top: 4,
@@ -571,11 +571,11 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: colors.surface,
+    borderColor: "#fff",
     zIndex: 10,
   },
   tabBadgeText: {
-    color: colors.surface,
+    color: "#fff",
     fontSize: 9,
     fontWeight: "900",
   },
@@ -587,7 +587,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     zIndex: 1000,
   },
   actionSheet: {
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -673,7 +673,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: "flex-end",
   },
   forwardSheet: {
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "80%",
@@ -723,7 +723,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   forwardSendIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 20,
-    color: colors.primary,
+    color: Colors.primary,
   },
 
   // QR Scanner Styles
@@ -742,19 +742,19 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "colors.surfaceVariant",
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
   scannerCloseIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: colors.surface,
+    color: "#fff",
   },
   scannerTitle: {
     ...Typography.heading,
     fontSize: 18,
-    color: colors.surface,
+    color: "#fff",
   },
   scannerFrameContainer: {
     flex: 1,
@@ -775,7 +775,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     position: "absolute",
     width: 24,
     height: 24,
-    borderColor: colors.surface,
+    borderColor: "#fff",
     borderWidth: 4,
   },
   topLeft: {
@@ -809,10 +809,10 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   scanLine: {
     width: "100%",
     height: 2,
-    backgroundColor: colors.primary,
+    backgroundColor: Colors.primary,
     position: "absolute",
     top: "50%",
-    shadowColor: colors.primary,
+    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 10,
@@ -828,7 +828,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     position: "absolute",
     right: 12,
     width: 200,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     borderRadius: 12,
     paddingVertical: 8,
     // Premium Shadow
@@ -844,7 +844,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     right: 12,
     width: 12,
     height: 12,
-    backgroundColor: colors.surface,
+    backgroundColor: "#fff",
     transform: [{ rotate: "45deg" }],
   },
   addMenuItem: {
@@ -862,7 +862,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   addMenuLabel: {
     ...Typography.body,
     fontSize: 15,
-    color: colors.onSurface,
+    color: "#1f2631",
     fontWeight: "500",
   },
   addMenuDivider: {
@@ -871,7 +871,3 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginVertical: 4,
   },
 });
-
-
-export { getStyles };
-

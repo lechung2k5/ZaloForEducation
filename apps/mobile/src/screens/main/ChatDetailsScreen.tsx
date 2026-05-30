@@ -9,7 +9,6 @@ import {
   Image, 
   Modal,
   TextInput,
-  Switch,
   Alert,
   Dimensions,
   ActivityIndicator
@@ -23,8 +22,49 @@ import { chatUpload } from '../../utils/api';
 import { normalizeAttachment } from '../../store/chatHelpers';
 import { chatPatch, chatPost, chatGet } from '../../utils/api';
 import { pushSecurityAlert } from '../../utils/securityAlerts';
+import { ASSETS } from '../../utils/assets';
+import {
+  CHAT_WALLPAPERS,
+  DEFAULT_CHAT_WALLPAPER_ID,
+  getConversationWallpaperId,
+  setConversationWallpaperId,
+  type ChatWallpaperId,
+} from '../../utils/chatWallpapers';
+import {
+  createCustomWindowMuteSchedule,
+  createMuteUntilHours,
+  createMuteUntilMorning,
+  getMuteLabel,
+  isValidTimeString,
+} from '../../utils/chatUtils';
 
 const { width } = Dimensions.get('window');
+const ASSET_PREVIEW_LIMIT = 5;
+
+const formatBytes = (value?: number) => {
+  const bytes = Number(value || 0);
+  if (!bytes) return 'Không rõ dung lượng';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+};
+
+const getHostName = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url.replace(/^https?:\/\//, '').split('/')[0] || 'Liên kết';
+  }
+};
+
+const avatarSource = (avatar?: string | null) => {
+  return avatar ? { uri: avatar } : ASSETS.DEFAULT_AVATAR;
+};
 
 const WALLPAPERS = [
   { key: 'default', label: 'Mặc định', color: '#ffffff' },
@@ -37,6 +77,7 @@ const CHAT_PINNED_CONVERSATIONS_KEY = 'chat_pinned_conversations_v1';
 const CHAT_HIDDEN_CONVERSATIONS_KEY = 'chat_hidden_conversations_v1';
 const CHAT_ALIAS_CONVERSATIONS_KEY = 'chat_alias_conversations_v1';
 const CHAT_AUTO_DELETE_KEY = 'chat_auto_delete_v1';
+const CHAT_MUTE_SCHEDULE_KEY = 'chat_notification_mute_schedule_v1';
 const AUTO_DELETE_OPTIONS = [
   { label: 'Không tự xóa', days: 0 },
   { label: '1 ngày', days: 1 },
@@ -186,7 +227,7 @@ const styles = StyleSheet.create({
   },
   mediaRow: {
     backgroundColor: '#fff',
-    paddingBottom: 16,
+    paddingBottom: 14,
   },
   mediaHeader: {
     flexDirection: 'row',
@@ -213,6 +254,136 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  assetSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  assetSummaryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#f1f5f9',
+  },
+  assetSummaryIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 15,
+    color: '#475569',
+    marginRight: 4,
+  },
+  assetSummaryText: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  assetThumb: {
+    width: (Dimensions.get('window').width - 72) / 5,
+    height: (Dimensions.get('window').width - 72) / 5,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: '#f1f5f9',
+  },
+  assetThumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  assetThumbOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.28)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  assetThumbIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 25,
+    color: '#fff',
+  },
+  assetMiniCard: {
+    width: (Dimensions.get('window').width - 72) / 5,
+    height: (Dimensions.get('window').width - 72) / 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5edf6',
+    backgroundColor: '#fff',
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  assetMiniIconBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: '#eef2f7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  assetMiniIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 18,
+    color: '#475569',
+  },
+  assetMiniTitle: {
+    width: '100%',
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#475569',
+    textAlign: 'center',
+  },
+  wallpaperGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  wallpaperOption: {
+    width: (Dimensions.get('window').width - 88) / 2,
+    aspectRatio: 9 / 16,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: '#eef2f7',
+  },
+  wallpaperOptionSelected: {
+    borderColor: Colors.primary,
+  },
+  wallpaperImage: {
+    width: '100%',
+    height: '100%',
+  },
+  wallpaperShade: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    padding: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.18)',
+  },
+  wallpaperLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  wallpaperCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wallpaperCheckIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 16,
+    color: '#fff',
   },
   emptyMedia: {
     flex: 1,
@@ -354,6 +525,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     userProfiles, 
     clearHistory,
     isConversationMuted,
+    setConversationMuted,
     muteConversationFor,
     clearConversationMuted,
     removeMember,
@@ -366,8 +538,9 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   } = useChatStore();
 
   const chat = conversations.find(c => c.id === conversationId);
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [wallpaperKey, setWallpaperKey] = useState<(typeof WALLPAPERS)[number]['key']>('default');
+  const [showWallpaperModal, setShowWallpaperModal] = useState(false);
+  const [selectedWallpaperId, setSelectedWallpaperId] = useState<ChatWallpaperId>(DEFAULT_CHAT_WALLPAPER_ID);
+  const [, setWallpaperKey] = useState<string>('default');
   const [showAliasModal, setShowAliasModal] = useState(false);
   const [aliasDraft, setAliasDraft] = useState('');
   const [savingAlias, setSavingAlias] = useState(false);
@@ -376,21 +549,25 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   const [commonGroups, setCommonGroups] = useState<any[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [mediaPreviewItems, setMediaPreviewItems] = useState<any[]>([]);
+  const [assetCounts, setAssetCounts] = useState({ media: 0, file: 0, link: 0 });
   const [loadingMediaPreview, setLoadingMediaPreview] = useState(false);
+  const [showMuteMenuModal, setShowMuteMenuModal] = useState(false);
+  const [showCustomMuteModal, setShowCustomMuteModal] = useState(false);
+  const [customMuteStartTime, setCustomMuteStartTime] = useState('22:00');
+  const [customMuteEndTime, setCustomMuteEndTime] = useState('07:00');
+
+  const [promptConfig, setPromptConfig] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    value: '',
+    placeholder: '',
+    keyboardType: 'default' as 'default' | 'email-address',
+    onSubmit: (val: string) => {}
+  });
 
   useEffect(() => {
     let active = true;
-
-    const loadWallpaper = async () => {
-      try {
-        const saved = await AsyncStorage.getItem(`chat-wallpaper:${conversationId}`);
-        if (active && saved && WALLPAPERS.some((item) => item.key === saved)) {
-          setWallpaperKey(saved as (typeof WALLPAPERS)[number]['key']);
-        }
-      } catch {
-        // Ignore local storage failures and keep the default wallpaper.
-      }
-    };
 
     const loadAlias = async () => {
       try {
@@ -421,7 +598,6 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       }
     };
 
-    loadWallpaper();
     loadAlias();
     loadAutoDelete();
 
@@ -430,15 +606,22 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     };
   }, [conversationId]);
 
-  // (moved) Load common groups on mount — will be initialized after partnerEmail is computed below
+  useEffect(() => {
+    let active = true;
+    getConversationWallpaperId(conversationId).then((id) => {
+      if (active) setSelectedWallpaperId(id);
+    });
+    return () => {
+      active = false;
+    };
+  }, [conversationId]);
 
-  if (!chat) return null;
-
-  const partnerEmail = chat.type === 'direct'
-    ? (Array.isArray(chat.members) ? chat.members.find((m: string) => m !== user?.email) : undefined)
+  const partnerEmail = chat?.type === 'direct'
+    ? (Array.isArray(chat?.members) ? chat.members.find((m: string) => m !== user?.email) : undefined)
     : undefined;
 
-  const profile = partnerEmail ? userProfiles[partnerEmail] : null;
+  const normalizedPartnerEmail = partnerEmail ? String(partnerEmail).trim().toLowerCase() : '';
+  const profile = normalizedPartnerEmail ? (userProfiles[normalizedPartnerEmail] || userProfiles[partnerEmail as string]) : null;
   // Load common groups when partnerEmail is available
   useEffect(() => {
     const loadCommonGroups = async () => {
@@ -456,17 +639,44 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     const loadMediaPreview = async () => {
       try {
         setLoadingMediaPreview(true);
-        const res = await chatGet(`/conversations/${encodeURIComponent(conversationId)}/assets`, { 
-          type: 'media', 
-          limit: 5 
-        });
-        if (res.ok && res.data?.items) {
-          const normalized = (res.data.items as any[]).flatMap(m => {
-            const arr = [...(m.media || []), ...(m.files || [])];
-            return arr.map(a => ({ ...a, createdAt: m.createdAt }));
-          }).map(f => normalizeAttachment(f));
-          setMediaPreviewItems(normalized.slice(0, 5));
-        }
+        const [mediaRes, fileRes, linkRes] = await Promise.all([
+          chatGet(`/conversations/${encodeURIComponent(conversationId)}/assets`, { type: 'media', limit: 6 }),
+          chatGet(`/conversations/${encodeURIComponent(conversationId)}/assets`, { type: 'file', limit: 4 }),
+          chatGet(`/conversations/${encodeURIComponent(conversationId)}/assets`, { type: 'link', limit: 4 }),
+        ]);
+
+        const mediaItems = mediaRes.ok && mediaRes.data?.items
+          ? (mediaRes.data.items as any[]).flatMap((m) => {
+              const arr = (m.media || m.files) ? [...(m.media || []), ...(m.files || [])] : [m];
+              return arr
+                .map((a) => ({ ...normalizeAttachment(a), createdAt: m.createdAt, previewType: 'media' }))
+                .filter((a) => String(a.mimeType || '').startsWith('image/') || String(a.mimeType || '').startsWith('video/'));
+            })
+          : [];
+
+        const fileItems = fileRes.ok && fileRes.data?.items
+          ? (fileRes.data.items as any[]).flatMap((m) => (Array.isArray(m.files) && m.files.length > 0 ? m.files : [m])
+              .map((a: any) => ({ ...normalizeAttachment(a), createdAt: m.createdAt, previewType: 'file' }))
+              .filter((a: any) => {
+                const name = String(a.name || '').toLowerCase();
+                const mime = String(a.mimeType || '').toLowerCase();
+                return name !== 'contact.json' && name !== 'location.json' && !mime.startsWith('image/') && !mime.startsWith('video/');
+              }))
+          : [];
+
+        const linkItems = linkRes.ok && linkRes.data?.items
+          ? (linkRes.data.items as any[]).flatMap((m) => {
+              const matches = m.url ? [m.url] : (String(m.content || '').match(/https?:\/\/[^\s<>"']+/g) || []);
+              return matches.map((url) => ({
+                url: String(url).replace(/[),.;!?]+$/, ''),
+                createdAt: m.createdAt,
+                previewType: 'link',
+              }));
+            })
+          : [];
+
+        setAssetCounts({ media: mediaItems.length, file: fileItems.length, link: linkItems.length });
+        setMediaPreviewItems([...mediaItems, ...fileItems, ...linkItems].slice(0, ASSET_PREVIEW_LIMIT));
       } catch (err) {
         console.error('Failed to load media preview', err);
       } finally {
@@ -478,13 +688,15 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     loadMediaPreview();
   }, [conversationId, partnerEmail]);
 
-  const isBot = partnerEmail?.toLowerCase() === 'bot@unichat.system';
-  const chatName = isBot ? "UniChat Bot" : (chat.alias || profile?.nickname || profile?.fullName || profile?.fullname || partnerEmail || chat.name || "Hội thoại");
-  const chatAvatar = isBot ? "https://ui-avatars.com/api/?name=Bot&background=0ea5e9&color=fff&bold=true" : (profile?.avatarUrl || profile?.urlAvatar || chat.avatar || (chat.type === 'group' ? 'https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true' : 'https://via.placeholder.com/150'));
+  if (!chat) return null;
+
+  const chatName = chat.alias || profile?.nickname || profile?.fullName || profile?.fullname || partnerEmail || chat.name || "Hội thoại";
+  const chatAvatar = profile?.avatarUrl || profile?.urlAvatar || chat.avatar || '';
   const isMuted = isConversationMuted(conversationId);
-  const wallpaper = WALLPAPERS.find((item) => item.key === wallpaperKey) || WALLPAPERS[0];
   const isPinned = !!chat?.pinned;
   const isHidden = !!chat?.hidden;
+
+  const isBot = partnerEmail === 'bot@UniChat.system';
 
   const allAttachments = messages.flatMap((m: any) => {
     const arr = [...(m.media || []), ...(m.files || [])];
@@ -496,48 +708,123 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   ).slice(0, 5);
 
   const handleClearChat = () => {
+    const isGroupOwner = chat.type === 'group' && (chat.owner === user?.email || chat.admin === user?.email);
+    
+    if (isGroupOwner) {
+      Alert.alert(
+        "Xóa lịch sử trò chuyện",
+        "Chọn phạm vi xóa tin nhắn:",
+        [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Xóa phía tôi",
+            onPress: async () => {
+              try {
+                await clearHistory(conversationId, false);
+                Alert.alert("Thành công", "Đã xóa lịch sử trò chuyện phía bạn.", [
+                  { text: "OK", onPress: () => navigation.goBack() }
+                ]);
+              } catch (err) {
+                Alert.alert("Lỗi", "Không thể xóa lịch sử");
+              }
+            }
+          },
+          {
+            text: "Xóa của tất cả thành viên",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await clearHistory(conversationId, true);
+                Alert.alert("Thành công", "Đã xóa toàn bộ lịch sử trò chuyện.", [
+                  { text: "OK", onPress: () => navigation.goBack() }
+                ]);
+              } catch (err) {
+                Alert.alert("Lỗi", "Không thể xóa lịch sử");
+              }
+            }
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        "Xóa lịch sử trò chuyện",
+        "Bạn có chắc chắn muốn xóa toàn bộ tin nhắn? Hành động này không thể hoàn tác.",
+        [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Xóa",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await clearHistory(conversationId, false);
+                Alert.alert("Thành công", "Đã xóa lịch sử trò chuyện.", [
+                  { text: "OK", onPress: () => navigation.goBack() }
+                ]);
+              } catch (err) {
+                Alert.alert("Lỗi", "Không thể xóa lịch sử");
+              }
+            }
+          }
+        ]
+      );
+    }
+  };
+
+
+  const handleLeaveGroup = () => {
+    const isOwner = chat.owner === user?.email || chat.admin === user?.email;
+    const otherMembers = (chat.members || []).filter((m: string) => m !== user?.email);
+
+    if (isOwner && otherMembers.length > 0) {
+      // Owner must transfer before leaving
+      const options = otherMembers.map((m: string) => {
+        const p = userProfiles[m.trim().toLowerCase()];
+        return { text: p?.nickname || p?.fullName || m, onPress: () => confirmTransferAndLeave(m) };
+      });
+      Alert.alert(
+        "Chuyển quyền Trưởng nhóm",
+        "Bạn là Trưởng nhóm. Hãy chọn người nhận quyền Trưởng nhóm trước khi rời:",
+        [
+          { text: "Hủy", style: "cancel" },
+          ...options,
+        ]
+      );
+      return;
+    }
+
+    if (isOwner && otherMembers.length === 0) {
+      // Last member, dissolve instead
+      handleDissolveGroup();
+      return;
+    }
+
     Alert.alert(
-      "Xóa lịch sử trò chuyện",
-      "Bạn có chắc chắn muốn xóa toàn bộ tin nhắn? Hành động này không thể hoàn tác.",
+      "Rời nhóm",
+      "Bạn sẽ không còn nhận được tin nhắn từ nhóm này.",
       [
         { text: "Hủy", style: "cancel" },
-        { 
-          text: "Xóa", 
+        {
+          text: "Rời nhóm",
           style: "destructive",
           onPress: async () => {
             try {
-              await clearHistory(conversationId);
-              Alert.alert("Thành công", "Đã xóa lịch sử trò chuyện.", [
-                { text: "OK", onPress: () => navigation.goBack() }
-              ]);
-            } catch (err) { 
-              Alert.alert("Lỗi", "Không thể xóa lịch sử"); 
-            }
+              await removeMember(conversationId, user?.email || "");
+              navigation.navigate('Main');
+            } catch (err: any) { Alert.alert("Lỗi", err.response?.data?.message || "Không thể rời nhóm"); }
           }
         }
       ]
     );
   };
 
-
-  const handleLeaveGroup = () => {
-    Alert.alert(
-      "Rời nhóm",
-      "Bạn sẽ không còn nhận được tin nhắn từ nhóm này.",
-      [
-        { text: "Hủy", style: "cancel" },
-        { 
-          text: "Rời nhóm", 
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await removeMember(conversationId, user?.email || "");
-              navigation.navigate('Home');
-            } catch (err: any) { Alert.alert("Lỗi", err.response?.data?.message || "Không thể rời nhóm"); }
-          }
-        }
-      ]
-    );
+  const confirmTransferAndLeave = async (newOwnerEmail: string) => {
+    try {
+      await updateMemberRole(conversationId, newOwnerEmail, 'owner');
+      await removeMember(conversationId, user?.email || '');
+      navigation.navigate('Main');
+    } catch (err: any) {
+      Alert.alert('Lỗi', err.response?.data?.message || 'Không thể chuyển quyền và rời nhóm');
+    }
   };
 
   const handleDissolveGroup = () => {
@@ -552,7 +839,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
           onPress: async () => {
             try {
               await dissolveGroup(conversationId);
-              navigation.navigate('Home');
+              navigation.navigate('Main');
             } catch (err: any) { Alert.alert("Lỗi", err.response?.data?.message || "Không thể giải tán nhóm"); }
           }
         }
@@ -599,24 +886,25 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   };
 
   const handleUpdateGroupName = () => {
-    Alert.prompt(
-      "Đổi tên nhóm",
-      "Nhập tên nhóm mới",
-      [
-        { text: "Hủy", style: "cancel" },
-        { 
-          text: "Lưu", 
-          onPress: async (name: string | undefined) => {
-            if (!name) return;
-            try {
-              await updateGroupInfo(conversationId, { name });
-            } catch (err: any) { Alert.alert("Lỗi", "Không thể đổi tên"); }
-          }
+    setPromptConfig({
+      visible: true,
+      title: "Đổi tên nhóm",
+      message: "Nhập tên nhóm mới",
+      placeholder: "Tên nhóm...",
+      value: chat?.name || '',
+      keyboardType: "default",
+      onSubmit: async (newName: string) => {
+        if (!newName || !newName.trim()) {
+          Alert.alert("Lỗi", "Tên nhóm không được để trống");
+          return;
         }
-      ],
-      'plain-text',
-      chat.name
-    );
+        try {
+          await updateGroupInfo(conversationId, { name: newName.trim() });
+        } catch (err: any) { 
+          Alert.alert("Lỗi", "Không thể đổi tên"); 
+        }
+      }
+    });
   };
 
   const handleUpdateGroupAvatar = async () => {
@@ -669,6 +957,17 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     } catch {
       // Best effort persistence only.
     }
+  };
+
+  const persistMuteSchedule = async (convId: string, schedule: any | null) => {
+    const raw = await AsyncStorage.getItem(CHAT_MUTE_SCHEDULE_KEY);
+    const map = raw ? JSON.parse(raw) : {};
+    if (schedule) {
+      map[convId] = schedule;
+    } else {
+      delete map[convId];
+    }
+    await AsyncStorage.setItem(CHAT_MUTE_SCHEDULE_KEY, JSON.stringify(map));
   };
 
   const handleTogglePin = async () => {
@@ -760,6 +1059,9 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   };
 
   const handleChangeWallpaper = () => {
+    setShowWallpaperModal(true);
+    return;
+
     Alert.alert(
       'Đổi hình nền',
       'Chọn hình nền cho cuộc trò chuyện này.',
@@ -780,6 +1082,59 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     );
   };
 
+  const handleSaveWallpaper = async () => {
+    try {
+      await setConversationWallpaperId(conversationId, selectedWallpaperId);
+      setShowWallpaperModal(false);
+    } catch {
+      Alert.alert('KhÃ´ng thá»ƒ lÆ°u', 'Vui lÃ²ng thá»­ láº¡i sau.');
+    }
+  };
+
+  const handleSelectMuteSchedule = async (type: '1h' | '4h' | '12h' | 'morning' | 'forever') => {
+    const schedule =
+      type === '1h'
+        ? createMuteUntilHours(1)
+        : type === '4h'
+          ? createMuteUntilHours(4)
+          : type === '12h'
+            ? createMuteUntilHours(12)
+            : type === 'morning'
+              ? createMuteUntilMorning(8)
+              : null;
+
+    try {
+      if (schedule) await persistMuteSchedule(conversationId, schedule);
+      else await persistMuteSchedule(conversationId, null);
+      await muteConversationFor(
+        conversationId,
+        type === '1h' ? '1h' : type === '4h' ? '4h' : type === '12h' ? '12h' : type === 'morning' ? 'until-8am' : 'until-open',
+      );
+      setShowMuteMenuModal(false);
+      Alert.alert('Thông báo', schedule ? getMuteLabel(schedule) : 'Đã tắt thông báo cho đến khi bạn bật lại.');
+    } catch {
+      Alert.alert('Không thể cập nhật', 'Vui lòng thử lại sau.');
+    }
+  };
+
+  const handleApplyCustomMuteSchedule = async () => {
+    if (!isValidTimeString(customMuteStartTime) || !isValidTimeString(customMuteEndTime)) {
+      Alert.alert('Lỗi', 'Giờ không hợp lệ. Vui lòng nhập theo định dạng HH:mm.');
+      return;
+    }
+
+    const schedule = createCustomWindowMuteSchedule(customMuteStartTime, customMuteEndTime);
+    try {
+      await persistMuteSchedule(conversationId, schedule);
+      await setConversationMuted(conversationId, true);
+      setShowCustomMuteModal(false);
+      setShowMuteMenuModal(false);
+      Alert.alert('Thông báo', getMuteLabel(schedule));
+    } catch {
+      Alert.alert('Không thể cập nhật', 'Vui lòng thử lại sau.');
+    }
+  };
+
   const handleToggleMute = () => {
     if (isMuted) {
       Alert.alert(
@@ -789,9 +1144,14 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
           { text: "Hủy", style: "cancel" },
           {
             text: "Bật",
-            onPress: () => {
-              clearConversationMuted(conversationId);
-              Alert.alert("Đã bật thông báo", "Cuộc trò chuyện này sẽ nhận thông báo trở lại.");
+            onPress: async () => {
+              try {
+                await persistMuteSchedule(conversationId, null);
+                await clearConversationMuted(conversationId);
+                Alert.alert("Đã bật thông báo", "Cuộc trò chuyện này sẽ nhận thông báo trở lại.");
+              } catch {
+                Alert.alert("Không thể cập nhật", "Vui lòng thử lại sau.");
+              }
             },
           },
         ]
@@ -799,118 +1159,10 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       return;
     }
 
-    Alert.alert(
-      "Tắt thông báo",
-      "Chọn thời gian tắt thông báo",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "1 giờ",
-          onPress: () => {
-            muteConversationFor(conversationId, '1h');
-            Alert.alert("Đã tắt 1 giờ", "Thông báo sẽ được bật lại sau 1 giờ.");
-          },
-        },
-        {
-          text: "4 giờ",
-          onPress: () => {
-            muteConversationFor(conversationId, '4h');
-            Alert.alert("Đã tắt 4 giờ", "Thông báo sẽ được bật lại sau 4 giờ.");
-          },
-        },
-        {
-          text: "Đến 8:00 sáng",
-          onPress: () => {
-            muteConversationFor(conversationId, 'until-8am');
-            Alert.alert("Đã tắt đến 8:00", "Thông báo sẽ được bật lại vào 8:00 sáng ngày mai.");
-          },
-        },
-        {
-          text: "Cho đến khi mở lại",
-          style: "destructive",
-          onPress: () => {
-            muteConversationFor(conversationId, 'until-open');
-            Alert.alert("Đã tắt thông báo", "Thông báo sẽ được bật lại khi bạn mở cuộc trò chuyện.");
-          },
-        },
-      ]
-    );
+    setShowMuteMenuModal(true);
   };
 
-  const handleReportConversation = async () => {
-    Alert.alert(
-      'Báo xấu',
-      'Chọn lý do báo xấu cuộc trò chuyện',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Nội dung khiếm nhã',
-          onPress: async () => {
-            try {
-              await pushSecurityAlert({
-                type: 'CHAT_REPORT',
-                title: 'Báo xấu: Nội dung khiếm nhã',
-                message: `Báo xấu cuộc trò chuyện với ${chatName}. Lý do: Nội dung khiếm nhã`,
-                metadata: { conversationId, partnerEmail, reason: 'OFFENSIVE_CONTENT' },
-              });
-              Alert.alert('Đã ghi nhận', 'Báo xấu của bạn đã được lưu lại. Cảm ơn đã giúp cải thiện cộng đồng.');
-            } catch {
-              Alert.alert('Không thể gửi', 'Vui lòng thử lại sau.');
-            }
-          },
-        },
-        {
-          text: 'Spam hoặc quấy rối',
-          onPress: async () => {
-            try {
-              await pushSecurityAlert({
-                type: 'CHAT_REPORT',
-                title: 'Báo xấu: Spam/quấy rối',
-                message: `Báo xấu cuộc trò chuyện với ${chatName}. Lý do: Spam hoặc quấy rối`,
-                metadata: { conversationId, partnerEmail, reason: 'SPAM_HARASSMENT' },
-              });
-              Alert.alert('Đã ghi nhận', 'Báo xấu của bạn đã được lưu lại. Cảm ơn đã giúp cải thiện cộng đồng.');
-            } catch {
-              Alert.alert('Không thể gửi', 'Vui lòng thử lại sau.');
-            }
-          },
-        },
-        {
-          text: 'Lừa đảo hoặc giả mạo',
-          onPress: async () => {
-            try {
-              await pushSecurityAlert({
-                type: 'CHAT_REPORT',
-                title: 'Báo xấu: Lừa đảo',
-                message: `Báo xấu cuộc trò chuyện với ${chatName}. Lý do: Lừa đảo hoặc giả mạo`,
-                metadata: { conversationId, partnerEmail, reason: 'SCAM_IMPERSONATION' },
-              });
-              Alert.alert('Đã ghi nhận', 'Báo xấu của bạn đã được lưu lại. Cảm ơn đã giúp cải thiện cộng đồng.');
-            } catch {
-              Alert.alert('Không thể gửi', 'Vui lòng thử lại sau.');
-            }
-          },
-        },
-        {
-          text: 'Nội dung bạo lực hoặc có hại',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await pushSecurityAlert({
-                type: 'CHAT_REPORT',
-                title: 'Báo xấu: Bạo lực',
-                message: `Báo xấu cuộc trò chuyện với ${chatName}. Lý do: Nội dung bạo lực hoặc có hại`,
-                metadata: { conversationId, partnerEmail, reason: 'VIOLENCE_HARM' },
-              });
-              Alert.alert('Đã ghi nhận', 'Báo xấu của bạn đã được lưu lại. Cảm ơn đã giúp cải thiện cộng đồng.');
-            } catch {
-              Alert.alert('Không thể gửi', 'Vui lòng thử lại sau.');
-            }
-          },
-        },
-      ]
-    );
-  };
+
 
   const handleBlockUser = async () => {
     if (!partnerEmail) return;
@@ -979,62 +1231,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     );
   };
 
-  const handleCreateGroup = () => {
-    if (!partnerEmail) return;
-    Alert.alert(
-      `Tạo nhóm với ${chatName}`,
-      'Nhập tên nhóm mới',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Tạo',
-          onPress: async () => {
-            // For now, show a simple text input prompt via Alert
-            // In a full implementation, this would open a modal
-            Alert.prompt(
-              'Tên nhóm mới',
-              'Nhập tên cho nhóm',
-              [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                  text: 'Tạo',
-                  onPress: async (groupName: string | undefined) => {
-                    if (!groupName || !groupName.trim()) {
-                      Alert.alert('Lỗi', 'Vui lòng nhập tên nhóm');
-                      return;
-                    }
-                    try {
-                      const res = await chatPost('/groups/create', {
-                        name: groupName.trim(),
-                        members: [partnerEmail],
-                      });
-                      if (res?.ok) {
-                        Alert.alert('Thành công', `Nhóm "${groupName}" đã được tạo.`);
-                      } else {
-                        Alert.alert('Không thể tạo', 'Vui lòng thử lại sau.');
-                      }
-                    } catch (error) {
-                      Alert.alert('Không thể tạo', 'Vui lòng thử lại sau.');
-                    }
-                  }
-                }
-              ],
-              'plain-text'
-            );
-          },
-        },
-      ]
-    );
-  };
 
-  const handleAddToGroup = () => {
-    if (!partnerEmail) return;
-    Alert.alert(
-      `Thêm ${chatName} vào nhóm`,
-      'Tính năng này sẽ được cập nhật sớm. Hiện chưa hỗ trợ thêm thành viên vào nhóm từ chat detail.',
-      [{ text: 'Đóng', style: 'cancel' }]
-    );
-  };
 
   const handleViewCommonGroups = async () => {
     if (!partnerEmail) return;
@@ -1077,8 +1274,45 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     </TouchableOpacity>
   );
 
+  const renderAssetPreviewItem = (item: any, index: number) => {
+    if (item.previewType === 'media') {
+      const isVideo = String(item.mimeType || '').startsWith('video/');
+      return (
+        <View key={`asset-${index}`} style={styles.assetThumb}>
+          <Image source={{ uri: item.dataUrl || item.url }} style={styles.assetThumbImage} resizeMode="cover" />
+          {isVideo && (
+            <View style={styles.assetThumbOverlay}>
+              <Text style={styles.assetThumbIcon}>play_circle</Text>
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    if (item.previewType === 'link') {
+      return (
+        <View key={`asset-${index}`} style={styles.assetMiniCard}>
+          <View style={[styles.assetMiniIconBox, { backgroundColor: '#e0f2fe' }]}>
+            <Text style={[styles.assetMiniIcon, { color: '#0369a1' }]}>link</Text>
+          </View>
+          <Text style={styles.assetMiniTitle} numberOfLines={1}>LINK</Text>
+        </View>
+      );
+    }
+
+    const ext = String(item.name || '').split('.').pop()?.toUpperCase() || 'FILE';
+    return (
+      <View key={`asset-${index}`} style={styles.assetMiniCard}>
+        <View style={styles.assetMiniIconBox}>
+          <Text style={styles.assetMiniIcon}>description</Text>
+        </View>
+        <Text style={styles.assetMiniTitle} numberOfLines={1}>{ext.slice(0, 6)}</Text>
+      </View>
+    );
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: wallpaper.color }]}>
+    <View style={styles.container}>
       {/* Header Bar */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -1093,16 +1327,16 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
         <View style={styles.profileBox}>
           <TouchableOpacity 
             activeOpacity={0.8}
-            onPress={chat.type === 'group' ? handleUpdateGroupAvatar : (!isBot && partnerEmail ? handleOpenProfile : undefined)}
+            onPress={chat.type === 'group' ? handleUpdateGroupAvatar : (partnerEmail ? handleOpenProfile : undefined)}
           >
-            <Image source={{ uri: chatAvatar }} style={styles.largeAvatar} />
+            <Image source={avatarSource(chatAvatar)} style={styles.largeAvatar} />
             {chat.type === 'group' && (
               <View style={styles.avatarEditBadge}>
                 <Text style={styles.avatarEditIcon}>camera_alt</Text>
               </View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity onPress={chat.type === 'group' || isBot ? undefined : handleOpenProfile} disabled={chat.type === 'group' || isBot || !partnerEmail} activeOpacity={!isBot && partnerEmail ? 0.85 : 1}>
+          <TouchableOpacity onPress={chat.type === 'group' ? undefined : handleOpenProfile} disabled={chat.type === 'group' || !partnerEmail} activeOpacity={partnerEmail ? 0.85 : 1}>
             <Text style={styles.profileName}>{chatName}</Text>
           </TouchableOpacity>
           
@@ -1134,10 +1368,6 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
         {!isBot && (
           <>
             {renderMenuItem("edit", "Đổi tên gợi nhớ", <Text style={styles.subText}>{chat.alias ? 'Đã đặt' : 'Chưa đặt'}</Text>, () => setShowAliasModal(true))}
-            {renderMenuItem("star_outline", "Đánh dấu bạn thân", 
-              <Switch value={isFavorite} onValueChange={setIsFavorite} />
-            )}
-            {renderMenuItem("schedule", "Nhật ký chung")}
           </>
         )}
 
@@ -1155,15 +1385,27 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
             </View>
             <Text style={styles.chevron}>chevron_right</Text>
           </View>
+          <View style={styles.assetSummaryRow}>
+            <View style={styles.assetSummaryPill}>
+              <Text style={styles.assetSummaryIcon}>image</Text>
+              <Text style={styles.assetSummaryText}>{assetCounts.media} ảnh/video</Text>
+            </View>
+            <View style={styles.assetSummaryPill}>
+              <Text style={styles.assetSummaryIcon}>description</Text>
+              <Text style={styles.assetSummaryText}>{assetCounts.file} file</Text>
+            </View>
+            <View style={styles.assetSummaryPill}>
+              <Text style={styles.assetSummaryIcon}>link</Text>
+              <Text style={styles.assetSummaryText}>{assetCounts.link} link</Text>
+            </View>
+          </View>
           <View style={styles.mediaPreview}>
             {loadingMediaPreview ? (
               <ActivityIndicator size="small" color={Colors.primary} style={{ marginLeft: 16 }} />
             ) : mediaPreviewItems.length > 0 ? (
-              mediaPreviewItems.map((m, i) => (
-                <Image key={i} source={{ uri: m.dataUrl || m.url }} style={styles.previewImg} />
-              ))
+              mediaPreviewItems.map(renderAssetPreviewItem)
             ) : (
-              <View style={styles.emptyMedia}><Text style={styles.emptyText}>Chưa có media</Text></View>
+              <View style={styles.emptyMedia}><Text style={styles.emptyText}>Chưa có ảnh, file hoặc link</Text></View>
             )}
             <View style={styles.previewMore}>
               <Text style={styles.headerIcon}>arrow_forward</Text>
@@ -1176,8 +1418,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
         {!isBot && (
           <>
             <View style={styles.divider} />
-            {renderMenuItem("group_add", `Tạo nhóm với ${chatName}`, undefined, handleCreateGroup)}
-            {renderMenuItem("person_add", `Thêm ${chatName} vào nhóm`, undefined, handleAddToGroup)}
+
             {renderMenuItem("groups", `Xem nhóm chung (${commonGroups.length})`, undefined, handleViewCommonGroups)}
           </>
         )}
@@ -1200,7 +1441,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
           <Text style={styles.subText}>{isMuted ? 'Đang tắt' : 'Đang bật'}</Text>,
           handleToggleMute
         )}
-        {!isBot && renderMenuItem("person_outline", "Cài đặt cá nhân", undefined, handleOpenPersonalSettings)}
+
         {renderMenuItem(
           "history", 
           "Tin nhắn tự xóa", 
@@ -1210,8 +1451,8 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
 
         <View style={styles.divider} />
 
-        {!isBot && renderMenuItem("report", "Báo xấu", undefined, handleReportConversation, '#ef4444')}
-        {!isBot && renderMenuItem("block", "Quản lý chặn", undefined, handleBlockUser)}
+
+        {!isBot && renderMenuItem("block", "Chặn người dùng", undefined, handleBlockUser, '#ef4444')}
         {renderMenuItem("storage", "Dung lượng trò chuyện", undefined, handleConversationStorage)}
         {renderMenuItem("delete_outline", "Xóa lịch sử trò chuyện", undefined, handleClearChat, '#ef4444')}
 
@@ -1232,8 +1473,16 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
               <Text style={styles.sectionTitle}>Thành viên ({chat.members?.length || 0})</Text>
             </View>
             <TouchableOpacity style={styles.addMemberBtn} onPress={() => {
-               Alert.prompt("Thêm thành viên", "Nhập email", async (email: string | undefined) => {
-                  if (email && email.trim()) await addMembers(conversationId, [email.trim()]);
+               setPromptConfig({
+                 visible: true,
+                 title: "Thêm thành viên",
+                 message: "Nhập email",
+                 placeholder: "Email người dùng",
+                 value: "",
+                 keyboardType: 'email-address',
+                 onSubmit: async (email: string) => {
+                    if (email && email.trim()) await addMembers(conversationId, [email.trim()]);
+                 }
                });
             }}>
                <Text style={styles.addMemberIcon}>add</Text>
@@ -1249,7 +1498,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
 
                return (
                  <View key={m} style={styles.memberItem}>
-                    <Image source={{ uri: p?.avatarUrl || 'https://via.placeholder.com/150' }} style={styles.memberAvatar} />
+                    <Image source={avatarSource(p?.avatarUrl || p?.urlAvatar || p?.avatar)} style={styles.memberAvatar} />
                     <View style={styles.memberInfo}>
                        <Text style={styles.memberName}>{p?.nickname || p?.fullName || m} {isMe && "(Bạn)"}</Text>
                        <Text style={styles.memberRole}>
@@ -1313,6 +1562,174 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
                 disabled={savingAlias}
               >
                 <Text style={styles.aliasSaveText}>{savingAlias ? 'Đang lưu' : 'Lưu'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showWallpaperModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowWallpaperModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.aliasModalCard, { maxWidth: 420, maxHeight: '86%' }]}>
+            <Text style={styles.aliasModalTitle}>{'H\u00ecnh n\u1ec1n cu\u1ed9c tr\u00f2 chuy\u1ec7n'}</Text>
+            <Text style={styles.aliasModalSubtitle}>{'Ch\u1ecdn h\u00ecnh n\u1ec1n gi\u00e1o d\u1ee5c gi\u1ed1ng phi\u00ean b\u1ea3n web'}</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.wallpaperGrid}>
+                {CHAT_WALLPAPERS.map((item) => {
+                  const selected = selectedWallpaperId === item.id;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      activeOpacity={0.85}
+                      style={[styles.wallpaperOption, selected && styles.wallpaperOptionSelected]}
+                      onPress={() => setSelectedWallpaperId(item.id)}
+                    >
+                      <Image source={item.lightSource} style={styles.wallpaperImage} resizeMode="cover" />
+                      <View style={styles.wallpaperShade}>
+                        <Text style={styles.wallpaperLabel}>{item.label}</Text>
+                      </View>
+                      {selected && (
+                        <View style={styles.wallpaperCheck}>
+                          <Text style={styles.wallpaperCheckIcon}>check</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+            <View style={styles.aliasActions}>
+              <TouchableOpacity style={styles.aliasCancelBtn} onPress={() => setShowWallpaperModal(false)}>
+                <Text style={styles.aliasCancelText}>{'H\u1ee7y'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.aliasSaveBtn} onPress={handleSaveWallpaper}>
+                <Text style={styles.aliasSaveText}>{'L\u01b0u'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showMuteMenuModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMuteMenuModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.aliasModalCard}>
+            <Text style={styles.aliasModalTitle}>Thông báo cuộc trò chuyện</Text>
+            <Text style={styles.aliasModalSubtitle}>Chọn thời gian tắt thông báo</Text>
+            {[
+              { label: 'Tắt 1 giờ', action: () => handleSelectMuteSchedule('1h') },
+              { label: 'Tắt 4 giờ', action: () => handleSelectMuteSchedule('4h') },
+              { label: 'Tắt 12 giờ', action: () => handleSelectMuteSchedule('12h') },
+              { label: 'Đến 8:00 sáng', action: () => handleSelectMuteSchedule('morning') },
+              { label: 'Khung giờ tùy chỉnh', action: () => setShowCustomMuteModal(true) },
+              { label: 'Cho đến khi bật lại', action: () => handleSelectMuteSchedule('forever') },
+            ].map((item) => (
+              <TouchableOpacity
+                key={item.label}
+                style={{ paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#eef2f7' }}
+                onPress={item.action}
+              >
+                <Text style={styles.menuText}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={[styles.aliasCancelBtn, { marginTop: 14, alignItems: 'center' }]} onPress={() => setShowMuteMenuModal(false)}>
+              <Text style={styles.aliasCancelText}>Hủy</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showCustomMuteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCustomMuteModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.aliasModalCard}>
+            <Text style={styles.aliasModalTitle}>Khung giờ tắt thông báo</Text>
+            <Text style={styles.aliasModalSubtitle}>Nhập giờ theo định dạng 24h HH:mm</Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.subText, { marginBottom: 6 }]}>Từ</Text>
+                <TextInput
+                  value={customMuteStartTime}
+                  onChangeText={setCustomMuteStartTime}
+                  placeholder="22:00"
+                  style={styles.aliasInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="numbers-and-punctuation"
+                  maxLength={5}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.subText, { marginBottom: 6 }]}>Đến</Text>
+                <TextInput
+                  value={customMuteEndTime}
+                  onChangeText={setCustomMuteEndTime}
+                  placeholder="07:00"
+                  style={styles.aliasInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="numbers-and-punctuation"
+                  maxLength={5}
+                />
+              </View>
+            </View>
+            <View style={styles.aliasActions}>
+              <TouchableOpacity style={styles.aliasCancelBtn} onPress={() => setShowCustomMuteModal(false)}>
+                <Text style={styles.aliasCancelText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.aliasSaveBtn} onPress={handleApplyCustomMuteSchedule}>
+                <Text style={styles.aliasSaveText}>Lưu</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Prompt Modal */}
+      <Modal
+        visible={promptConfig.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPromptConfig(prev => ({ ...prev, visible: false }))}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.aliasModalCard}>
+            <Text style={styles.aliasModalTitle}>{promptConfig.title}</Text>
+            {!!promptConfig.message && <Text style={styles.aliasModalSubtitle}>{promptConfig.message}</Text>}
+            <TextInput
+              value={promptConfig.value}
+              onChangeText={(text) => setPromptConfig(prev => ({ ...prev, value: text }))}
+              placeholder={promptConfig.placeholder}
+              style={styles.aliasInput}
+              autoFocus
+              keyboardType={promptConfig.keyboardType}
+              autoCapitalize="none"
+            />
+            <View style={styles.aliasActions}>
+              <TouchableOpacity style={styles.aliasCancelBtn} onPress={() => setPromptConfig(prev => ({ ...prev, visible: false }))}>
+                <Text style={styles.aliasCancelText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.aliasSaveBtn}
+                onPress={() => {
+                  promptConfig.onSubmit(promptConfig.value);
+                  setPromptConfig(prev => ({ ...prev, visible: false }));
+                }}
+              >
+                <Text style={styles.aliasSaveText}>Xác nhận</Text>
               </TouchableOpacity>
             </View>
           </View>
