@@ -18,6 +18,7 @@ import SocketService from '../utils/socket';
 import { useAuth } from '../context/AuthContext';
 import { useChatStore } from '../store/chatStore';
 import { useIsFocused } from '@react-navigation/native';
+import MessageBubble from '../components/chat/MessageBubble';
 
 const TypingDots = () => {
   const dot1 = useRef(new Animated.Value(0.3)).current;
@@ -201,7 +202,7 @@ export default function BotChatScreen() {
       </View>
 
       {/* Messages */}
-      <ScrollView ref={botScrollRef} style={styles.messagesContainer} contentContainerStyle={{ padding: 12, gap: 10 }}>
+      <ScrollView ref={botScrollRef} style={styles.messagesContainer} contentContainerStyle={{ paddingVertical: 12, paddingHorizontal: 0 }}>
         {botMessages.length === 0 && (
           <View style={styles.welcome}>
             <Text style={styles.welcomeIcon}>smart_toy</Text>
@@ -211,19 +212,36 @@ export default function BotChatScreen() {
             </Text>
           </View>
         )}
-        {botMessages.map((msg) => {
+        {botMessages.map((msg, index) => {
           const isMe = msg.senderId === user?.email;
+          const prevMsg = index > 0 ? botMessages[index - 1] : null;
+          const nextMsg = index < botMessages.length - 1 ? botMessages[index + 1] : null;
+          let groupPosition = 'single';
+          if (prevMsg && prevMsg.senderId === msg.senderId && nextMsg && nextMsg.senderId === msg.senderId) {
+            groupPosition = 'middle';
+          } else if (prevMsg && prevMsg.senderId === msg.senderId) {
+            groupPosition = 'last';
+          } else if (nextMsg && nextMsg.senderId === msg.senderId) {
+            groupPosition = 'first';
+          }
+
           return (
-            <View key={msg.id} style={[styles.messageRow, isMe ? styles.messageRowMe : styles.messageRowBot]}>
-              {!isMe && <Image source={{ uri: BOT_AVATAR }} style={styles.msgAvatar} />}
-              <View style={[styles.messageBubble, isMe ? styles.bubbleMe : styles.bubbleBot]}>
-                <Text style={styles.messageText}>{msg.content}</Text>
-              </View>
-            </View>
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              isMe={isMe}
+              groupPosition={groupPosition}
+              showAvatar={!isMe && (groupPosition === 'first' || groupPosition === 'single')}
+              onLongPress={() => {}}
+              onReaction={() => {}}
+              onReply={() => {}}
+              isSelectionMode={false}
+              userProfile={!isMe ? { avatarUrl: BOT_AVATAR, fullName: 'UniChat AI' } : user}
+            />
           );
         })}
         {botSending && (
-          <View style={[styles.messageRow, styles.messageRowBot]}>
+          <View style={[styles.messageRow, styles.messageRowBot, { paddingHorizontal: 16, marginTop: 8 }]}>
             <Image source={{ uri: BOT_AVATAR }} style={styles.msgAvatar} />
             <View style={[styles.messageBubble, styles.bubbleBot]}>
               <TypingDots />

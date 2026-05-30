@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTheme } from '../../context/ThemeContext';
 import { View, Text, TouchableOpacity, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { Colors } from '../../constants/Theme';
 import { useChatStore } from '../../store/chatStore';
@@ -18,6 +19,7 @@ export const ConversationTagPicker: React.FC<ConversationTagPickerProps> = ({
   onAssignTag,
   onManageTags,
 }) => {
+  const { t } = useTheme();
   const { tags } = useChatStore();
 
   if (!isVisible || !conversation) return null;
@@ -27,13 +29,13 @@ export const ConversationTagPicker: React.FC<ConversationTagPickerProps> = ({
     <Pressable style={styles.overlay} onPress={onClose}>
       <Pressable style={styles.actionSheet} onPress={(e) => e.stopPropagation()}>
         <View style={styles.header}>
-          <Text style={styles.headerText}>Phân loại "{conversation.alias || conversation.name || 'trò chuyện'}"</Text>
+          <Text style={styles.headerText}>{t('home.classify')} "{conversation.alias || conversation.name || t('home.conversation')}"</Text>
         </View>
         <ScrollView style={{ maxHeight: 300 }}>
           <View style={styles.actionList}>
             <TouchableOpacity style={styles.actionListItem} onPress={() => { onAssignTag(conversation.id, null); onClose(); }}>
               <View style={[styles.colorBox, { backgroundColor: '#e5e7eb' }]} />
-              <Text style={[styles.actionListText, !currentTag && { color: Colors.primary, fontWeight: 'bold' }]}>Không có thẻ</Text>
+              <Text style={[styles.actionListText, !currentTag && { color: Colors.primary, fontWeight: 'bold' }]}>{t('home.no_tag')}</Text>
               {!currentTag && <Text style={[styles.actionListIcon, { color: Colors.primary, marginLeft: 'auto' }]}>check</Text>}
             </TouchableOpacity>
 
@@ -49,7 +51,7 @@ export const ConversationTagPicker: React.FC<ConversationTagPickerProps> = ({
         <View style={styles.divider} />
         <TouchableOpacity style={styles.actionListItem} onPress={() => { onClose(); onManageTags(); }}>
           <Text style={styles.actionListIcon}>sell</Text>
-          <Text style={styles.actionListText}>Quản lý thẻ phân loại</Text>
+          <Text style={styles.actionListText}>{t('home.manage_tags')}</Text>
         </TouchableOpacity>
       </Pressable>
     </Pressable>

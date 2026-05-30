@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTheme } from '../../context/ThemeContext';
 import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/Theme';
 import { useChatStore } from '../../store/chatStore';
@@ -22,6 +23,7 @@ export const InboxActionSheet: React.FC<InboxActionSheetProps> = ({
   onHideToggle,
   onManageTags,
 }) => {
+  const { t } = useTheme();
   if (!isVisible || !conversation) return null;
 
   const isPinned = !!conversation.pinned;
@@ -32,26 +34,26 @@ export const InboxActionSheet: React.FC<InboxActionSheetProps> = ({
     <Pressable style={styles.overlay} onPress={onClose}>
       <Pressable style={styles.actionSheet} onPress={(e) => e.stopPropagation()}>
         <View style={styles.header}>
-          <Text style={styles.headerText} numberOfLines={1}>{conversation.alias || conversation.name || 'Tùy chọn trò chuyện'}</Text>
+          <Text style={styles.headerText} numberOfLines={1}>{conversation.alias || conversation.name || t('home.chat_options')}</Text>
         </View>
 
         <View style={styles.actionList}>
           <TouchableOpacity style={styles.actionListItem} onPress={() => onPin(conversation.id, isPinned)}>
             <Text style={[styles.actionListIcon, { color: Colors.primary }]}>push_pin</Text>
             <Text style={[styles.actionListText, { color: Colors.primary }]}>
-              {isPinned ? 'Bỏ ghim' : 'Ghim trò chuyện'}
+              {isPinned ? t('home.unpin') : t('home.pin_chat')}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionListItem} onPress={() => onClassify(conversation.id)}>
             <Text style={styles.actionListIcon}>sell</Text>
-            <Text style={styles.actionListText}>Phân loại</Text>
+            <Text style={styles.actionListText}>{t('home.classify')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.actionListItem} onPress={() => onHideToggle(conversation.id, isHidden)}>
             <Text style={[styles.actionListIcon, { color: '#ef4444' }]}>lock</Text>
             <Text style={[styles.actionListText, { color: '#ef4444' }]}>
-              {isHidden ? 'Mở khóa trò chuyện' : 'Khóa trò chuyện'}
+              {isHidden ? t('home.unlock_chat') : t('home.lock_chat')}
             </Text>
           </TouchableOpacity>
 
@@ -59,7 +61,7 @@ export const InboxActionSheet: React.FC<InboxActionSheetProps> = ({
 
           <TouchableOpacity style={styles.actionListItem} onPress={onManageTags}>
             <Text style={styles.actionListIcon}>sell</Text>
-            <Text style={styles.actionListText}>Quản lý thẻ phân loại</Text>
+            <Text style={styles.actionListText}>{t('home.manage_tags')}</Text>
           </TouchableOpacity>
         </View>
       </Pressable>
