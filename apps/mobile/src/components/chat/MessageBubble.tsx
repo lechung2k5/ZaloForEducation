@@ -199,7 +199,7 @@ const AudioPlayer = ({ url, isMe, title }: { url: string; isMe: boolean; title?:
       </TouchableOpacity>
       <View style={styles.audioProgress}>
         <View style={styles.audioHeader}>
-          <Text style={[styles.audioLabel, isMe && styles.audioLabelMe]}>t('msg_bubble.voice_msg')</Text>
+          <Text style={[styles.audioLabel, isMe && styles.audioLabelMe]}>{displayTitle}</Text>
           <Text style={[styles.audioTime, isMe && styles.audioTimeMe]}>
             {duration > 0 ? formatTime(duration) : '--:--'}
           </Text>
@@ -852,18 +852,12 @@ export default function MessageBubble({
             </View>
           )}
 
-          {/* 2. Audio Player */}
-          {(() => {
-            const audioUrl = message.audioUrl || message.files?.find((f: any) => String(f.mimeType || "").toLowerCase().startsWith("audio/"))?.url || message.files?.find((f: any) => String(f.mimeType || "").toLowerCase().startsWith("audio/"))?.dataUrl;
-            if (audioUrl) {
-              return (
-                <View style={styles.fileList}>
-                  <AudioPlayer url={audioUrl} isMe={isMe} />
-                </View>
-              );
-            }
-            return null;
-          })()}
+          {/* 2. Audio Player (Voice Message) */}
+          {message.audioUrl ? (
+            <View style={styles.fileList}>
+              <AudioPlayer url={message.audioUrl} isMe={isMe} />
+            </View>
+          ) : null}
 
           {/* 3. Standard Files */}
           {message.files && message.files.length > 0 && (
@@ -882,6 +876,9 @@ export default function MessageBubble({
                     <View style={styles.fileInfo}>
                       <Text style={[styles.fileName, isMe && styles.fileNameMe]} numberOfLines={1}>{f.name}</Text>
                       <Text style={[styles.fileSize, isMe && styles.fileSizeMe]}>{formatFileSize(f.size)}</Text>
+                    </View>
+                    <View style={styles.downloadIconBox}>
+                      <Text style={[styles.downloadIcon, isMe && styles.downloadIconMe]}>download</Text>
                     </View>
                   </TouchableOpacity>
                 );
@@ -1399,6 +1396,20 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   fileSizeMe: {
     color: isDark ? '#93c5fd' : '#555',
+  },
+  downloadIconBox: {
+    padding: 6,
+    marginLeft: 4,
+    borderRadius: 20,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+  },
+  downloadIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 18,
+    color: isDark ? '#9ca3b5' : '#64748b',
+  },
+  downloadIconMe: {
+    color: isDark ? '#93c5fd' : '#5a6781',
   },
   specialCard: {
     flexDirection: 'row',

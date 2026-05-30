@@ -190,7 +190,7 @@ export class MessageService {
         }
 
         // 3. Extract audio recordings to top-level field and remove from files array
-        if (mimeType.startsWith("audio/")) {
+        if (mimeType.startsWith("audio/") && (fileName.startsWith("audio_") || fileName.startsWith("voice-"))) {
           if (!audioUrl) audioUrl = f.url || f.dataUrl;
           return false;
         }

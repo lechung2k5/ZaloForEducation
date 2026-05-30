@@ -675,7 +675,11 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
       status: 'sending'
     }));
 
-    const isAudio = attachments.some(a => String(a.mimeType || "").toLowerCase().startsWith("audio/"));
+    const isAudio = attachments.some(a => {
+      const mime = String(a.mimeType || "").toLowerCase();
+      const name = String(a.name || "").toLowerCase();
+      return mime.startsWith("audio/") && (name.startsWith("audio_") || name.startsWith("voice-"));
+    });
     
     let messageType: any = "text";
     if (isAudio) messageType = "audio";
@@ -723,8 +727,18 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
         let uploadFailed = false;
 
         for (const item of attachments) {
+          if (item.name === 'location.json' || item.name === 'contact.json' || item.isSticker) {
+            uploaded.push({ ...item, fileUrl: item.dataUrl || item.uri });
+            continue;
+          }
+
           const uploadUri = item.dataUrl || item.uri || (item.file?.uri);
           if (!uploadUri) continue;
+
+          if (uploadUri.startsWith('http://') || uploadUri.startsWith('https://')) {
+            uploaded.push({ ...item, fileUrl: uploadUri });
+            continue;
+          }
 
           console.log(`[ChatScreen] Uploading attachment: ${item.name}`);
           const res = await chatUpload(item.file || { uri: uploadUri, name: item.name, type: item.mimeType });
@@ -761,7 +775,11 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
           size: a.size,
         }));
 
-        const audioFile = uploaded.find(a => String(a.mimeType || a.fileType || "").toLowerCase().startsWith("audio/"));
+        const audioFile = uploaded.find(a => {
+          const mime = String(a.mimeType || a.fileType || "").toLowerCase();
+          const name = String(a.name || a.fileName || "").toLowerCase();
+          return mime.startsWith("audio/") && (name.startsWith("audio_") || name.startsWith("voice-"));
+        });
         const audioUrl = audioFile ? (audioFile.fileUrl || audioFile.url || audioFile.dataUrl) : undefined;
 
         const payload: any = {

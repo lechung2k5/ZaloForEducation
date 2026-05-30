@@ -295,6 +295,9 @@ export default {
   
   // Message Bubble
   'msg_bubble.voice_msg': 'Tin nhắn thoại',
+  'msg_bubble.current_location': 'Vị trí hiện tại',
+  'msg_bubble.tap_to_view_profile': 'Nhấn để xem trang cá nhân',
+  'msg_bubble.pinned': 'Đã ghim',
   'msg_bubble.image': '[Hình ảnh]',
   'msg_bubble.file': '[Tệp tin]',
   'msg_bubble.message': 'Tin nhắn',

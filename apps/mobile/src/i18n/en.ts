@@ -295,6 +295,9 @@ export default {
   
   // Message Bubble
   'msg_bubble.voice_msg': 'Voice message',
+  'msg_bubble.current_location': 'Current location',
+  'msg_bubble.tap_to_view_profile': 'Tap to view profile',
+  'msg_bubble.pinned': 'Pinned',
   'msg_bubble.image': '[Image]',
   'msg_bubble.file': '[File]',
   'msg_bubble.message': 'Message',

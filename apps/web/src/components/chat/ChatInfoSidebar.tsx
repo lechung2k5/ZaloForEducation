@@ -210,8 +210,7 @@ const ChatInfoSidebar: React.FC = () => {
       const mime = a.mimeType?.toLowerCase() || "";
       return (
         !name.includes("location.json") &&
-        !name.includes("contact.json") &&
-        !mime.startsWith("audio/")
+        !name.includes("contact.json")
       );
     };
 
