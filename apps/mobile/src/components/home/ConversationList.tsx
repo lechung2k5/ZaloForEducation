@@ -1,10 +1,13 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
-import styles from '../../screens/main/style/HomeScreen.styles';
+import { getStyles } from '../../screens/main/style/HomeScreen.styles';
 import { Colors } from '../../constants/Theme';
 import { Conversation } from '../../store/types';
 import { useSecurityAlerts } from '../../hooks/useSecurityAlerts';
 import { BOT_EMAIL } from '../../constants/bot';
+import { useTheme } from '../../context/ThemeContext';
+
+import { useAuth } from '../../context/AuthContext';
 
 interface ConversationListProps {
   conversations: Conversation[];
@@ -31,6 +34,13 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   getDisplayAvatar,
   getConversationPreview,
 }) => {
+  const { colors, isDark, t } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
+  const { alerts, unreadCount: systemUnreadCount } = useSecurityAlerts();
+  const { user } = useAuth();
+
+  const showOnlineStatus = user?.showOnlineStatus !== false;
+
   const baseConversations = conversations
     .filter((chat) => {
       if (chat.hidden) return false;
@@ -57,18 +67,17 @@ export const ConversationList: React.FC<ConversationListProps> = ({
     return (
       <View style={styles.centeredView}>
         <ActivityIndicator color={Colors.primary} />
-        <Text style={styles.aiSubtitle}>Đang tải hội thoại...</Text>
+        <Text style={styles.aiSubtitle}>{t('home.loading_conversations')}</Text>
       </View>
     );
   }
 
-  const { alerts, unreadCount: systemUnreadCount } = useSecurityAlerts();
   const finalConversations = [...baseConversations];
 
   if (alerts.length > 0) {
     const systemConv = {
       id: "CONV#SYSTEM",
-      name: "Cảnh báo bảo mật",
+      name: t('home.security_alerts'),
       type: "system",
       avatar: { uri: "https://ui-avatars.com/api/?name=!&background=ba1a1a&color=fff&rounded=true&bold=true&font-size=0.6" },
       lastMessageContent: alerts[0].title,
@@ -112,7 +121,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
             ? `@ Bạn · ${preview}`
             : preview;
           const partnerProfile = partnerEmail ? userProfiles[partnerEmail] : null;
-          const isOnline = partnerProfile?.status === 'online';
+          const isOnline = showOnlineStatus && partnerProfile?.status === 'online';
 
           return (
             <TouchableOpacity
@@ -164,7 +173,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     {hasMention && (
                       <View style={[styles.mentionPill, { marginTop: 0 }]}>
-                        <Text style={styles.mentionPillText}>@ Bạn</Text>
+                        <Text style={styles.mentionPillText}>{`@ ${t('home.mention_you')}`}</Text>
                       </View>
                     )}
                     {isUnread && (

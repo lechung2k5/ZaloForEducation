@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, Modal, FlatList, Image, TextInput, Pressable } from 'react-native';
-import styles from '../../screens/main/style/ChatScreen.styles';
+import { getStyles } from '../../screens/main/style/ChatScreen.styles'; 
 import { useChatStore } from '../../store/chatStore';
+import { useTheme } from '../../context/ThemeContext';
 
 interface ForwardModalProps {
   visible: boolean;
@@ -18,6 +19,8 @@ export const ForwardModal: React.FC<ForwardModalProps> = ({
 }) => {
   const { conversations } = useChatStore();
   const [searchText, setSearchText] = useState("");
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
 
   const filtered = useMemo(() => {
     return conversations.filter(c => 

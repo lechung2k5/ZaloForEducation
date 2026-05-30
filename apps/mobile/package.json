@@ -31,6 +31,7 @@
     "expo-dev-client": "~55.0.35",
     "expo-device": "~55.0.17",
     "expo-document-picker": "~14.0.8",
+    "expo-file-system": "^56.0.7",
     "expo-font": "~55.0.8",
     "expo-haptics": "~55.0.14",
     "expo-image-manipulator": "~55.0.17",

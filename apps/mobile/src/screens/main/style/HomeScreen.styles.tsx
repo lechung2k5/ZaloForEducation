@@ -1,15 +1,15 @@
 import { StyleSheet, Platform } from "react-native";
-import { Colors, Typography } from "../../../constants/Theme";
+import { Typography } from "../../../constants/Theme";
 
-export default StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#f7f9fb" },
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   keyboardAvoidingContainer: { flex: 1 },
   header: { paddingBottom: 14, paddingHorizontal: 16 },
   headerContent: { flexDirection: "row", alignItems: "center", gap: 8 },
   searchContainer: {
     flex: 1,
     height: 38,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     borderRadius: 10,
     flexDirection: "row",
     alignItems: "center",
@@ -18,15 +18,15 @@ export default StyleSheet.create({
   searchIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 20,
-    color: "#fff",
+    color: '#ffffff',
     marginRight: 8,
   },
-  searchInput: { flex: 1, color: "#fff", ...Typography.body, fontSize: 15 },
+  searchInput: { flex: 1, color: '#ffffff', ...Typography.body, fontSize: 15 },
   iconButton: { padding: 4 },
   headerIconText: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: "#fff",
+    color: '#ffffff',
   },
   headerIcons: {
     flexDirection: "row",
@@ -41,7 +41,7 @@ export default StyleSheet.create({
     backgroundColor: "#ff3b30",
     borderRadius: 5,
     borderWidth: 1.5,
-    borderColor: "#0058bc",
+    borderColor: colors.primary,
     zIndex: 1,
   },
 
@@ -49,28 +49,28 @@ export default StyleSheet.create({
   scrollContainer: { flex: 1 },
 
   sectionHeader: { padding: 16, paddingBottom: 8 },
-  sectionTitle: { ...Typography.heading, fontSize: 18, color: "#00418f" },
+  sectionTitle: { ...Typography.heading, fontSize: 18, color: colors.onPrimaryContainer },
 
   chatList: { paddingBottom: 110 },
   chatItem: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderBottomWidth: Platform.OS === "android" ? 1 : 0.5,
-    borderBottomColor: "#eceef0",
+    borderBottomColor: colors.outlineVariant,
   },
   chatItemMentioned: {
-    backgroundColor: "#eef6ff",
+    backgroundColor: colors.primaryContainer,
     borderLeftWidth: 3,
-    borderLeftColor: Colors.primary,
+    borderLeftColor: colors.primary,
   },
   avatar: {
     width: 54,
     height: 54,
     borderRadius: 27,
     marginRight: 14,
-    backgroundColor: "#e0e3e5",
+    backgroundColor: colors.surfaceVariant,
   },
   avatarContainer: { position: "relative" },
   unreadBadge: {
@@ -85,7 +85,7 @@ export default StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: "#fff",
+    borderColor: colors.surface,
     zIndex: 10,
   },
   onlineBadge: {
@@ -97,11 +97,11 @@ export default StyleSheet.create({
     borderRadius: 6,
     backgroundColor: "#4cd964", // Vibrant Green
     borderWidth: 2,
-    borderColor: "#fff",
+    borderColor: colors.surface,
     zIndex: 11,
   },
   unreadBadgeText: {
-    color: "#fff",
+    color: colors.surface,
     fontSize: 10,
     fontWeight: "900",
   },
@@ -123,12 +123,12 @@ export default StyleSheet.create({
     marginTop: 4,
   },
   mentionPillText: {
-    color: Colors.primary,
+    color: colors.primary,
     fontSize: 10,
     fontWeight: "800",
   },
   lastMsgMentioned: {
-    color: Colors.primary,
+    color: colors.primary,
     fontWeight: "800",
   },
   chatInfo: { flex: 1 },
@@ -140,19 +140,19 @@ export default StyleSheet.create({
   chatName: {
     ...Typography.heading,
     fontSize: 15,
-    color: "#191c1e",
+    color: colors.onSurface,
     flex: 1,
     marginRight: 8,
   },
-  chatTime: { ...Typography.body, fontSize: 12, color: "#727784" },
+  chatTime: { ...Typography.body, fontSize: 12, color: colors.onSurfaceVariant },
   chatRight: {
     alignItems: "flex-end",
     justifyContent: "flex-start",
     minWidth: 50,
   },
-  lastMsg: { ...Typography.body, fontSize: 13, color: "#727784", flex: 1 },
+  lastMsg: { ...Typography.body, fontSize: 13, color: colors.onSurfaceVariant, flex: 1 },
 
-  chatPane: { flex: 1, backgroundColor: "#f7f9fb" },
+  chatPane: { flex: 1, backgroundColor: colors.background },
   chatPaneHeader: {
     paddingHorizontal: 12,
     paddingBottom: 12,
@@ -163,10 +163,10 @@ export default StyleSheet.create({
   chatPaneBack: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 26,
-    color: "#fff",
+    color: colors.surface,
   },
   chatPaneAvatar: { width: 38, height: 38, borderRadius: 19 },
-  chatPaneName: { ...Typography.heading, fontSize: 15, color: "#fff" },
+  chatPaneName: { ...Typography.heading, fontSize: 15, color: colors.surface },
   chatPaneSub: { ...Typography.body, fontSize: 12, color: "rgba(255,255,255,0.8)" },
   chatHeaderIcons: {
     flexDirection: "row",
@@ -180,14 +180,14 @@ export default StyleSheet.create({
   chatHeaderIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: "#fff",
+    color: colors.surface,
   },
 
   pinStrip: { paddingHorizontal: 10, paddingTop: 8, gap: 6 },
   pinItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: "#e0e6f0",
     borderRadius: 10,
@@ -198,10 +198,10 @@ export default StyleSheet.create({
   pinIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 16,
-    color: "#0058bc",
+    color: colors.primary,
   },
   pinText: { flex: 1, ...Typography.body, fontSize: 12, color: "#2f3a4a" },
-  pinUnpin: { ...Typography.label, fontSize: 11, color: "#0058bc" },
+  pinUnpin: { ...Typography.label, fontSize: 11, color: colors.primary },
 
   messagesContainer: { flex: 1 },
   messageRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
@@ -215,8 +215,8 @@ export default StyleSheet.create({
     borderWidth: 1,
   },
   messageBubbleMe: { backgroundColor: "#dfefff", borderColor: "#c8dcff" },
-  messageBubbleOther: { backgroundColor: "#fff", borderColor: "#e3e8f0" },
-  messageText: { ...Typography.body, fontSize: 14, color: "#1f2631" },
+  messageBubbleOther: { backgroundColor: colors.surface, borderColor: "#e3e8f0" },
+  messageText: { ...Typography.body, fontSize: 14, color: colors.onSurface },
   recalledText: { fontStyle: "italic", opacity: 0.72 },
   replyBlock: {
     backgroundColor: "rgba(255,255,255,0.6)",
@@ -226,7 +226,7 @@ export default StyleSheet.create({
     padding: 6,
     marginBottom: 6,
   },
-  replySender: { ...Typography.label, fontSize: 11, color: "#0058bc" },
+  replySender: { ...Typography.label, fontSize: 11, color: colors.primary },
   replyContent: { ...Typography.body, fontSize: 12, color: "#5f6570" },
   messageImage: {
     width: 190,
@@ -248,7 +248,7 @@ export default StyleSheet.create({
     fontSize: 20,
     color: "#51617a",
   },
-  messageFileName: { ...Typography.label, fontSize: 12, color: "#1f2631" },
+  messageFileName: { ...Typography.label, fontSize: 12, color: colors.onSurface },
   messageFileSize: { ...Typography.body, fontSize: 11, color: "#7a8391" },
 
   replyComposer: {
@@ -259,9 +259,9 @@ export default StyleSheet.create({
     borderTopColor: "#e5eaf2",
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
   },
-  replyComposerTitle: { ...Typography.label, fontSize: 12, color: "#0058bc" },
+  replyComposerTitle: { ...Typography.label, fontSize: 12, color: colors.primary },
   replyComposerText: { ...Typography.body, fontSize: 12, color: "#6e7683" },
   replyComposerCancel: {
     ...Typography.heading,
@@ -269,7 +269,7 @@ export default StyleSheet.create({
     color: "#6e7683",
   },
 
-  attachmentStrip: { maxHeight: 56, backgroundColor: "#fff" },
+  attachmentStrip: { maxHeight: 56, backgroundColor: colors.surface },
   attachmentChip: {
     height: 34,
     flexDirection: "row",
@@ -298,7 +298,7 @@ export default StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: "#e5eaf2",
     paddingHorizontal: 10,
@@ -330,8 +330,8 @@ export default StyleSheet.create({
     paddingBottom: 8,
     ...Typography.body,
     fontSize: 14,
-    color: "#1f2631",
-    backgroundColor: "#fff",
+    color: colors.onSurface,
+    backgroundColor: colors.surface,
   },
   sendButton: {
     width: 38,
@@ -339,38 +339,38 @@ export default StyleSheet.create({
     borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0058bc",
+    backgroundColor: colors.primary,
   },
   sendButtonText: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 20,
-    color: "#fff",
+    color: colors.surface,
   },
 
   friendItem: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderBottomWidth: Platform.OS === "android" ? 1 : 0.5,
-    borderBottomColor: "#eceef0",
+    borderBottomColor: colors.outlineVariant,
   },
   friendAvatar: { width: 48, height: 48, borderRadius: 24, marginRight: 16 },
   friendInfo: { flex: 1 },
-  friendName: { ...Typography.heading, fontSize: 16, color: "#191c1e" },
-  friendStatus: { ...Typography.body, fontSize: 12, color: "#727784" },
+  friendName: { ...Typography.heading, fontSize: 16, color: colors.onSurface },
+  friendStatus: { ...Typography.body, fontSize: 12, color: colors.onSurfaceVariant },
   friendAction: { padding: 8 },
   friendActionIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: "#00418f",
+    color: colors.onPrimaryContainer,
   },
 
   searchResultCard: {
     marginHorizontal: 16,
     marginBottom: 10,
     padding: 12,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#e0e6f0",
@@ -387,22 +387,22 @@ export default StyleSheet.create({
     marginRight: 10,
     backgroundColor: "#e8edf5",
   },
-  searchResultName: { ...Typography.heading, fontSize: 15, color: "#1f2631" },
+  searchResultName: { ...Typography.heading, fontSize: 15, color: colors.onSurface },
   searchResultEmail: { ...Typography.body, fontSize: 12, color: "#6d7685" },
   searchResultHint: { ...Typography.body, fontSize: 12, color: "#5f697a" },
   searchResultPrimaryButton: {
-    backgroundColor: "#0058bc",
+    backgroundColor: colors.primary,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 9,
   },
-  searchResultPrimaryText: { ...Typography.label, fontSize: 13, color: "#fff" },
+  searchResultPrimaryText: { ...Typography.label, fontSize: 13, color: colors.surface },
 
   pendingSection: {
     marginHorizontal: 16,
     marginBottom: 12,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#e0e6f0",
@@ -411,7 +411,7 @@ export default StyleSheet.create({
   pendingSectionTitle: {
     ...Typography.heading,
     fontSize: 14,
-    color: "#1f2631",
+    color: colors.onSurface,
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: 4,
@@ -424,15 +424,15 @@ export default StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#edf1f7",
   },
-  pendingName: { ...Typography.heading, fontSize: 14, color: "#1f2631" },
+  pendingName: { ...Typography.heading, fontSize: 14, color: colors.onSurface },
   pendingEmail: { ...Typography.body, fontSize: 11, color: "#6d7685" },
   pendingAcceptButton: {
-    backgroundColor: "#0058bc",
+    backgroundColor: colors.primary,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
-  pendingAcceptText: { ...Typography.label, fontSize: 12, color: "#fff" },
+  pendingAcceptText: { ...Typography.label, fontSize: 12, color: colors.surface },
 
   centeredView: {
     flex: 1,
@@ -443,35 +443,35 @@ export default StyleSheet.create({
   aiIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 80,
-    color: "#00418f",
+    color: colors.onPrimaryContainer,
     marginBottom: 20,
     opacity: 0.8,
   },
   aiTitle: {
     ...Typography.heading,
     fontSize: 24,
-    color: "#191c1e",
+    color: colors.onSurface,
     marginBottom: 8,
   },
   aiSubtitle: {
     ...Typography.body,
     fontSize: 16,
-    color: "#727784",
+    color: colors.onSurfaceVariant,
     textAlign: "center",
   },
 
   profileHeader: {
     alignItems: "center",
     padding: 32,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#eceef0",
+    borderBottomColor: colors.outlineVariant,
   },
   largeAvatarBox: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: "#0058bc",
+    backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
@@ -480,16 +480,16 @@ export default StyleSheet.create({
   profileName: {
     ...Typography.heading,
     fontSize: 22,
-    color: "#191c1e",
+    color: colors.onSurface,
     marginBottom: 4,
   },
-  profileEmail: { ...Typography.body, fontSize: 14, color: "#727784" },
+  profileEmail: { ...Typography.body, fontSize: 14, color: colors.onSurfaceVariant },
   menuContainer: { padding: 16, paddingTop: 24 },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     marginBottom: 12,
   },
@@ -502,7 +502,7 @@ export default StyleSheet.create({
     marginRight: 16,
   },
   menuIcon: { fontFamily: "Material Symbols Outlined", fontSize: 22 },
-  menuLabel: { flex: 1, ...Typography.heading, fontSize: 16, color: "#191c1e" },
+  menuLabel: { flex: 1, ...Typography.heading, fontSize: 16, color: colors.onSurface },
   menuArrow: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 20,
@@ -510,7 +510,7 @@ export default StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: "#eceef0",
+    backgroundColor: colors.outlineVariant,
     marginVertical: 12,
     marginHorizontal: 8,
   },
@@ -528,12 +528,12 @@ export default StyleSheet.create({
     fontSize: 20,
     color: "#5a6781",
   },
-  fileHistoryName: { ...Typography.label, fontSize: 13, color: "#1f2631" },
+  fileHistoryName: { ...Typography.label, fontSize: 13, color: colors.onSurface },
   fileHistoryMeta: { ...Typography.body, fontSize: 11, color: "#7a8391" },
 
   floatingTabBar: {
     position: "absolute",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     flexDirection: "row",
     alignItems: "center",
     borderTopWidth: 1,
@@ -553,12 +553,12 @@ export default StyleSheet.create({
   tabIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: "#727784",
+    color: colors.onSurfaceVariant,
     marginBottom: 4,
   },
-  tabIconActive: { color: "#00418f" },
-  tabLabel: { ...Typography.label, fontSize: 10, color: "#727784" },
-  tabLabelActive: { color: "#00418f" },
+  tabIconActive: { color: colors.onPrimaryContainer },
+  tabLabel: { ...Typography.label, fontSize: 10, color: colors.onSurfaceVariant },
+  tabLabelActive: { color: colors.onPrimaryContainer },
   tabBadge: {
     position: "absolute",
     top: 4,
@@ -571,11 +571,11 @@ export default StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: "#fff",
+    borderColor: colors.surface,
     zIndex: 10,
   },
   tabBadgeText: {
-    color: "#fff",
+    color: colors.surface,
     fontSize: 9,
     fontWeight: "900",
   },
@@ -587,7 +587,7 @@ export default StyleSheet.create({
     zIndex: 1000,
   },
   actionSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -673,7 +673,7 @@ export default StyleSheet.create({
     justifyContent: "flex-end",
   },
   forwardSheet: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "80%",
@@ -723,7 +723,7 @@ export default StyleSheet.create({
   forwardSendIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 20,
-    color: Colors.primary,
+    color: colors.primary,
   },
 
   // QR Scanner Styles
@@ -742,19 +742,19 @@ export default StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "colors.surfaceVariant",
     alignItems: "center",
     justifyContent: "center",
   },
   scannerCloseIcon: {
     fontFamily: "Material Symbols Outlined",
     fontSize: 24,
-    color: "#fff",
+    color: colors.surface,
   },
   scannerTitle: {
     ...Typography.heading,
     fontSize: 18,
-    color: "#fff",
+    color: colors.surface,
   },
   scannerFrameContainer: {
     flex: 1,
@@ -775,7 +775,7 @@ export default StyleSheet.create({
     position: "absolute",
     width: 24,
     height: 24,
-    borderColor: "#fff",
+    borderColor: colors.surface,
     borderWidth: 4,
   },
   topLeft: {
@@ -809,10 +809,10 @@ export default StyleSheet.create({
   scanLine: {
     width: "100%",
     height: 2,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     position: "absolute",
     top: "50%",
-    shadowColor: Colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 10,
@@ -828,7 +828,7 @@ export default StyleSheet.create({
     position: "absolute",
     right: 12,
     width: 200,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingVertical: 8,
     // Premium Shadow
@@ -844,7 +844,7 @@ export default StyleSheet.create({
     right: 12,
     width: 12,
     height: 12,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     transform: [{ rotate: "45deg" }],
   },
   addMenuItem: {
@@ -862,7 +862,7 @@ export default StyleSheet.create({
   addMenuLabel: {
     ...Typography.body,
     fontSize: 15,
-    color: "#1f2631",
+    color: colors.onSurface,
     fontWeight: "500",
   },
   addMenuDivider: {
@@ -871,3 +871,7 @@ export default StyleSheet.create({
     marginVertical: 4,
   },
 });
+
+
+export { getStyles };
+

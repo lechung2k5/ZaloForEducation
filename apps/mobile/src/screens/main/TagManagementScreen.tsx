@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Modal, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/Theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useChatStore } from '../../store/chatStore';
 
 interface TagManagementScreenProps {
@@ -15,6 +15,8 @@ const PRESET_COLORS = [
 
 export default function TagManagementScreen({ goBack }: TagManagementScreenProps) {
   const insets = useSafeAreaInsets();
+  const { colors, t, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const { tags, createTag, updateTag, deleteTag } = useChatStore();
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -61,7 +63,7 @@ export default function TagManagementScreen({ goBack }: TagManagementScreenProps
         <TouchableOpacity style={styles.backBtn} onPress={goBack}>
           <Text style={styles.backIcon}>arrow_back</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Quản lý thẻ phân loại</Text>
+        <Text style={styles.headerTitle}>{t('tags.title')}</Text>
         <TouchableOpacity style={styles.addBtn} onPress={handleOpenCreate}>
           <Text style={styles.addIcon}>add</Text>
         </TouchableOpacity>
@@ -71,8 +73,8 @@ export default function TagManagementScreen({ goBack }: TagManagementScreenProps
         {tags.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>sell</Text>
-            <Text style={styles.emptyText}>Chưa có thẻ phân loại nào</Text>
-            <Text style={styles.emptySubText}>Tạo thẻ để nhóm các cuộc trò chuyện lại với nhau</Text>
+            <Text style={styles.emptyText}>{t('tags.empty')}</Text>
+            <Text style={styles.emptySubText}>{t('tags.empty_sub')}</Text>
           </View>
         ) : (
           tags.map((tag: any) => (
@@ -83,7 +85,7 @@ export default function TagManagementScreen({ goBack }: TagManagementScreenProps
               </View>
               <View style={styles.tagActions}>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => handleOpenEdit(tag)}>
-                  <Text style={[styles.actionIcon, { color: Colors.primary }]}>edit</Text>
+                  <Text style={[styles.actionIcon, { color: colors.primary }]}>edit</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => handleDelete(tag.id)}>
                   <Text style={[styles.actionIcon, { color: '#ef4444' }]}>delete</Text>
@@ -97,17 +99,18 @@ export default function TagManagementScreen({ goBack }: TagManagementScreenProps
       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)}>
           <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.modalTitle}>{editingTag ? 'Chỉnh sửa thẻ' : 'Tạo thẻ mới'}</Text>
+            <Text style={styles.modalTitle}>{editingTag ? t('tags.edit_title') : t('tags.create_title')}</Text>
             
             <TextInput
               style={styles.input}
-              placeholder="Tên thẻ (VD: Khách hàng, Gia đình...)"
+              placeholder={t('tags.placeholder')}
+              placeholderTextColor={colors.onSurfaceVariant}
               value={tagName}
               onChangeText={setTagName}
               autoFocus
             />
 
-            <Text style={styles.colorLabel}>Chọn màu sắc</Text>
+            <Text style={styles.colorLabel}>{t('tags.color_label')}</Text>
             <View style={styles.colorGrid}>
               {PRESET_COLORS.map(color => (
                 <TouchableOpacity
@@ -122,14 +125,14 @@ export default function TagManagementScreen({ goBack }: TagManagementScreenProps
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
-                <Text style={styles.cancelBtnText}>Hủy</Text>
+                <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.saveBtn, !tagName.trim() && { opacity: 0.5 }]} 
                 onPress={handleSave}
                 disabled={!tagName.trim()}
               >
-                <Text style={styles.saveBtnText}>Lưu</Text>
+                <Text style={styles.saveBtnText}>{t('tags.save')}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
@@ -139,17 +142,17 @@ export default function TagManagementScreen({ goBack }: TagManagementScreenProps
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     height: 56,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.outlineVariant,
     paddingHorizontal: 8,
   },
   backBtn: {
@@ -158,13 +161,13 @@ const styles = StyleSheet.create({
   backIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
-    color: Colors.onBackground,
+    color: colors.onSurface,
   },
   headerTitle: {
     flex: 1,
     fontSize: 18,
     fontFamily: 'PlusJakartaSans_600SemiBold',
-    color: Colors.onBackground,
+    color: colors.onSurface,
     marginLeft: 8,
   },
   addBtn: {
@@ -173,7 +176,7 @@ const styles = StyleSheet.create({
   addIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
-    color: Colors.primary,
+    color: colors.primary,
   },
   content: {
     flex: 1,
@@ -186,19 +189,19 @@ const styles = StyleSheet.create({
   emptyIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 64,
-    color: '#ccc',
+    color: colors.outlineVariant,
     marginBottom: 16,
   },
   emptyText: {
     fontSize: 16,
     fontFamily: 'PlusJakartaSans_600SemiBold',
-    color: Colors.onBackground,
+    color: colors.onSurface,
     marginBottom: 8,
   },
   emptySubText: {
     fontSize: 14,
     fontFamily: 'PlusJakartaSans_400Regular',
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
     textAlign: 'center',
   },
   tagItem: {
@@ -207,7 +210,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: colors.outlineVariant,
   },
   tagInfo: {
     flexDirection: 'row',
@@ -222,7 +225,7 @@ const styles = StyleSheet.create({
   tagName: {
     fontSize: 16,
     fontFamily: 'PlusJakartaSans_500Medium',
-    color: Colors.onBackground,
+    color: colors.onSurface,
   },
   tagActions: {
     flexDirection: 'row',
@@ -244,29 +247,30 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '85%',
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 24,
   },
   modalTitle: {
     fontSize: 18,
     fontFamily: 'PlusJakartaSans_600SemiBold',
-    color: Colors.onBackground,
+    color: colors.onSurface,
     marginBottom: 16,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: colors.outlineVariant,
     borderRadius: 8,
     padding: 12,
     fontSize: 15,
     fontFamily: 'PlusJakartaSans_400Regular',
     marginBottom: 20,
+    color: colors.onSurface,
   },
   colorLabel: {
     fontSize: 14,
     fontFamily: 'PlusJakartaSans_500Medium',
-    color: Colors.onBackground,
+    color: colors.onSurface,
     marginBottom: 12,
   },
   colorGrid: {
@@ -284,7 +288,7 @@ const styles = StyleSheet.create({
   },
   colorItemSelected: {
     borderWidth: 2,
-    borderColor: '#000',
+    borderColor: colors.onSurface,
   },
   checkIcon: {
     fontFamily: 'Material Symbols Outlined',
@@ -304,10 +308,10 @@ const styles = StyleSheet.create({
   cancelBtnText: {
     fontSize: 15,
     fontFamily: 'PlusJakartaSans_600SemiBold',
-    color: Colors.onSurfaceVariant,
+    color: colors.onSurfaceVariant,
   },
   saveBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 8,

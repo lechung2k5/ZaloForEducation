@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useChatStore } from '../../store/chatStore';
+import { useTheme } from '../../context/ThemeContext';
+
 
 interface SystemNotificationItemProps {
   message: any;
@@ -9,7 +11,7 @@ interface SystemNotificationItemProps {
 
 const SystemNotificationItem = ({ message, onJump }: SystemNotificationItemProps) => {
   const { userProfiles, currentUserEmail, loadUserProfile } = useChatStore();
-  const isReaction = message.metadata?.type === 'reaction_notification';
+  const { isDark, colors } = useTheme();
   const targetId = message.metadata?.targetMessageId;
 
   React.useEffect(() => {
@@ -37,69 +39,72 @@ const SystemNotificationItem = ({ message, onJump }: SystemNotificationItemProps
   try {
     const parsed = JSON.parse(message.content);
     if (parsed.action) {
-       const actorLabel = getDisplayName(parsed.actor);
-       const targetLabel = parsed.target ? getDisplayName(parsed.target) : '';
+      const actorLabel = getDisplayName(parsed.actor);
+      const targetLabel = parsed.target ? getDisplayName(parsed.target) : '';
 
-       switch (parsed.action) {
-           case 'member_added':
-              displayContent = `${actorLabel} đã thêm ${targetLabel} vào nhóm`;
-              break;
-           case 'member_removed':
-           case 'member_kicked':
-              displayContent = `${actorLabel} đã xóa ${targetLabel} khỏi nhóm`;
-              break;
-           case 'member_left':
-              displayContent = `${actorLabel} đã rời nhóm`;
-              break;
-           case 'member_joined_link':
-              displayContent = `${actorLabel} đã tham gia nhóm bằng link`;
-              break;
-           case 'promoted_to_deputy':
-              displayContent = `${actorLabel} đã bổ nhiệm ${targetLabel} làm phó nhóm`;
-              break;
-           case 'demoted_from_deputy':
-           case 'demoted_to_member':
-              displayContent = `${actorLabel} đã gỡ chức vụ của ${targetLabel} xuống làm thành viên`;
-              break;
-           case 'ownership_transferred':
-           case 'transferred_owner':
-              displayContent = `${actorLabel} đã chuyển quyền trưởng nhóm cho ${targetLabel}`;
-              break;
-           case 'pin_message':
-              displayContent = `${actorLabel} đã ghim một tin nhắn`;
-              break;
-           case 'unpin_message':
-              displayContent = `${actorLabel} đã bỏ ghim tin nhắn`;
-              break;
-           case 'role_updated':
-              const roleName = parsed.role === 'owner' ? 'Trưởng nhóm' : parsed.role === 'deputy' ? 'Phó nhóm' : 'Thành viên';
-              displayContent = `${actorLabel} đã đặt ${targetLabel} làm ${roleName}`;
-              break;
-           case 'info_updated':
-              displayContent = `${actorLabel} đã cập nhật thông tin nhóm`;
-              break;
-           case 'group_name_updated':
-              displayContent = `${actorLabel} đã đổi tên nhóm`;
-              break;
-           case 'group_avatar_updated':
-              displayContent = `${actorLabel} đã thay đổi ảnh đại diện nhóm`;
-              break;
-           case 'group_created':
-              displayContent = `${actorLabel} đã tạo nhóm`;
-              break;
-           default:
-              displayContent = `${actorLabel} đã thực hiện một thay đổi hệ thống`;
-              break;
-       }
+      switch (parsed.action) {
+        case 'member_added':
+          displayContent = `${actorLabel} đã thêm ${targetLabel} vào nhóm`;
+          break;
+        case 'member_removed':
+        case 'member_kicked':
+          displayContent = `${actorLabel} đã xóa ${targetLabel} khỏi nhóm`;
+          break;
+        case 'member_left':
+          displayContent = `${actorLabel} đã rời nhóm`;
+          break;
+        case 'member_joined_link':
+          displayContent = `${actorLabel} đã tham gia nhóm bằng link`;
+          break;
+        case 'promoted_to_deputy':
+          displayContent = `${actorLabel} đã bổ nhiệm ${targetLabel} làm phó nhóm`;
+          break;
+        case 'demoted_from_deputy':
+        case 'demoted_to_member':
+          displayContent = `${actorLabel} đã gỡ chức vụ của ${targetLabel} xuống làm thành viên`;
+          break;
+        case 'ownership_transferred':
+        case 'transferred_owner':
+          displayContent = `${actorLabel} đã chuyển quyền trưởng nhóm cho ${targetLabel}`;
+          break;
+        case 'pin_message':
+          displayContent = `${actorLabel} đã ghim một tin nhắn`;
+          break;
+        case 'unpin_message':
+          displayContent = `${actorLabel} đã bỏ ghim tin nhắn`;
+          break;
+        case 'role_updated': {
+          const roleName = parsed.role === 'owner' ? 'Trưởng nhóm' : parsed.role === 'deputy' ? 'Phó nhóm' : 'Thành viên';
+          displayContent = `${actorLabel} đã đặt ${targetLabel} làm ${roleName}`;
+          break;
+        }
+        case 'info_updated':
+          displayContent = `${actorLabel} đã cập nhật thông tin nhóm`;
+          break;
+        case 'group_name_updated':
+          displayContent = `${actorLabel} đã đổi tên nhóm`;
+          break;
+        case 'group_avatar_updated':
+          displayContent = `${actorLabel} đã thay đổi ảnh đại diện nhóm`;
+          break;
+        case 'group_created':
+          displayContent = `${actorLabel} đã tạo nhóm`;
+          break;
+        default:
+          displayContent = `${actorLabel} đã thực hiện một thay đổi hệ thống`;
+          break;
+      }
     }
   } catch (e) {
     // Fallback to raw content
   }
 
+  const styles = getStyles(isDark, colors);
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity 
-        style={styles.bubble} 
+      <TouchableOpacity
+        style={styles.bubble}
         onPress={() => targetId && onJump?.(targetId)}
         disabled={!targetId}
       >
@@ -110,32 +115,34 @@ const SystemNotificationItem = ({ message, onJump }: SystemNotificationItemProps
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   container: {
     alignItems: 'center',
     marginVertical: 12,
     paddingHorizontal: 30,
   },
   bubble: {
-    backgroundColor: '#f1f2f4',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#f1f2f4',
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
     alignItems: 'center',
+    borderWidth: isDark ? 1 : 0,
+    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'transparent',
   },
   text: {
     fontSize: 12,
-    color: '#65676b',
+    color: isDark ? '#a0aec0' : '#65676b',
     textAlign: 'center',
     lineHeight: 18,
     fontWeight: '500',
   },
   hint: {
     fontSize: 10,
-    color: '#0084ff',
+    color: isDark ? colors.primary : '#0084ff',
     marginTop: 2,
     fontWeight: '600',
-  }
+  },
 });
 
 export default SystemNotificationItem;

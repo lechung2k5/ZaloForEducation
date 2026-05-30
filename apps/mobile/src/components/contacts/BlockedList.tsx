@@ -1,6 +1,7 @@
 import React from 'react';
+import { useTheme } from '../../context/ThemeContext';
 import { View, Text, TouchableOpacity, Image } from 'react-native';
-import styles from '../../screens/main/style/ContactsScreen.styles';
+import { getContactsStyles } from '../../screens/main/style/ContactsScreen.styles';
 
 interface BlockedListProps {
   blockedUsers: any[];
@@ -9,12 +10,9 @@ interface BlockedListProps {
   searchText: string;
 }
 
-export const BlockedList: React.FC<BlockedListProps> = ({
-  blockedUsers,
-  profileMap,
-  onUnblock,
-  searchText,
-}) => {
+export const BlockedList = ({ blockedUsers, profileMap, onUnblock, searchText }: BlockedListProps) => {
+  const { t, colors } = useTheme();
+  const styles = getContactsStyles(colors);;
   const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
   
   const filtered = blockedUsers.filter(item => {
@@ -57,7 +55,7 @@ export const BlockedList: React.FC<BlockedListProps> = ({
               style={styles.rejectButton}
               onPress={() => onUnblock(email)}
             >
-              <Text style={styles.rejectText}>Bỏ chặn</Text>
+              <Text style={styles.rejectText}>{t('contacts.unblock')}</Text>
             </TouchableOpacity>
           </View>
         );

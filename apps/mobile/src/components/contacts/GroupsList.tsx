@@ -1,6 +1,7 @@
 import React from 'react';
+import { useTheme } from '../../context/ThemeContext';
 import { View, Text, TouchableOpacity, Image } from 'react-native';
-import styles from '../../screens/main/style/ContactsScreen.styles';
+import { getContactsStyles } from '../../screens/main/style/ContactsScreen.styles';
 
 interface GroupsListProps {
   joinedGroups: any[];
@@ -13,6 +14,8 @@ export const GroupsList: React.FC<GroupsListProps> = ({
   onOpenGroup,
   searchText,
 }) => {
+  const { colors } = useTheme();
+  const styles = getContactsStyles(colors);
   const filtered = joinedGroups.filter(g => 
     !searchText || g.name?.toLowerCase().includes(searchText.toLowerCase())
   );

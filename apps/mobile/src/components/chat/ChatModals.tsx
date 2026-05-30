@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Pressable, Modal, TextInput, Image } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import styles from '../../screens/main/style/ChatScreen.styles';
+
+import { getStyles } from '../../screens/main/style/ChatScreen.styles';
 import { REACTION_OPTIONS, FLUENT_EMOJI_MAP } from '../../constants/Emojis';
 import Alert from '../../utils/Alert';
+import { useTheme } from '../../context/ThemeContext';
 
 interface ChatModalsProps {
   actionMessage: any;
@@ -32,7 +34,7 @@ interface ChatModalsProps {
   onApplyCustomMuteSchedule: () => void;
 }
 
-const EmojiItem = ({ emoji }: { emoji: string }) => {
+const EmojiItem = ({ emoji, styles }: { emoji: string; styles: any }) => {
   const [failed, setFailed] = React.useState(false);
   const url = (FLUENT_EMOJI_MAP as any)[emoji];
 
@@ -75,6 +77,9 @@ export const ChatModals: React.FC<ChatModalsProps> = ({
   setCustomMuteEndTime,
   onApplyCustomMuteSchedule,
 }) => {
+  const { t, colors, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
+
   return (
     <>
       {/* ACTION SHEET */}
@@ -90,9 +95,9 @@ export const ChatModals: React.FC<ChatModalsProps> = ({
                 <TouchableOpacity
                   key={e}
                   onPress={() => { onReaction(actionMessage, e); setActionMessage(null); }}
-                  style={{ alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff' }}
+                  style={{ alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.08)' }}
                 >
-                  <EmojiItem emoji={e} />
+                  <EmojiItem emoji={e} styles={styles} />
                 </TouchableOpacity>
               ))}
               </View>
@@ -195,7 +200,7 @@ export const ChatModals: React.FC<ChatModalsProps> = ({
                 </View>
                 <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: detailMessage?.status === 'read' ? '#e0f2fe' : '#f8fafc' }}>
                   <Text style={{ fontSize: 11, fontWeight: '700', color: detailMessage?.status === 'read' ? '#0369a1' : '#475569' }}>
-                    {detailMessage?.status === 'read' ? 'Đã xem' : detailMessage?.status === 'delivered' ? 'Đã nhận' : detailMessage?.status === 'sending' ? 'Đang gửi' : 'Đã gửi'}
+                    {detailMessage?.status === 'read' ? t('chat.status_read') : detailMessage?.status === 'delivered' ? t('chat.status_delivered') : detailMessage?.status === 'sending' ? t('chat.status_sending') : t('chat.status_sent')}
                   </Text>
                 </View>
               </View>
@@ -272,9 +277,6 @@ export const ChatModals: React.FC<ChatModalsProps> = ({
             </TouchableOpacity>
             <TouchableOpacity style={styles.muteMenuItem} onPress={() => onSelectMuteSchedule("4h")}>
               <Text style={styles.muteMenuItemText}>Tắt 4 giờ</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.muteMenuItem} onPress={() => onSelectMuteSchedule("12h")}>
-              <Text style={styles.muteMenuItemText}>Tắt 12 giờ</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.muteMenuItem} onPress={() => onSelectMuteSchedule("morning")}>
               <Text style={styles.muteMenuItemText}>Tắt đến 8:00 sáng</Text>

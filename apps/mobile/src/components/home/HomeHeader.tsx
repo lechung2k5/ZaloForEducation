@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import styles from '../../screens/main/style/HomeScreen.styles';
+import { getStyles } from '../../screens/main/style/HomeScreen.styles';
+import { useTheme } from '../../context/ThemeContext';
 
 interface HomeHeaderProps {
   onSearchPress: () => void;
@@ -18,6 +19,8 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
   searchEmail 
 }) => {
   const insets = useSafeAreaInsets();
+  const { colors, isDark, t } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   
   return (
     <LinearGradient
@@ -32,7 +35,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({
         >
           <Text style={styles.searchIcon}>search</Text>
           <Text style={styles.searchInput} numberOfLines={1}>
-            {searchEmail || 'Tìm kiếm tin nhắn, bạn bè, tệp tin...'}
+            {searchEmail || t('common.search_placeholder')}
           </Text>
         </TouchableOpacity>
         <View style={styles.headerIcons}>

@@ -3,50 +3,31 @@ import { Colors, Typography } from '../../../constants/Theme';
 
 // Dark theme palette — mirrors the web dark mode colors
 const D = {
-  bg:            '#0a0e27',   // --color-background dark
-  surface:       '#121621',   // --color-surface dark
-  surfaceHigh:   '#1f2438',   // --color-surface-container dark
-  surfaceVar:    '#2a2f42',   // --color-surface-variant dark
-  outline:       '#464d5f',   // --color-outline dark
-  outlineVar:    '#3a3f52',   // --color-outline-variant dark
-  onSurface:     '#e8eef7',   // --color-on-surface dark
-  onSurfaceVar:  '#9ca3b5',   // --color-on-surface-variant dark
-  primary:       '#4a8fff',   // accent blue suitable for dark bg
-  primaryDim:    '#2563eb',
+  bg:            '#0a0e27',
+  surface:       '#121621',
+  surfaceHigh:   '#1f2438',
+  surfaceVar:    '#2a2f42',
+  outline:       '#464d5f',
+  outlineVar:    '#3a3f52',
+  onSurface:     '#e8eef7',
+  onSurfaceVar:  '#9ca3b5',
+  primary:       '#4a8fff',
   white:         '#ffffff',
   danger:        '#ef4444',
 };
 
-export const getStyles = (colors: any, isDark: boolean) => {
-  const D = {
-    bg:            colors.background,
-    surface:       colors.surface,
-    surfaceHigh:   colors.primaryContainer,
-    surfaceVar:    colors.surfaceVariant,
-    outline:       colors.outline,
-    outlineVar:    colors.outlineVariant,
-    onSurface:     colors.onSurface,
-    onSurfaceVar:  colors.onSurfaceVariant,
-    primary:       colors.primary,
-    primaryDim:    colors.primary,
-    white:         isDark ? '#ffffff' : '#ffffff',
-    danger:        colors.error,
-  };
-
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: D.bg,
-    },
-
-  // ── Header ──────────────────────────────────────────────────
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: D.bg,
+  },
   header: {
     paddingHorizontal: 12,
     paddingBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#00174d',  // deep navy — matches web header gradient
+    backgroundColor: '#00174d',
   },
   headerBack: {
     fontFamily: 'Material Symbols Outlined',
@@ -184,7 +165,7 @@ export const getStyles = (colors: any, isDark: boolean) => {
     paddingBottom: 20,
   },
 
-  // ── Action Sheet (long press menu) ──────────────────────────
+  // ── Action Sheet ─────────────────────────────────────────────
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -541,10 +522,11 @@ export const getStyles = (colors: any, isDark: boolean) => {
     justifyContent: 'center',
     backgroundColor: D.primary,
   },
-    muteModalApplyText: {
-      ...Typography.label,
-      fontSize: 12,
-      color: D.white,
-    },
-  });
-};
+  muteModalApplyText: {
+    ...Typography.label,
+    fontSize: 12,
+    color: D.white,
+  },
+});
+
+export const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({});

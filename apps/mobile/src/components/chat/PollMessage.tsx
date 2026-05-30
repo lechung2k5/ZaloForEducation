@@ -11,6 +11,7 @@ import {
 import { Colors } from "../../constants/Theme";
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from '../../context/ThemeContext';
 
 interface PollOption {
   text: string;
@@ -42,6 +43,7 @@ const PollMessage: React.FC<PollMessageProps> = ({
   userProfiles = {},
 }) => {
   const { user }: any = useAuth();
+  const { t } = useTheme();
   const [draftOption, setDraftOption] = useState<number | null>(null);
   const [isVoting, setIsVoting] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -260,7 +262,7 @@ const PollMessage: React.FC<PollMessageProps> = ({
                 ]}
               >
                 <Text style={styles.buttonSecondaryText}>
-                  {isVoting ? "Đang gửi..." : "Đổi lựa chọn"}
+                  {isVoting ? t('chat.status_sending_ellipsis') : t('chat.change_choice')}
                 </Text>
               </Pressable>
             </>

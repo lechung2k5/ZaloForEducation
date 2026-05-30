@@ -90,7 +90,7 @@ const chatPost = async (path, body) => {
   return normalizeApiResponse(res);
 };
 
-export default function BotChatScreen() {
+export default function BotChatScreen({ goBack }) {
   const { user } = useAuth();
   const { setActiveConversation } = useChatStore();
   const [botMessages, setBotMessages] = useState([]);
@@ -194,6 +194,9 @@ export default function BotChatScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity onPress={goBack} style={styles.backButton}>
+          <Text style={{ fontFamily: 'Material Symbols Outlined', fontSize: 24, color: '#191c1e' }}>arrow_back</Text>
+        </TouchableOpacity>
         <Image source={{ uri: BOT_AVATAR }} style={styles.headerAvatar} />
         <View style={{ flex: 1 }}>
           <Text style={styles.headerName}>UniChat AI</Text>
@@ -285,6 +288,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e8ecf0',
   },
+  backButton: { marginRight: 8 },
   headerAvatar: { width: 40, height: 40, borderRadius: 20 },
   headerName: { ...Typography.heading, fontSize: 16, color: '#191c1e' },
   headerSub: { ...Typography.body, fontSize: 12, color: '#727784' },

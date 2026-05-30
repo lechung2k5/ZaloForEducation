@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Image } from 'react-native';
-import styles from '../../screens/main/style/ContactsScreen.styles';
+import { useTheme } from '../../context/ThemeContext';
+import { getContactsStyles } from '../../screens/main/style/ContactsScreen.styles';
 import { ASSETS } from '../../utils/assets';
 
 interface FriendsListProps {
@@ -9,6 +10,7 @@ interface FriendsListProps {
   onOpenProfile: (friend: any) => void;
   onOpenActionSheet: (friend: any) => void;
   searchText: string;
+  showOnlineStatus?: boolean;
 }
 
 export const FriendsList: React.FC<FriendsListProps> = ({
@@ -17,7 +19,10 @@ export const FriendsList: React.FC<FriendsListProps> = ({
   onOpenProfile,
   onOpenActionSheet,
   searchText,
+  showOnlineStatus = true,
 }) => {
+  const { colors } = useTheme();
+  const styles = getContactsStyles(colors);
   if (friendGroups.length === 0) {
     return (
       <View style={styles.center}>
@@ -33,7 +38,7 @@ export const FriendsList: React.FC<FriendsListProps> = ({
       {!searchText && (
         <View style={styles.summaryRow}>
           <Text style={styles.summaryText}>TẤT CẢ BẠN BÈ ({friendGroups.reduce((acc, [, list]) => acc + list.length, 0)})</Text>
-          <Text style={styles.summaryText}>{recentlyOnlineCount} vừa mới truy cập</Text>
+          {showOnlineStatus && <Text style={styles.summaryText}>{recentlyOnlineCount} vừa mới truy cập</Text>}
         </View>
       )}
 
@@ -49,13 +54,15 @@ export const FriendsList: React.FC<FriendsListProps> = ({
               onPress={() => onOpenProfile(item)}
             >
               <View style={styles.avatarWrap}>
-                <Image source={item.avatarUrl ? { uri: item.avatarUrl } : ASSETS.DEFAULT_AVATAR} style={styles.avatar} />
-                <View
-                  style={[
-                    styles.statusDot,
-                    item.status === "online" && styles.onlineDot,
-                  ]}
-                />
+                <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
+                {showOnlineStatus && (
+                  <View
+                    style={[
+                      styles.statusDot,
+                      item.status === "online" && styles.onlineDot,
+                    ]}
+                  />
+                )}
               </View>
               <View style={styles.contactInfo}>
                 <Text style={styles.contactName}>{item.displayName}</Text>

@@ -1,7 +1,7 @@
 import React from 'react';
+import { useTheme } from '../../context/ThemeContext';
 import { View, Text, TouchableOpacity, Pressable, TextInput, Image, ActivityIndicator } from 'react-native';
-import styles from '../../screens/main/style/ContactsScreen.styles';
-import { ASSETS } from '../../utils/assets';
+import { getContactsStyles } from '../../screens/main/style/ContactsScreen.styles';
 
 interface ContactModalsProps {
   actionFriend: any;
@@ -40,14 +40,8 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
   onOpenDirectChat,
   formatBirthDate,
 }) => {
-  const profileAvatar =
-    profileFriend?.avatarUrl ||
-    profileFriend?.urlAvatar ||
-    profileFriend?.avatar ||
-    profileFriend?.profile?.avatarUrl ||
-    profileFriend?.profile?.urlAvatar ||
-    profileFriend?.profile?.avatar;
-
+  const { t, colors } = useTheme();
+  const styles = getContactsStyles(colors);;
   return (
     <>
       {/* Action Sheet */}
@@ -56,7 +50,7 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
           <View style={styles.sheet}>
             <View style={[styles.sheetItem, { borderBottomWidth: 0 }]}>
               <Text style={[styles.sheetText, { textAlign: "center", color: "#738098" }]}>
-                Tùy chọn cho {actionFriend.displayName}
+                {t('home.chat_options')} {actionFriend.displayName}
               </Text>
             </View>
 
@@ -64,7 +58,7 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
               style={styles.sheetItem}
               onPress={() => onOpenDirectChat(actionFriend.email)}
             >
-              <Text style={styles.sheetText}>Nhắn tin</Text>
+              <Text style={styles.sheetText}>{t('chat.message_label')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -72,7 +66,7 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
               onPress={() => onToggleCloseFriend(actionFriend.email, !actionFriend.isCloseFriend)}
             >
               <Text style={styles.sheetText}>
-                {actionFriend.isCloseFriend ? "Bỏ đánh dấu bạn thân" : "Đánh dấu bạn thân"}
+                {actionFriend.isCloseFriend ? t('contacts.unmark_close_friend') : t('contacts.mark_close_friend')}
               </Text>
             </TouchableOpacity>
 
@@ -84,21 +78,21 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
                 setActionFriend(null);
               }}
             >
-              <Text style={styles.sheetText}>Đặt biệt danh</Text>
+              <Text style={styles.sheetText}>{t('contacts.alias_title')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.sheetItem}
               onPress={() => onUnfriend(actionFriend.email)}
             >
-              <Text style={[styles.sheetText, { color: "#ef4444" }]}>Xóa bạn</Text>
+              <Text style={[styles.sheetText, { color: "#ef4444" }]}>{t('common.delete')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.sheetItem}
               onPress={() => onBlock(actionFriend.email)}
             >
-              <Text style={[styles.sheetText, { color: "#ef4444" }]}>Chặn người dùng</Text>
+              <Text style={[styles.sheetText, { color: "#ef4444" }]}>{t('common.block')}</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -108,7 +102,7 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
       {nicknameFriend && (
         <Pressable style={styles.overlay} onPress={() => setNicknameFriend(null)}>
           <View style={styles.nicknameModal}>
-            <Text style={styles.nickTitle}>Đặt biệt danh</Text>
+            <Text style={styles.nickTitle}>{t('contacts.alias_title')}</Text>
             <Text style={styles.nickHint}>
               Biệt danh giúp bạn dễ dàng nhận diện bạn bè hơn.
             </Text>
@@ -116,7 +110,7 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
               style={styles.nickInput}
               value={nicknameDraft}
               onChangeText={setNicknameDraft}
-              placeholder="Nhập biệt danh..."
+              placeholder={t('contacts.alias_placeholder')}
               autoFocus
             />
             <View style={styles.nickActions}>
@@ -124,7 +118,7 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
                 style={styles.cancelBtn}
                 onPress={() => setNicknameFriend(null)}
               >
-                <Text style={styles.cancelText}>Hủy</Text>
+                <Text style={styles.cancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.saveBtn, nicknameSaving && styles.disabledBtn]}
@@ -132,7 +126,7 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
                 disabled={nicknameSaving}
               >
                 <Text style={styles.saveText}>
-                  {nicknameSaving ? "Đang lưu" : "Lưu"}
+                  {nicknameSaving ? t('common.saving') : t('common.save')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -146,7 +140,7 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
           <View style={styles.profileModal}>
             <View style={styles.profileHead}>
               <Image
-                source={profileAvatar ? { uri: profileAvatar } : ASSETS.DEFAULT_AVATAR}
+                source={{ uri: profileFriend.avatarUrl }}
                 style={styles.profileAvatar}
               />
               <View>
@@ -158,18 +152,18 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
             {profileLoading ? (
               <View style={styles.profileLoadingRow}>
                 <ActivityIndicator size="small" color="#1f8fff" />
-                <Text style={styles.profileLoadingText}>Đang tải thông tin...</Text>
+                <Text style={styles.profileLoadingText}>{t('profile.loading')}</Text>
               </View>
             ) : (
               <View style={styles.profileInfoWrap}>
                 <Text style={styles.profileInfoRow}>
-                  Giới tính: {profileFriend.profile?.gender || "Chưa cập nhật"}
+                  {t('profile.gender')}: {profileFriend.profile?.gender || t('profile.not_updated')}
                 </Text>
                 <Text style={styles.profileInfoRow}>
-                  Ngày sinh: {formatBirthDate(profileFriend.profile?.dateOfBirth || profileFriend.profile?.date_of_birth) || "Chưa cập nhật"}
+                  {t('profile.birthdate')}: {formatBirthDate(profileFriend.profile?.dateOfBirth || profileFriend.profile?.date_of_birth) || t('profile.not_updated')}
                 </Text>
                 <Text style={styles.profileInfoRow}>
-                  Số điện thoại: {profileFriend.profile?.phoneNumber || "Chưa cập nhật"}
+                  {t('profile.phone')}: {profileFriend.profile?.phoneNumber || t('profile.not_updated')}
                 </Text>
               </View>
             )}
@@ -179,7 +173,7 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
                 style={styles.cancelBtn}
                 onPress={() => setProfileFriend(null)}
               >
-                <Text style={styles.cancelText}>Đóng</Text>
+                <Text style={styles.cancelText}>{t('common.close')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.saveBtn}
@@ -188,7 +182,7 @@ export const ContactModals: React.FC<ContactModalsProps> = ({
                   setProfileFriend(null);
                 }}
               >
-                <Text style={styles.saveText}>Nhắn tin</Text>
+                <Text style={styles.saveText}>{t('chat.message_label')}</Text>
               </TouchableOpacity>
             </View>
           </View>

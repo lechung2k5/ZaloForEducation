@@ -9,7 +9,7 @@ import {
   SafeAreaView
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Colors } from '../../constants/Theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useChatStore } from '../../store/chatStore';
 import { getSecurityAlerts, markAllSecurityAlertsRead } from '../../utils/securityAlerts';
 
@@ -31,6 +31,8 @@ interface NotificationItem {
 }
 
 export default function NotificationScreen({ onNavigate }: NotificationScreenProps) {
+  const { colors, t, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const { notifications, markNotificationsRead } = useChatStore();
   const [securityAlerts, setSecurityAlerts] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -76,7 +78,7 @@ export default function NotificationScreen({ onNavigate }: NotificationScreenPro
     >
       <View style={styles.cardHeader}>
         <Text style={styles.cardType}>
-          {item.category === 'security' ? '🔐 BẢO MẬT' : '💬 TIN NHẮN'}
+          {item.category === 'security' ? t('notifications.security') : t('notifications.message')}
         </Text>
         {!item.read && <View style={styles.unreadDot} />}
       </View>
@@ -89,7 +91,7 @@ export default function NotificationScreen({ onNavigate }: NotificationScreenPro
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Thông báo</Text>
+        <Text style={styles.headerTitle}>{t('notifications.title')}</Text>
       </View>
       
       <FlatList
@@ -98,12 +100,12 @@ export default function NotificationScreen({ onNavigate }: NotificationScreenPro
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>notifications_off</Text>
-            <Text style={styles.emptyText}>Chưa có thông báo nào</Text>
+            <Text style={styles.emptyText}>{t('notifications.empty')}</Text>
           </View>
         }
       />
@@ -111,32 +113,32 @@ export default function NotificationScreen({ onNavigate }: NotificationScreenPro
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
   },
   header: {
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: colors.outlineVariant,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.onSurface,
   },
   list: {
     padding: 16,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.outlineVariant,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -144,8 +146,8 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
   },
   unreadCard: {
-    backgroundColor: '#f0f9ff',
-    borderColor: '#bae6fd',
+    backgroundColor: colors.primaryContainer,
+    borderColor: colors.outlineVariant,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -156,29 +158,29 @@ const styles = StyleSheet.create({
   cardType: {
     fontSize: 10,
     fontWeight: '700',
-    color: Colors.primary,
+    color: colors.primary,
     letterSpacing: 0.5,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
   },
   cardTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1e293b',
+    color: colors.onSurface,
     marginBottom: 2,
   },
   cardMessage: {
     fontSize: 14,
-    color: '#64748b',
+    color: colors.onSurfaceVariant,
     lineHeight: 20,
   },
   cardTime: {
     fontSize: 11,
-    color: '#94a3b8',
+    color: colors.outline,
     marginTop: 8,
   },
   emptyContainer: {
@@ -189,11 +191,11 @@ const styles = StyleSheet.create({
   emptyIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 48,
-    color: '#cbd5e1',
+    color: colors.outlineVariant,
     marginBottom: 12,
   },
   emptyText: {
     fontSize: 16,
-    color: '#94a3b8',
+    color: colors.outline,
   },
 });

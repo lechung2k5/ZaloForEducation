@@ -41,16 +41,7 @@ import ChangePasswordScreen from '../screens/profile/ChangePasswordScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const AiChatWrapper = (props: any) => (
-  <View style={{ flex: 1 }}>
-    <ChatScreen 
-      {...props}
-      onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)}
-      goBack={undefined} // No back in tab
-      params={{ targetEmail: BOT_EMAIL }} 
-    />
-  </View>
-);
+
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   return (
@@ -139,10 +130,16 @@ function TabNavigator({ onLogout }: { onLogout: any }) {
       </Tab.Screen>
       <Tab.Screen 
         name="AI" 
-        component={AiChatWrapper} 
+        component={View} 
         options={{ 
           tabBarLabel: 'AI Assistant',
         }} 
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('BotChat');
+          },
+        })}
       />
       <Tab.Screen name="ProfileTab" options={{ tabBarLabel: 'Cá nhân' }}>
         {(props: any) => <ProfileScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} goBack={() => props.navigation.goBack()} onLogout={onLogout} params={props.route.params} />}
@@ -179,6 +176,9 @@ export function RootNavigator({ user, onLogout }: { user: any; onLogout: any }) 
           </Stack.Screen>
           <Stack.Screen name="Chat">
             {(props: any) => <ChatScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} goBack={() => props.navigation.goBack()} params={props.route?.params} />}
+          </Stack.Screen>
+          <Stack.Screen name="BotChat">
+            {(props: any) => <BotChatScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} goBack={() => props.navigation.goBack()} params={props.route?.params} />}
           </Stack.Screen>
           <Stack.Screen name="Sessions">
             {(props: any) => <SessionsScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} goBack={() => props.navigation.goBack()} params={props.route?.params} />}

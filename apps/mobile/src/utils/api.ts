@@ -44,9 +44,9 @@ export async function apiRequest<T = any>(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+  const isFormData = options.body && typeof options.body.append === "function";
   const headers: Record<string, string> = {
-    ...(!options.headers?.["Content-Type"] &&
-    !(options.body instanceof FormData)
+    ...(!options.headers?.["Content-Type"] && !isFormData
       ? { "Content-Type": "application/json" }
       : {}),
     ...options.headers,
@@ -135,9 +135,9 @@ export const apiDelete = (path: string, body?: any) =>
   });
 
 export const apiUpload = async (endpoint: string, file: any) => {
-  const formData = new FormData();
-  // On web, FormData expects a Blob/File; convert URI to Blob first
+  // On web, use traditional FormData + fetch
   if (Platform.OS === "web") {
+    const formData = new FormData();
     try {
       const uri: string = file.uri;
       let blob: Blob;
@@ -153,20 +153,54 @@ export const apiUpload = async (endpoint: string, file: any) => {
     } catch (err) {
       formData.append("file", file as any);
     }
+    
+    return apiRequest(endpoint, {
+      method: "POST",
+      body: formData,
+      timeoutMs: 60000,
+    });
   } else {
-    formData.append("file", {
-      uri:
-        Platform.OS === "android" ? file.uri : file.uri.replace("file://", ""),
-      name: file.name || `upload_${Date.now()}.jpg`,
-      type: file.type || "image/jpeg",
-    } as any);
+    // On native, use expo-file-system to bypass RN networking bugs entirely
+    try {
+      let FileSystem;
+      try {
+        FileSystem = require("expo-file-system/legacy");
+      } catch (e) {
+        FileSystem = require("expo-file-system");
+      }
+      const token = await AsyncStorage.getItem("token");
+      const url = `${API_URL}${endpoint}`;
+      
+      const androidUri = Platform.OS === "android" ? file.uri : file.uri.replace("file://", "");
+      const finalType = file.mimeType || (file.type && file.type.includes('/') ? file.type : "image/jpeg");
+      
+      const uploadResult = await FileSystem.uploadAsync(url, androidUri, {
+        httpMethod: 'POST',
+        uploadType: 1, // 1 = FileSystemUploadType.MULTIPART
+        fieldName: 'file',
+        mimeType: finalType,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(uploadResult.body);
+      } catch (e) {
+        parsedBody = uploadResult.body;
+      }
+      
+      const isSuccess = uploadResult.status >= 200 && uploadResult.status < 300;
+      return {
+        ok: isSuccess,
+        status: uploadResult.status,
+        data: parsedBody?.data || parsedBody,
+        ...parsedBody,
+      };
+    } catch (error: any) {
+      console.error("[apiUpload] FileSystem.uploadAsync failed:", error);
+      throw new Error("Network request failed");
+    }
   }
-
-  return apiRequest(endpoint, {
-    method: "POST",
-    body: formData,
-    timeoutMs: 60000,
-  });
 };
 
 export const chatPatch = (path: string, body: any) =>

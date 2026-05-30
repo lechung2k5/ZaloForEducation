@@ -1,11 +1,10 @@
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { View, TextInput, TouchableOpacity, Text, StyleSheet, Keyboard, ScrollView, Image, ActivityIndicator, Platform, Modal, Pressable } from 'react-native';
-import { Colors } from '../../constants/Theme';
+import { useTheme } from '../../context/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
 import Alert from '../../utils/Alert';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const getFileIcon = (mimeType: string, fileName: string) => {
   const mime = String(mimeType || "").toLowerCase();
@@ -26,6 +25,7 @@ import * as Location from 'expo-location';
 import { useChatStore } from '../../store/chatStore';
 import { useContacts } from '../../hooks/queries/useContacts';
 import { friendEmailOf } from '../../utils/contactUtils';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MentionDraft {
   email: string;
@@ -47,6 +47,8 @@ interface ChatInputProps {
   members?: string[];
   userProfiles?: Record<string, any>;
   currentUserEmail?: string | null;
+  onInputFocus?: () => void;
+  onInputBlur?: () => void;
 }
 
 const normalizeEmail = (email?: string | null) => String(email || '').replace(/^USER#/i, '').trim().toLowerCase();
@@ -69,8 +71,12 @@ export default function ChatInput({
   members = [],
   userProfiles: providedUserProfiles,
   currentUserEmail: providedCurrentUserEmail,
+  onInputFocus,
+  onInputBlur,
 }: ChatInputProps) {
   const insets = useSafeAreaInsets();
+  const { colors, t, isDark } = useTheme();
+  const styles = React.useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -79,6 +85,7 @@ export default function ChatInput({
   const [showExtraTools, setShowExtraTools] = useState(false);
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactSearchText, setContactSearchText] = useState("");
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const { conversations, userProfiles, currentUserEmail, loadUserProfile } = useChatStore();
   const mentionProfiles = providedUserProfiles || userProfiles;
   const mentionCurrentUserEmail = normalizeEmail(providedCurrentUserEmail || currentUserEmail);
@@ -378,7 +385,7 @@ export default function ChatInput({
       }
       
       if (uri) {
-        setText('[Tin nhắn thoại]'); // Requirement: Set text to [Tin nhắn thoại]
+        setText(t('chat.voice_msg'));
         processFiles([{
           uri,
           type: 'audio/m4a',
@@ -485,10 +492,22 @@ export default function ChatInput({
     }
   }, [showContactPicker, friendList, loadUserProfile, userProfiles]);
 
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const safeBottomPadding = Platform.OS === 'android'
+    ? (isKeyboardVisible ? 4 : Math.max(insets.bottom, 4))
+    : Math.max(insets.bottom, 8);
+
   return (
-    <View style={[styles.container, { paddingBottom: 0 }]}>
-
-
+    <View style={[styles.container, { paddingBottom: safeBottomPadding }]}>
       {/* Reply Preview */}
       {replyTarget && (
         <View style={styles.replyPreview}>
@@ -551,68 +570,64 @@ export default function ChatInput({
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.extraToolsScroll}>
             {!isBot && (
               <TouchableOpacity style={styles.toolItem} onPress={startRecording}>
-                <View style={[styles.toolIconBox, { backgroundColor: '#fdf2f8' }]}>
+                <View style={[styles.toolIconBox, { backgroundColor: isDark ? '#2d1a24' : '#fdf2f8' }]}>
                   <Text style={[styles.toolIcon, { color: '#db2777' }]}>mic</Text>
                 </View>
-                <Text style={styles.toolLabel}>Ghi âm</Text>
+                <Text style={styles.toolLabel}>{t('chat_input.audio')}</Text>
               </TouchableOpacity>
             )}
 
             <TouchableOpacity style={styles.toolItem} onPress={pickImages}>
-              <View style={[styles.toolIconBox, { backgroundColor: '#e0f2fe' }]}>
+              <View style={[styles.toolIconBox, { backgroundColor: isDark ? '#0f2233' : '#e0f2fe' }]}>
                 <Text style={[styles.toolIcon, { color: '#0ea5e9' }]}>image</Text>
               </View>
-              <Text style={styles.toolLabel}>Hình ảnh</Text>
+              <Text style={styles.toolLabel}>{t('chat_input.image')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.toolItem} onPress={pickFiles}>
-              <View style={[styles.toolIconBox, { backgroundColor: '#f0fdf4' }]}>
+              <View style={[styles.toolIconBox, { backgroundColor: isDark ? '#0f2319' : '#f0fdf4' }]}>
                 <Text style={[styles.toolIcon, { color: '#22c55e' }]}>folder</Text>
               </View>
-              <Text style={styles.toolLabel}>Tệp</Text>
+              <Text style={styles.toolLabel}>{t('chat_input.file')}</Text>
             </TouchableOpacity>
 
             {!isBot && (
               <>
                 <TouchableOpacity style={styles.toolItem} onPress={handleLocationSend}>
-                  <View style={[styles.toolIconBox, { backgroundColor: '#fff1f2' }]}>
+                  <View style={[styles.toolIconBox, { backgroundColor: isDark ? '#2d1018' : '#fff1f2' }]}>
                     <Text style={[styles.toolIcon, { color: '#f43f5e' }]}>location_on</Text>
                   </View>
-                  <Text style={styles.toolLabel}>Vị trí</Text>
+                  <Text style={styles.toolLabel}>{t('chat_input.location')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.toolItem} onPress={() => setShowContactPicker(true)}>
-                  <View style={[styles.toolIconBox, { backgroundColor: '#f5f3ff' }]}>
+                  <View style={[styles.toolIconBox, { backgroundColor: isDark ? '#1e1633' : '#f5f3ff' }]}>
                     <Text style={[styles.toolIcon, { color: '#8b5cf6' }]}>contact_page</Text>
                   </View>
-                  <Text style={styles.toolLabel}>Danh thiếp</Text>
+                  <Text style={styles.toolLabel}>{t('chat_input.contact')}</Text>
                 </TouchableOpacity>
 
-                {conversationType === 'group' && (
-                  <>
-                    <TouchableOpacity style={styles.toolItem} onPress={() => { setShowExtraTools(false); onOpenPollModal?.(); }}>
-                      <View style={[styles.toolIconBox, { backgroundColor: '#eff6ff' }]}>
-                        <Text style={[styles.toolIcon, { color: Colors.primary }]}>bar_chart</Text>
-                      </View>
-                      <Text style={styles.toolLabel}>Bình chọn</Text>
-                    </TouchableOpacity>
+                <TouchableOpacity style={styles.toolItem} onPress={() => { setShowExtraTools(false); onOpenPollModal?.(); }}>
+                  <View style={[styles.toolIconBox, { backgroundColor: isDark ? '#0d1a33' : '#eff6ff' }]}>
+                    <Text style={[styles.toolIcon, { color: colors.primary }]}>bar_chart</Text>
+                  </View>
+                  <Text style={styles.toolLabel}>{t('chat_input.poll')}</Text>
+                </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.toolItem} onPress={() => { setShowExtraTools(false); onOpenReminderModal?.(); }}>
-                      <View style={[styles.toolIconBox, { backgroundColor: '#fef3c7' }]}>
-                        <Text style={[styles.toolIcon, { color: '#d97706' }]}>event_available</Text>
-                      </View>
-                      <Text style={styles.toolLabel}>Nhắc hẹn</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
+                <TouchableOpacity style={styles.toolItem} onPress={() => { setShowExtraTools(false); onOpenReminderModal?.(); }}>
+                  <View style={[styles.toolIconBox, { backgroundColor: isDark ? '#2a1f08' : '#fef3c7' }]}>
+                    <Text style={[styles.toolIcon, { color: '#d97706' }]}>event_available</Text>
+                  </View>
+                  <Text style={styles.toolLabel}>{t('chat_input.reminder')}</Text>
+                </TouchableOpacity>
               </>
             )}
 
             <TouchableOpacity style={styles.toolItem} onPress={() => setShowExtraTools(false)}>
-              <View style={[styles.toolIconBox, { backgroundColor: '#f1f5f9' }]}>
+              <View style={[styles.toolIconBox, { backgroundColor: isDark ? '#1f2438' : '#f1f5f9' }]}>
                 <Text style={[styles.toolIcon, { color: '#64748b' }]}>close</Text>
               </View>
-              <Text style={styles.toolLabel}>Đóng</Text>
+              <Text style={styles.toolLabel}>{t('chat_input.close')}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -622,12 +637,13 @@ export default function ChatInput({
       <Modal visible={showContactPicker} transparent animationType="slide">
         <Pressable style={styles.modalOverlay} onPress={() => { setShowContactPicker(false); setContactSearchText(""); }}>
           <View style={styles.contactPickerCard}>
-            <Text style={styles.modalTitle}>Gửi danh thiếp</Text>
+            <Text style={styles.modalTitle}>{t('chat_input.send_contact')}</Text>
 
             <View style={styles.searchBarWrapper}>
               <TextInput
                 style={styles.searchBar}
-                placeholder="Tìm kiếm bạn bè..."
+                placeholder={t("chat_input.search_friend")}
+                placeholderTextColor={isDark ? '#5a6781' : '#94a3b8'}
                 value={contactSearchText}
                 onChangeText={setContactSearchText}
               />
@@ -635,7 +651,7 @@ export default function ChatInput({
 
             <ScrollView style={{ maxHeight: 400 }}>
               {filteredFriends.length === 0 ? (
-                <Text style={{ textAlign: 'center', marginTop: 20, color: '#64748b' }}>Không tìm thấy bạn bè</Text>
+                <Text style={{ textAlign: 'center', marginTop: 20, color: isDark ? '#7b8794' : '#64748b' }}>{t('chat_input.no_friend')}</Text>
               ) : (
                 filteredFriends.map((f: any) => (
                   <TouchableOpacity
@@ -649,14 +665,14 @@ export default function ChatInput({
                     />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.contactName}>{f.displayName}</Text>
-                      <Text style={{ fontSize: 12, color: '#64748b' }}>{f.email}</Text>
+                      <Text style={{ fontSize: 12, color: isDark ? '#7b8794' : '#64748b' }}>{f.email}</Text>
                     </View>
                   </TouchableOpacity>
                 ))
               )}
             </ScrollView>
             <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowContactPicker(false); setContactSearchText(""); }}>
-              <Text style={styles.cancelBtnText}>Hủy</Text>
+              <Text style={styles.cancelBtnText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -689,7 +705,7 @@ export default function ChatInput({
               if (showStickers) setShowStickers(false);
             }}
           >
-            <Text style={[styles.actionIcon, showExtraTools && { color: Colors.primary }]}>
+            <Text style={[styles.actionIcon, showExtraTools && { color: colors.primary }]}>
               {showExtraTools ? 'close' : 'add_circle'}
             </Text>
           </TouchableOpacity>
@@ -699,12 +715,12 @@ export default function ChatInput({
           {isRecording ? (
             <View style={styles.recordingOverlay}>
               <View style={styles.recordingPulse} />
-              <Text style={styles.recordingTime}>Đang ghi âm: {formatDuration(recordingDuration)}</Text>
+              <Text style={styles.recordingTime}>{t('chat_input.recording')} {formatDuration(recordingDuration)}</Text>
               <TouchableOpacity onPress={cancelRecording} style={styles.recordingCancel}>
-                <Text style={styles.recordingCancelText}>Hủy</Text>
+                <Text style={styles.recordingCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={stopRecording} style={styles.recordingDone}>
-                <Text style={styles.recordingDoneText}>Xong</Text>
+                <Text style={styles.recordingDoneText}>{t('chat_input.done')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -713,8 +729,10 @@ export default function ChatInput({
                 ref={inputRef}
                 value={text}
                 onChangeText={handleTextChange}
-                placeholder="Nhập tin nhắn..."
-                placeholderTextColor="#8a9099"
+                onFocus={onInputFocus}
+                onBlur={onInputBlur}
+                placeholder={isBot ? "Nhập tin nhắn cho AI..." : t("chat_input.placeholder")}
+                placeholderTextColor={isDark ? '#5a6781' : '#8a9099'}
                 style={styles.textInput}
                 multiline
                 maxLength={2000}
@@ -722,7 +740,7 @@ export default function ChatInput({
               />
               {!isBot && (
                 <TouchableOpacity style={styles.stickerBtn} onPress={() => setShowStickers(!showStickers)}>
-                  <Text style={[styles.stickerIcon, showStickers && { color: Colors.primary }]}>mood</Text>
+                  <Text style={[styles.stickerIcon, showStickers && { color: colors.primary }]}>mood</Text>
                 </TouchableOpacity>
               )}
             </>
@@ -745,16 +763,16 @@ export default function ChatInput({
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   mentionSuggestions: {
     marginBottom: 8,
     borderRadius: 16,
-    backgroundColor: '#fff',
+    backgroundColor: isDark ? '#1f2438' : '#fff',
     borderWidth: 1,
-    borderColor: 'rgba(0,104,255,0.16)',
+    borderColor: isDark ? '#3a3f52' : 'rgba(0,104,255,0.16)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: isDark ? 0.4 : 0.08,
     shadowRadius: 12,
     elevation: 4,
     overflow: 'hidden',
@@ -765,13 +783,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eef2f7',
+    borderBottomColor: isDark ? '#2a2f42' : '#eef2f7',
   },
   mentionAvatar: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: 'rgba(0,104,255,0.1)',
+    backgroundColor: isDark ? 'rgba(0,104,255,0.2)' : 'rgba(0,104,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -779,7 +797,7 @@ const styles = StyleSheet.create({
   mentionAvatarText: {
     fontSize: 14,
     fontWeight: '800',
-    color: Colors.primary,
+    color: colors.primary,
   },
   mentionInfo: {
     flex: 1,
@@ -787,23 +805,23 @@ const styles = StyleSheet.create({
   mentionName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1f2631',
+    color: isDark ? '#e8eef7' : '#1f2631',
   },
   mentionEmail: {
     fontSize: 11,
-    color: '#7b8794',
+    color: isDark ? '#7b8794' : '#7b8794',
     marginTop: 2,
   },
   mentionAt: {
     fontSize: 18,
     fontWeight: '900',
-    color: Colors.primary,
+    color: colors.primary,
     marginLeft: 10,
   },
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: isDark ? '#121621' : '#fff',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
+    borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
     paddingHorizontal: 8,
     paddingTop: 8,
     paddingBottom: Platform.OS === 'ios' ? 8 : 4,
@@ -811,11 +829,11 @@ const styles = StyleSheet.create({
   replyPreview: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,65,143,0.05)',
+    backgroundColor: isDark ? 'rgba(0,104,255,0.1)' : 'rgba(0,65,143,0.05)',
     padding: 8,
     borderRadius: 12,
     borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
+    borderLeftColor: colors.primary,
     marginBottom: 8,
     marginHorizontal: 4,
   },
@@ -825,28 +843,28 @@ const styles = StyleSheet.create({
   replyPreviewIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 20,
-    color: Colors.primary,
+    color: colors.primary,
   },
   replyPreviewTitle: {
     fontSize: 10,
     fontWeight: '800',
-    color: Colors.primary,
+    color: colors.primary,
     textTransform: 'uppercase',
   },
   replyPreviewText: {
     fontSize: 13,
-    color: '#1f2631',
+    color: isDark ? '#9ca3b5' : '#1f2631',
     fontStyle: 'italic',
   },
   replyPreviewCloseBtn: {
     padding: 4,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
     borderRadius: 12,
   },
   replyPreviewCloseIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 16,
-    color: '#5a6781',
+    color: isDark ? '#9ca3b5' : '#5a6781',
   },
   attachmentStripWrapper: {
     marginBottom: 8,
@@ -860,13 +878,13 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 12,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: isDark ? '#2a2f42' : '#f1f5f9',
     position: 'relative',
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderColor: isDark ? '#3a3f52' : 'rgba(0,0,0,0.05)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: isDark ? 0.4 : 0.1,
     shadowRadius: 2,
     elevation: 2,
   },
@@ -883,19 +901,19 @@ const styles = StyleSheet.create({
   attachmentFileIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
-    color: Colors.primary,
+    color: colors.primary,
   },
   attachmentFileExt: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#5a6781',
+    color: isDark ? '#9ca3b5' : '#5a6781',
     textTransform: 'uppercase',
   },
   aBadgeBg: {
     position: 'absolute',
     left: 4,
     bottom: 4,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 4,
     paddingVertical: 2,
     borderRadius: 6,
@@ -916,7 +934,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: isDark ? '#121621' : '#fff',
   },
   attachmentRemoveIcon: {
     fontFamily: 'Material Symbols Outlined',
@@ -926,11 +944,11 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: '#f8fafc',
+    backgroundColor: isDark ? '#1f2438' : '#f8fafc',
     borderRadius: 24,
     padding: 4,
     borderWidth: 1,
-    borderColor: 'rgba(0,65,143,0.15)',
+    borderColor: isDark ? '#3a3f52' : 'rgba(0,65,143,0.15)',
   },
   actionTools: {
     flexDirection: 'row',
@@ -946,23 +964,23 @@ const styles = StyleSheet.create({
   actionIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
-    color: '#7a8391',
+    color: isDark ? '#9ca3b5' : '#7a8391',
   },
   hdBtn: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: isDark ? '#3a3f52' : '#cbd5e1',
     borderRadius: 12,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   hdBtnActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   hdBtnText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#7a8391',
+    color: isDark ? '#9ca3b5' : '#7a8391',
   },
   hdBtnTextActive: {
     color: '#fff',
@@ -971,11 +989,11 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: '#fff',
+    backgroundColor: isDark ? '#2a2f42' : '#fff',
     borderRadius: 20,
     marginHorizontal: 4,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: isDark ? '#3a3f52' : '#e2e8f0',
     minHeight: 40,
   },
   textInput: {
@@ -983,16 +1001,16 @@ const styles = StyleSheet.create({
     maxHeight: 100,
     paddingTop: 10,
     paddingBottom: 10,
-    paddingLeft: 4,
+    paddingLeft: 12,
     fontSize: 14,
-    color: '#1f2631',
+    color: isDark ? '#e8eef7' : '#1f2631',
   },
   recordingOverlay: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    backgroundColor: '#fff',
+    backgroundColor: isDark ? '#2a2f42' : '#fff',
     borderRadius: 20,
   },
   recordingPulse: {
@@ -1013,11 +1031,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   recordingCancelText: {
-    color: '#64748b',
+    color: isDark ? '#9ca3b5' : '#64748b',
     fontWeight: '600',
   },
   recordingDone: {
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
@@ -1037,23 +1055,23 @@ const styles = StyleSheet.create({
   stickerIcon: {
     fontFamily: 'Material Symbols Outlined',
     fontSize: 24,
-    color: '#10b981', // emerald
+    color: '#10b981',
   },
   sendBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 4,
   },
   sendBtnDisabled: {
-    backgroundColor: '#e2e8f0',
+    backgroundColor: isDark ? '#2a2f42' : '#e2e8f0',
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -1064,9 +1082,9 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   stickerPicker: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: isDark ? '#1f2438' : '#f1f5f9',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
+    borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
     paddingVertical: 12,
     marginBottom: 8,
     borderRadius: 16,
@@ -1080,12 +1098,12 @@ const styles = StyleSheet.create({
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: isDark ? '#2a2f42' : '#fff',
     borderRadius: 12,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: isDark ? 0.4 : 0.1,
     shadowRadius: 2,
   },
   stickerImg: {
@@ -1093,12 +1111,12 @@ const styles = StyleSheet.create({
     height: 36,
   },
   extraToolsMenu: {
-    backgroundColor: '#fff',
+    backgroundColor: isDark ? '#121621' : '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: isDark ? '#2a2f42' : '#f1f5f9',
   },
   extraToolsScroll: {
     paddingHorizontal: 16,
@@ -1122,7 +1140,7 @@ const styles = StyleSheet.create({
   },
   toolLabel: {
     fontSize: 11,
-    color: '#64748b',
+    color: isDark ? '#9ca3b5' : '#64748b',
     fontWeight: '600',
   },
   modalOverlay: {
@@ -1131,7 +1149,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   contactPickerCard: {
-    backgroundColor: '#fff',
+    backgroundColor: isDark ? '#121621' : '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
@@ -1142,13 +1160,14 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
+    color: isDark ? '#e8eef7' : '#1f2631',
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: isDark ? '#2a2f42' : '#f1f5f9',
   },
   contactAvatar: {
     width: 44,
@@ -1159,29 +1178,29 @@ const styles = StyleSheet.create({
   contactName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1f2631',
+    color: isDark ? '#e8eef7' : '#1f2631',
   },
   cancelBtn: {
     marginTop: 20,
     padding: 16,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: isDark ? '#1f2438' : '#f1f5f9',
     borderRadius: 14,
     alignItems: 'center',
   },
   cancelBtnText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#64748b',
+    color: isDark ? '#9ca3b5' : '#64748b',
   },
   searchBarWrapper: {
     marginBottom: 16,
   },
   searchBar: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: isDark ? '#1f2438' : '#f1f5f9',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#1f2631',
-  }
+    color: isDark ? '#e8eef7' : '#1f2631',
+  },
 });

@@ -112,18 +112,35 @@ export const getMessagePreview = (message: any): string => {
           case "member_added":
             return "[Thêm thành viên]";
           case "member_removed":
+          case "member_kicked":
             return "[Xóa thành viên]";
           case "member_left":
             return "[Rời nhóm]";
           case "member_joined_link":
             return "[Tham gia bằng link]";
+          case "promoted_to_deputy":
+          case "demoted_from_deputy":
+          case "demoted_to_member":
+          case "ownership_transferred":
+          case "transferred_owner":
           case "role_updated":
             return "[Cập nhật vai trò]";
           case "info_updated":
+          case "group_name_updated":
+          case "group_avatar_updated":
             return "[Cập nhật thông tin]";
           case "group_created":
             return "[Tạo nhóm]";
+          case "pin_message":
+            return "[Ghim tin nhắn]";
+          case "unpin_message":
+            return "[Bỏ ghim tin nhắn]";
+          default:
+            return "[Thông báo hệ thống]";
         }
+      }
+      if (typeof parsed === 'object' && parsed !== null) {
+        return "[Thông báo hệ thống]";
       }
     } catch (e) {}
   }
@@ -220,11 +237,12 @@ export const formatSystemPreview = (
             ? `${actorName} đã thêm ${names.join(", ")}`
             : `${actorName} đã thêm thành viên`;
         }
-        case "member_removed": {
-          const removed = parsed.member || parsed.target;
+        case "member_removed":
+        case "member_kicked": {
+          const removed = parsed.member || parsed.target || parsed.removed;
           const name = nameOf(removed);
           return name
-            ? `${actorName} đã xóa ${name}`
+            ? `${actorName} đã xóa ${name} khỏi nhóm`
             : `${actorName} đã xóa thành viên`;
         }
         case "member_left": {
@@ -238,12 +256,21 @@ export const formatSystemPreview = (
           return name ? `${name} đã tham gia nhóm bằng link` : "Đã tham gia nhóm bằng link";
         }
         case "transferred_owner":
-        case "role_updated": {
+        case "ownership_transferred":
+        case "role_updated":
+        case "promoted_to_deputy":
+        case "demoted_from_deputy":
+        case "demoted_to_member": {
           const targetEmail = parsed.target || parsed.to || parsed.member;
           const targetName = nameOf(targetEmail);
           const role = parsed.role || parsed.toRole || parsed.newRole || "";
-          if (parsed.action === "transferred_owner") {
+          
+          if (parsed.action === "transferred_owner" || parsed.action === "ownership_transferred") {
             return `${actorName} đã chuyển quyền trưởng nhóm cho ${targetName || "một thành viên"}`;
+          } else if (parsed.action === "promoted_to_deputy") {
+            return `${actorName} đã bổ nhiệm ${targetName || "một thành viên"} làm phó nhóm`;
+          } else if (parsed.action === "demoted_from_deputy" || parsed.action === "demoted_to_member") {
+            return `${actorName} đã gỡ chức vụ của ${targetName || "một thành viên"} xuống làm thành viên`;
           } else if (role) {
             const roleLabel =
               role === "owner"
@@ -257,12 +284,24 @@ export const formatSystemPreview = (
         }
         case "info_updated":
           return actorName + " đã cập nhật thông tin nhóm";
+        case "group_name_updated":
+          return actorName + " đã đổi tên nhóm";
+        case "group_avatar_updated":
+          return actorName + " đã thay đổi ảnh đại diện nhóm";
+        case "pin_message":
+          return actorName + " đã ghim một tin nhắn";
+        case "unpin_message":
+          return actorName + " đã bỏ ghim tin nhắn";
         default:
-          return getMessagePreview({ type: "system", content });
+          return `${actorName} đã thực hiện một thay đổi hệ thống`;
       }
     }
+    // If it's a valid JSON but doesn't have an action, return "[Thông báo hệ thống]"
+    if (typeof parsed === 'object' && parsed !== null) {
+      return "[Thông báo hệ thống]";
+    }
   } catch (e) {
-    // ignore
+    // ignore, not a JSON
   }
-  return getMessagePreview({ type: "system", content });
+  return content;
 };
