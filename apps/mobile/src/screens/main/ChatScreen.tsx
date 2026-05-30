@@ -11,7 +11,11 @@ import {
   ActivityIndicator,
   Alert,
   useWindowDimensions,
-  Modal
+  Modal,
+  Keyboard,
+  Animated,
+  RefreshControl,
+  PermissionsAndroid
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Clipboard from 'expo-clipboard';
@@ -874,6 +878,26 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
     if (!selectedChat || selectedChat.type !== 'direct') return Alert.alert('Thất bại', 'Chỉ hỗ trợ gọi 1:1');
     const partnerEmail = selectedChat.partner || (Array.isArray(selectedChat.members) ? selectedChat.members.find((m: string) => m !== user?.email) : undefined);
     if (!partnerEmail) return Alert.alert('Lỗi', 'Không tìm thấy thông tin đối phương');
+
+    if (Platform.OS === 'android') {
+      try {
+        const hasAudio = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+        if (!hasAudio) {
+          const grantedAudio = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+          if (grantedAudio !== PermissionsAndroid.RESULTS.GRANTED) return;
+        }
+        if (type === 'video') {
+          const hasVideo = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+          if (!hasVideo) {
+            const grantedVideo = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+            if (grantedVideo !== PermissionsAndroid.RESULTS.GRANTED) return;
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
     const activeCallId = uuidv4();
     startOutgoingCall({ email: partnerEmail, fullName: getDisplayName(partnerEmail), avatarUrl: getDisplayAvatar(partnerEmail) }, type, selectedChat.id, activeCallId);
     const res = await apiPost('/call/create', { conversationId: selectedChat.id, callId: activeCallId, type });

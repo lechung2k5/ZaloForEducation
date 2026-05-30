@@ -1,96 +1,92 @@
-import React from 'react';
-declare global {
-  var __NativeChimeView: any;
-}
-import { NativeModules, DeviceEventEmitter, Platform, View } from 'react-native';
-
-const { ChimeModule } = NativeModules;
-// [SENIOR] Switching to DeviceEventEmitter for maximum reliability with custom native bridges
-const eventEmitter = DeviceEventEmitter;
-
-// [SENIOR] Tránh đăng ký trùng lặp khi Hot Reload bằng cơ chế Singleton
-if (Platform.OS !== 'web' && !global.__NativeChimeView) {
-  const { requireNativeComponent } = require('react-native');
-  try {
-    global.__NativeChimeView = requireNativeComponent('RNChimeVideoView');
-  } catch (e) {
-    console.error('Failed to register RNChimeVideoView', e);
-  }
-}
-const NativeChimeView = global.__NativeChimeView || View;
+import React, { useEffect, useRef, useState } from 'react';
+import { Platform, View, Text } from 'react-native';
+import { RTCView } from 'react-native-webrtc';
+import { chimeRef } from '../../utils/chimeRef';
 
 /**
- * [SENIOR] RNChimeVideoView
- * Component Native để render video. Dùng SurfaceView ở tầng dưới.
- * Đã được bọc lại để an toàn hơn với Hot Reloading.
+ * [SENIOR] RNChimeVideoView (Polyfill Version)
+ * Thay vì gọi Native SurfaceView, Component này dùng WebRTC RTCView.
+ * Nó tạo ra một HTMLVideoElement giả, bind vào Chime SDK, sau đó
+ * lấy MediaStream từ srcObject để hiển thị.
  */
-export const RNChimeVideoView = (props: any) => {
+export const RNChimeVideoView = ({ tileId, style, ...props }: any) => {
+  const [streamURL, setStreamURL] = useState<string | null>(null);
+  
+  // Tạo element video giả để hứng luồng từ Chime SDK
+  // @ts-ignore
+  const mockVideoRef = useRef<any>(global.document ? global.document.createElement('video') : null);
+
+  useEffect(() => {
+    if (!tileId || !mockVideoRef.current || !chimeRef.current?.meetingSession) {
+      return;
+    }
+
+    const meetingSession = chimeRef.current.meetingSession;
+    
+    // Đăng ký callback khi Chime SDK gán stream vào thẻ video giả
+    mockVideoRef.current.onStreamReady = (stream: any) => {
+      console.log(`[Chime-VideoView] onStreamReady triggered for tileId: ${tileId}, stream: ${stream?.id}`);
+      if (stream) {
+        setStreamURL(stream.toURL());
+      }
+    };
+
+    try {
+      console.log(`[Chime-VideoView] Binding tileId: ${tileId} to mock video element`);
+      meetingSession.audioVideo.bindVideoElement(tileId, mockVideoRef.current);
+    } catch (e) {
+      console.warn(`[Chime-VideoView] Error binding tileId: ${tileId}`, e);
+    }
+
+    return () => {
+      try {
+        console.log(`[Chime-VideoView] Unbinding tileId: ${tileId}`);
+        meetingSession.audioVideo.unbindVideoElement(tileId);
+      } catch (e) {
+        // ignore
+      }
+      setStreamURL(null);
+    };
+  }, [tileId]);
+
   if (Platform.OS === 'web') {
-    const { View, Text } = require('react-native');
-    return <View {...props}><Text>Chime not supported on Web</Text></View>;
+    return <View style={style}><Text>Chime not supported on Web</Text></View>;
   }
-  return <NativeChimeView {...props} />;
+
+  console.log(`[Chime-VideoView] Render tileId: ${tileId}, streamURL: ${streamURL}`);
+
+  if (!streamURL) {
+    return (
+      <View style={[style, { backgroundColor: '#1a1a1a', justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: 'white' }}>Đang tải video...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <RTCView
+      streamURL={streamURL}
+      style={style}
+      objectFit={props.objectFit || "cover"}
+      zOrder={props.zOrder !== undefined ? props.zOrder : 0}
+      mirror={props.mirror}
+    />
+  );
 };
 
-/**
- * [SENIOR] ChimeModuleBridge
- * Bộ API tinh gọn để điều khiển cuộc gọi Chime.
- */
 export const ChimeModuleBridge = {
-  // Bắt đầu cuộc gọi với data từ Backend
-  startMeeting: (meetingData: any, attendeeData: any) => {
-    if (Platform.OS === 'web') return;
-    return ChimeModule?.startMeeting(meetingData, attendeeData);
-  },
-  
-  // Kết thúc và dọn dẹp session
-  stopMeeting: () => {
-    if (Platform.OS === 'web') return;
-    return ChimeModule?.stopMeeting();
-  },
-  
-  // Bật/Tắt Mic
-  toggleMic: (enabled: boolean) => {
-    if (Platform.OS === 'web') return;
-    return ChimeModule?.toggleMic(enabled);
-  },
-  
-  // Bật/Tắt Camera
-  toggleCamera: (enabled: boolean) => {
-    if (Platform.OS === 'web') return;
-    return ChimeModule?.toggleCamera(enabled);
-  },
-
-  // Chuyển đầu ra âm thanh (speaker: boolean)
-  switchAudioOutput: (useSpeaker: boolean) => {
-    if (Platform.OS === 'web') return;
-    return ChimeModule?.switchAudioOutput(useSpeaker);
-  },
-
-  // Đảo Camera trước / sau
-  switchCamera: () => {
-    if (Platform.OS === 'web') return;
-    return ChimeModule?.switchCamera();
-  },
-  
-  // Đăng ký lắng nghe sự kiện (onVideoTileAdded, onVideoTileRemoved)
-  addListener: (eventName: string, callback: (data: any) => void) => {
-    if (Platform.OS === 'web' || !eventEmitter) return { remove: () => {} };
-    console.log(`[Chime-Bridge] 👂 Registering listener for: ${eventName}`);
-    return eventEmitter.addListener(eventName, (data: any) => {
-      callback(data);
-    });
-  },
-
-  // Hủy đăng ký lắng nghe
-  removeAllListeners: (eventName: string) => {
-    if (Platform.OS === 'web' || !eventEmitter) return;
-    console.log(`[Chime-Bridge] 🚮 Removing all listeners for: ${eventName}`);
-    return eventEmitter.removeAllListeners(eventName);
-  }
+  // Mọi API trong đây không còn ý nghĩa nữa vì đã dùng JS SDK
+  // Chúng ta giữ lại vỏ bọc rỗng để không bị crash nếu có chỗ khác gọi
+  startMeeting: () => {},
+  stopMeeting: () => {},
+  toggleMic: () => {},
+  toggleCamera: () => {},
+  switchAudioOutput: () => {},
+  switchCamera: () => {},
+  addListener: () => ({ remove: () => {} }),
+  removeAllListeners: () => {}
 };
 
-// Export giả lập để tương thích với code đang có (nếu cần)
 export default {
   RNChimeVideoView,
   ChimeModuleBridge

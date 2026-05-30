@@ -1,294 +1,255 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { PermissionsAndroid, Platform, AppState, Alert } from 'react-native';
-import { ChimeModuleBridge } from '../bridge/chime';
-
+import { PermissionsAndroid, Platform, Alert, AppState } from 'react-native';
 import { useCallStore } from '../store/callStore';
 import { chimeRef } from '../utils/chimeRef';
+import {
+  ConsoleLogger,
+  DefaultDeviceController,
+  DefaultMeetingSession,
+  LogLevel,
+  MeetingSessionConfiguration,
+} from 'amazon-chime-sdk-js';
+import { mediaDevices } from 'react-native-webrtc';
 
-/**
- * [SENIOR] useChime Mobile V10.0 - SDK Truth, Zero Ambiguity
- *
- * FINAL FIX for invisible remote video:
- * - Native SDK isLocalTile() is the ONLY tile classification source.
- * - Attendee ID comparison REMOVED permanently (broken when both peers share an account).
- * - All store updates go through useCallStore.getState() to avoid stale closure bugs.
- * - Render control is entirely mount/unmount based (no opacity:0 on SurfaceViews).
- */
 export const useChime = () => {
-  const { 
-    meetingData, attendeeData, callType, callState,
-    remoteTiles: globalRemoteTiles
-  } = useCallStore();
+  const { meetingData, attendeeData, callType, callState, remoteTiles: globalRemoteTiles } = useCallStore();
 
   const [localTileId, setLocalTileId] = useState<number | null>(null);
   const isStarted = useRef(false);
   const localTileIdRef = useRef<number | null>(null);
-  const startTimeoutRef = useRef<any>(null);
+  const activeVideoDeviceIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     localTileIdRef.current = localTileId;
   }, [localTileId]);
 
-  // Stable ref for meetingData + attendeeData so listeners don't close over stale values
-  const metadataRef = useRef<{ meetingData: any, attendeeData: any }>({ meetingData: null, attendeeData: null });
-  useEffect(() => {
-    metadataRef.current = { meetingData, attendeeData };
-  }, [meetingData, attendeeData]);
-
   const requestPermissions = async () => {
-    console.log(`[Chime-Permissions] Requesting ALL permissions (Audio & Video) on ${Platform.OS}`);
-    
-    if (Platform.OS !== 'android') {
-      return true;
-    }
-
+    if (Platform.OS !== 'android') return true;
     try {
-      // 1. Kiểm tra & Yêu cầu quyền Audio
       const hasAudio = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
       if (!hasAudio) {
         const grantedAudio = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-        if (grantedAudio !== PermissionsAndroid.RESULTS.GRANTED) {
-          console.warn('[Chime-Permissions] Audio permission DENIED');
-          return false;
-        }
+        if (grantedAudio !== PermissionsAndroid.RESULTS.GRANTED) return false;
       }
-
-      // 2. Kiểm tra & Yêu cầu quyền Video (Luôn yêu cầu cả 2 một lúc)
       const hasVideo = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
       if (!hasVideo) {
         const grantedVideo = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
-        if (grantedVideo !== PermissionsAndroid.RESULTS.GRANTED) {
-          console.warn('[Chime-Permissions] Camera permission DENIED');
-          return false;
-        }
+        if (grantedVideo !== PermissionsAndroid.RESULTS.GRANTED) return false;
       }
-      
-      console.log('[Chime-Permissions] ALL permissions GRANTED');
       return true;
     } catch (err) {
-      console.warn("[Chime-Bridge] Permission error:", err);
+      console.warn("[Chime-Permissions] Permission error:", err);
       return false;
     }
   };
 
   const cleanup = useCallback(async (reason: string = 'unknown') => {
-    console.log(`[Chime-Bridge] Cleaning up session. Reason: ${reason}`);
-    if (startTimeoutRef.current) {
-      clearTimeout(startTimeoutRef.current);
-      startTimeoutRef.current = null;
+    console.log(`[Chime-JS] Cleaning up session. Reason: ${reason}`);
+    
+    if (chimeRef.current?.meetingSession) {
+      try {
+        chimeRef.current.meetingSession.audioVideo.stop();
+      } catch (e) {
+        console.warn('Error stopping AV:', e);
+      }
     }
-
-    ChimeModuleBridge.stopMeeting();
-    ChimeModuleBridge.removeAllListeners('onVideoTileAdded');
-    ChimeModuleBridge.removeAllListeners('onVideoTileRemoved');
-    ChimeModuleBridge.removeAllListeners('onMeetingStart');
-    ChimeModuleBridge.removeAllListeners('onMeetingEnd');
-    ChimeModuleBridge.removeAllListeners('onMeetingConnecting');
-    ChimeModuleBridge.removeAllListeners('onAttendeeJoin');
-    ChimeModuleBridge.removeAllListeners('onAttendeeLeave');
     
     isStarted.current = false;
-    // Use getState() to avoid stale closure on the setRemoteTiles reference
     useCallStore.getState().setRemoteTiles([]);
     setLocalTileId(null);
-    chimeRef.current = null;
   }, []);
 
   useEffect(() => {
-    chimeRef.current = { cleanup };
-    return () => { chimeRef.current = null; };
+    if (!chimeRef.current) chimeRef.current = { cleanup };
+    else chimeRef.current.cleanup = cleanup;
+    
+    return () => { 
+       cleanup('unmount');
+    };
   }, [cleanup]);
 
   const setupSession = useCallback(async () => {
-    const { meetingData: md, attendeeData: ad } = metadataRef.current;
-    
-    // [CRITICAL] Block redundant setup calls immediately
-    if (isStarted.current) {
-      console.log('[Chime-Bridge] Setup session skipped - already started or starting');
-      return;
-    }
-    
-    if (!md || !ad) {
-      console.warn('[Chime-Bridge] Setup session skipped - missing metadata');
-      return;
-    }
+    if (isStarted.current) return;
+    if (!meetingData || !attendeeData) return;
 
-    isStarted.current = true; // Lock immediately
-    console.log(`[Chime-Bridge] V10.0 Setup Starting (Meeting: ${md.MeetingId})...`);
+    isStarted.current = true;
+    console.log(`[Chime-JS] Setup Starting (Meeting: ${meetingData.MeetingId})...`);
+    
     const hasPermission = await requestPermissions();
     if (!hasPermission) {
-      Alert.alert(
-        'Thiếu quyền truy cập',
-        'UniChat cần quyền truy cập Camera và Micros để thực hiện cuộc gọi. Vui lòng cấp quyền trong Cài đặt.'
-      );
+      Alert.alert('Thiếu quyền', 'Vui lòng cấp quyền Camera và Micro.');
+      isStarted.current = false;
       return;
     }
 
     try {
-      ChimeModuleBridge.addListener('onVideoTileAdded', (tile: any) => {
-        const tileId = tile?.tileId;
-        if (tileId === undefined || tileId === null) return;
-        const isLocal = !!tile?.isLocal;
-
-        console.log(`[Chime-Bridge] 🎥 tileId=${tileId} isLocal=${isLocal} attendeeId=${tile?.attendeeId}`);
-
-        if (isLocal) {
-          console.log(`[Chime-Bridge] ✅ LOCAL tile: ${tileId}`);
-          setLocalTileId(tileId);
-        } else {
-          console.log(`[Chime-Bridge] 🌐 REMOTE tile: ${tileId} → pushing to store`);
-          const store = useCallStore.getState();
-          const currentTiles = store.remoteTiles;
-          if (!currentTiles.find(t => t.tileId === tileId)) {
-            store.setRemoteTiles([...currentTiles, { ...tile, tileId }]);
-          }
-        }
-      });
-
-      ChimeModuleBridge.addListener('onVideoTileRemoved', (tile: any) => {
-        const tileId = tile?.tileId;
-        console.log(`[Chime-Bridge] ❌ Tile Removed: ${tileId}`);
-        if (tileId === undefined || tileId === null) return;
-
-        if (tileId === localTileIdRef.current) {
-          setLocalTileId(null);
-        } else {
-          const store = useCallStore.getState();
-          const nextTiles = store.remoteTiles.filter(t => t.tileId !== tileId);
-          store.setRemoteTiles(nextTiles);
-        }
-      });
-
-      ChimeModuleBridge.addListener('onMeetingConnecting', (data) => {
-        console.log('[Chime-Bridge] 📡 Signaling CONNECTING...', data);
-      });
-
-      ChimeModuleBridge.addListener('onMeetingStart', (data) => {
-        console.log('[Chime-Bridge] 🌍 SIGNALING CONNECTED (onMeetingStart)', data);
-        // ✅ [FIX 6] Set state to CONNECTED only when native signaling confirms it
-        useCallStore.getState().setConnected();
-      });
-
-      ChimeModuleBridge.addListener('onMeetingEnd', (data) => {
-        console.log('[Chime-Bridge] 🏁 Meeting ended/failed', data);
-        // ✅ [FIX 1] Reset lock so a new session can start if needed
-        isStarted.current = false;
-      });
-
-      ChimeModuleBridge.addListener('onAttendeeJoin', (data) => {
-        console.log('[Chime-Bridge] 👤 Attendee joined:', data.attendeeId);
-      });
-
-      ChimeModuleBridge.addListener('onAttendeeLeave', (data) => {
-        console.log('[Chime-Bridge] 👤 Attendee left:', data.attendeeId);
-      });
-
-      console.log(`[Chime-Bridge] 🚀 Waiting 1000ms for expo-av to release Audio Focus & Calling Native StartMeeting (ID: ${md.MeetingId})...`);
+      const logger = new ConsoleLogger('MobileChime', LogLevel.INFO);
+      const deviceController = new DefaultDeviceController(logger, { enableWebAudio: false });
+      const configuration = new MeetingSessionConfiguration(meetingData, attendeeData);
       
-      try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        console.log('[Chime-Bridge] 🔊 Delay finished. Proceeding to Native Setup.');
-      } catch (e) {
-        console.warn(e);
+      const meetingSession = new DefaultMeetingSession(
+        configuration,
+        logger,
+        deviceController
+      );
+      
+      if (!chimeRef.current) chimeRef.current = { cleanup };
+      chimeRef.current.meetingSession = meetingSession;
+
+      const observer = {
+        videoTileDidUpdate: (tileState: any) => {
+          console.log('[Chime-JS] videoTileDidUpdate:', JSON.stringify({
+            tileId: tileState.tileId,
+            isLocal: tileState.localTile,
+            isContent: tileState.isContent,
+            active: tileState.active
+          }));
+          const isLocal = tileState.localTile;
+          const tileId = tileState.tileId;
+          const isContent = tileState.isContent;
+          
+          if (isLocal) {
+            setLocalTileId(tileId);
+          } else {
+            const store = useCallStore.getState();
+            const currentTiles = store.remoteTiles;
+            const existingIdx = currentTiles.findIndex((t: any) => t.tileId === tileId);
+            
+            if (existingIdx === -1) {
+              store.setRemoteTiles([...currentTiles, { tileId, isLocal: false, isContent }]);
+            } else if (currentTiles[existingIdx].isContent !== isContent) {
+              const newTiles = [...currentTiles];
+              newTiles[existingIdx] = { ...newTiles[existingIdx], isContent };
+              store.setRemoteTiles(newTiles);
+            }
+          }
+        },
+        videoTileWasRemoved: (tileId: number) => {
+          if (tileId === localTileIdRef.current) {
+            setLocalTileId(null);
+          } else {
+            const store = useCallStore.getState();
+            store.setRemoteTiles(store.remoteTiles.filter((t: any) => t.tileId !== tileId));
+          }
+        },
+        audioVideoDidStart: () => {
+          console.log('[Chime-JS] audioVideoDidStart');
+          useCallStore.getState().setConnected();
+        },
+        audioVideoDidStop: () => {
+          console.log('[Chime-JS] audioVideoDidStop');
+          isStarted.current = false;
+        }
+      };
+
+      meetingSession.audioVideo.addObserver(observer);
+      
+      // Select input devices
+      const devices: any[] = (await mediaDevices.enumerateDevices()) as any[];
+      const defaultAudio = devices.find((d: any) => d.kind === 'audioinput');
+      if (defaultAudio) {
+         await meetingSession.audioVideo.startAudioInput(defaultAudio.deviceId);
+      }
+      
+      if (callType === 'video') {
+         // Prefer front camera initially
+         let defaultVideo = devices.find((d: any) => d.kind === 'videoinput' && d.facing === 'front');
+         if (!defaultVideo) defaultVideo = devices.find((d: any) => d.kind === 'videoinput');
+         if (defaultVideo) {
+            await meetingSession.audioVideo.startVideoInput(defaultVideo.deviceId);
+            activeVideoDeviceIdRef.current = defaultVideo.deviceId;
+            meetingSession.audioVideo.startLocalVideoTile();
+         }
       }
 
-      let retries = 0;
-      let success = false;
-      while (retries < 3 && !success) {
-        try {
-          await ChimeModuleBridge.startMeeting(md, ad);
-          console.log(`[Chime-Bridge] 🏁 Native StartMeeting CALLED (Attempt ${retries + 1})`);
-          success = true;
-        } catch (e) {
-          retries++;
-          console.error(`[Chime-Bridge] Setup failed on attempt ${retries}:`, e);
-          if (retries >= 3) {
-            isStarted.current = false;
-          } else {
-            console.log(`[Chime-Bridge] Retrying in 1000ms...`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-      }
+      meetingSession.audioVideo.start();
+
     } catch (err) {
-      console.error('[Chime-Bridge] Setup CRASHED:', err);
+      console.error('[Chime-JS] Setup CRASHED:', err);
       isStarted.current = false;
     }
-  }, [callType]);
+  }, [callType, meetingData, attendeeData]);
 
-  // [CLEANUP] Remove the automatic useEffect trigger to prevent double-joins
-  // Mobile session should be triggered MANUALLY from CallOverlay once
-  // we are absolutely sure the previous session (if any) is dead.
+  useEffect(() => {
+    if (meetingData && attendeeData && callState === 'JOINING') {
+      setupSession();
+    }
+  }, [meetingData, attendeeData, callState, setupSession]);
 
   const isCameraUserEnabled = useRef(callType === 'video');
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState: any) => {
-      if (isStarted.current) {
+      if (isStarted.current && chimeRef.current?.meetingSession) {
         if (nextAppState === 'background') {
-          ChimeModuleBridge.toggleCamera(false);
-        } else if (nextAppState === 'active') {
-          if (isCameraUserEnabled.current) {
-            ChimeModuleBridge.toggleCamera(true);
-          }
+          chimeRef.current.meetingSession.audioVideo.stopLocalVideoTile();
+        } else if (nextAppState === 'active' && isCameraUserEnabled.current) {
+          chimeRef.current.meetingSession.audioVideo.startLocalVideoTile();
         }
       }
     });
     return () => subscription.remove();
   }, []);
 
-  useEffect(() => {
-    // ✅ [FIX 2] Only trigger setupSession when the app explicitly enters JOINING state.
-    // This prevents accidental joins from stale meetingData before handleAccept is called.
-    if (meetingData && attendeeData && callState === 'JOINING') {
-      setupSession();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meetingData, attendeeData, callState]); // ✅ callState là reactive, trigger effect khi thay đổi
-
   return {
     localTileId,
     remoteTiles: globalRemoteTiles,
     cleanup,
-    toggleMic: useCallback((on: boolean) => ChimeModuleBridge.toggleMic(on), []),
-    
-    // [SENIOR] Dynamic upgrade handler for Camera
-    requestCameraPermissionUpgrade: async () => {
-      if (Platform.OS !== 'android') return true;
-      try {
-        const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
-      } catch (err) {
-        console.warn("[Chime-Bridge] Camera permission upgrade error:", err);
-        return false;
-      }
-    },
-    
-    toggleCamera: useCallback(async (on: boolean) => {
-      if (on) {
-        if (Platform.OS === 'android') {
-          try {
-            const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
-            if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-              Alert.alert('Chưa cấp quyền', 'Vui lòng cấp quyền Camera để bật Video.');
-              return;
-            }
-          } catch (err) {
-            console.warn('[Chime-Bridge] Camera Permission upgrade failed', err);
-            return;
-          }
-        }
-      }
-      isCameraUserEnabled.current = on;
-      return ChimeModuleBridge.toggleCamera(on);
+    toggleMic: useCallback((on: boolean) => {
+       const session = chimeRef.current?.meetingSession;
+       if (!session) return;
+       if (on) session.audioVideo.realtimeUnmuteLocalAudio();
+       else session.audioVideo.realtimeMuteLocalAudio();
     }, []),
-    switchAudioOutput: useCallback((useSpeaker: boolean) => ChimeModuleBridge.switchAudioOutput(!!useSpeaker), []),
+    requestCameraPermissionUpgrade: async () => {
+      return await requestPermissions();
+    },
+    toggleCamera: useCallback(async (on: boolean) => {
+      isCameraUserEnabled.current = on;
+      const session = chimeRef.current?.meetingSession;
+      if (!session) return;
+      if (on) {
+         const devices: any[] = (await mediaDevices.enumerateDevices()) as any[];
+         let targetVideo = devices.find((d: any) => d.deviceId === activeVideoDeviceIdRef.current);
+         if (!targetVideo) targetVideo = devices.find((d: any) => d.kind === 'videoinput' && d.facing === 'front');
+         if (!targetVideo) targetVideo = devices.find((d: any) => d.kind === 'videoinput');
+         
+         if (targetVideo) {
+            await session.audioVideo.startVideoInput(targetVideo.deviceId);
+            activeVideoDeviceIdRef.current = targetVideo.deviceId;
+            session.audioVideo.startLocalVideoTile();
+         }
+      } else {
+         session.audioVideo.stopLocalVideoTile();
+      }
+    }, []),
+    switchAudioOutput: useCallback((useSpeaker: boolean) => {
+       // Not fully supported via JS SDK unless WebAudio is used, 
+       // but react-native-incall-manager handles it usually.
+       console.log('Switch audio output (JS):', useSpeaker);
+    }, []),
     switchCamera: useCallback(async () => {
+      const session = chimeRef.current?.meetingSession;
+      if (!session) return;
+      
       try {
-        await ChimeModuleBridge.switchCamera();
-        console.log('[Chime-Hook] 🔄 Camera switched successfully');
-      } catch (error) {
-        console.warn('[Chime-Hook] ❌ Failed to switch camera:', error);
+         const devices: any[] = (await mediaDevices.enumerateDevices()) as any[];
+         const videoDevices = devices.filter((d: any) => d.kind === 'videoinput');
+         
+         if (videoDevices.length < 2) {
+           console.log('[Chime-JS] Only one camera found, cannot switch');
+           return;
+         }
+         
+         const currentIdx = videoDevices.findIndex((d: any) => d.deviceId === activeVideoDeviceIdRef.current);
+         const nextIdx = (currentIdx + 1) % videoDevices.length;
+         const nextDevice = videoDevices[nextIdx];
+         
+         console.log(`[Chime-JS] Switching camera from ${activeVideoDeviceIdRef.current} to ${nextDevice.deviceId}`);
+         await session.audioVideo.startVideoInput(nextDevice.deviceId);
+         activeVideoDeviceIdRef.current = nextDevice.deviceId;
+      } catch (e) {
+         console.error('[Chime-JS] Error switching camera:', e);
       }
     }, []),
     requestPermissions

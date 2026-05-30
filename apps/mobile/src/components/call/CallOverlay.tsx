@@ -563,7 +563,10 @@ const CallOverlay = () => {
   const avatarSource = getAvatarUri(peer);
   const localAvatarSource = getAvatarUri(user);
 
-  const remoteTile = remoteTiles.length > 0 ? remoteTiles[0] : null;
+  const contentTile = remoteTiles.find((t: any) => t.isContent);
+  const cameraTile = remoteTiles.find((t: any) => !t.isContent);
+  const remoteTile = contentTile || cameraTile || null;
+
   const isLocalCameraOn =
     isCameraOn && localTileId !== null && localTileId !== undefined;
 
@@ -702,6 +705,7 @@ const CallOverlay = () => {
         >
           <RNChimeVideoView
             tileId={remoteTile.tileId}
+            objectFit={remoteTile.isContent ? "contain" : "cover"}
             style={[
               StyleSheet.absoluteFillObject,
               { backgroundColor: "transparent" },
@@ -777,6 +781,7 @@ const CallOverlay = () => {
           <RNChimeVideoView
             tileId={localTileId}
             onTop={true}
+            zOrder={1}
             style={StyleSheet.absoluteFillObject}
           />
         ) : (
@@ -1012,9 +1017,10 @@ const CallOverlay = () => {
         <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
           {callType === "video" ? (
             <View style={{ flex: 1, backgroundColor: "#000" }}>
-              {remoteTile && isRemoteCameraOn ? (
+              {remoteTile ? (
                 <RNChimeVideoView
                   tileId={remoteTile.tileId}
+                  objectFit={remoteTile.isContent ? "contain" : "cover"}
                   style={StyleSheet.absoluteFillObject}
                 />
               ) : (

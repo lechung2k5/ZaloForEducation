@@ -1,6 +1,10 @@
 import "expo-dev-client";
-// import "react-native-get-random-values";
+import "react-native-get-random-values";
+import "react-native-url-polyfill/auto";
 import { registerRootComponent } from "expo";
+import { setupWebRTCPolyfill } from "./src/bridge/webrtcPolyfill";
+
+setupWebRTCPolyfill();
 
 import App from "./App";
 

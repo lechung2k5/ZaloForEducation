@@ -45,8 +45,9 @@ Notifications.setNotificationCategoryAsync('incoming_call', [
 ]);
 
 import SplashScreen from './src/components/SplashScreen';
-import CallOverlay from './src/components/chat/CallOverlay';
-import GroupCallOverlay from './src/components/chat/GroupCallOverlay';
+import CallOverlay from './src/components/call/CallOverlay';
+import IncomingCallModal from './src/components/call/IncomingCallModal';
+import GroupCallOverlay from './src/components/call/GroupCallOverlay';
 import { useGroupSocketListeners } from './src/hooks/useGroupSocketListeners';
 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
@@ -118,6 +119,7 @@ function MainApp() {
       {isEverythingLoaded ? (
         <NavigationContainer>
           <RootNavigator user={user} onLogout={logout} />
+          <IncomingCallModal />
           <CallOverlay />
           <GroupCallOverlay />
         </NavigationContainer>

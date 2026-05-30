@@ -6,7 +6,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-import api from "../services/api";
+import api, { getApiUrl } from "../services/api";
 import { io } from "socket.io-client";
 import { getDeviceId, getDeviceInfo } from "../utils/device";
 import Swal from "sweetalert2";
@@ -119,7 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       socketRef.current = null;
     }
 
-    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+    const apiUrl = getApiUrl();
     const token = localStorage.getItem("token");
 
     const socketUrl = apiUrl === "/api" ? "/" : apiUrl;

@@ -23,6 +23,7 @@ import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import ContactsPage from "./pages/contacts/ContactPage";
 import GroupJoinPage from "./pages/GroupJoinPage";
+import MobileCallView from "./pages/MobileCallView";
 import "./App.css";
 
 // Component bảo vệ Route
@@ -72,6 +73,9 @@ const AppContent: React.FC = () => {
         className={`app-container ${showSplash ? "opacity-0" : "opacity-100 transition-opacity duration-1000 delay-500"}`}
       >
         <Routes>
+          {/* Mobile WebView Call Route */}
+          <Route path="/mobile-call-view" element={<MobileCallView />} />
+          
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route

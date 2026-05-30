@@ -1,7 +1,15 @@
 import axios from 'axios';
 
+const params = new URLSearchParams(window.location.search);
+const overrideApiUrl = params.get('apiUrl');
+
+export const getApiUrl = () => {
+  if (overrideApiUrl) return overrideApiUrl;
+  return import.meta.env.VITE_API_URL || 'http://localhost:3000';
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  baseURL: getApiUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
