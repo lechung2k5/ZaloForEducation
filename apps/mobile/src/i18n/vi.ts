@@ -187,7 +187,6 @@ export default {
   'chat.status_read': 'Đã xem',
   'chat.status_error': 'Lỗi',
   'chat.change_choice': 'Đổi lựa chọn',
-  
 
   'chat.sys_member_added': '{{actor}} đã thêm {{target}} vào nhóm',
   'chat.sys_member_removed': '{{actor}} đã xóa {{target}} khỏi nhóm',
@@ -781,4 +780,7 @@ export default {
   'profile.phone_visibility_desc': 'Chỉ bạn bè có lưu số của bạn trong danh bạ mới xem được số này',
   'alert.permission_title': 'Quyền truy cập',
   'alert.permission_desc': 'Ứng dụng cần quyền truy cập thư viện ảnh.',
+
+  'chat_details.share_group': 'Chia sẻ nhóm',
+  'chat_details.share_group_desc': 'Quét mã QR để tham gia nhóm',
 };

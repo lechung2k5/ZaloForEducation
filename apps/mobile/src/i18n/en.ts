@@ -187,7 +187,6 @@ export default {
   'chat.status_read': 'Read',
   'chat.status_error': 'Error',
   'chat.change_choice': 'Change choice',
-  
 
   'chat.sys_member_added': '{{actor}} added {{target}} to the group',
   'chat.sys_member_removed': '{{actor}} removed {{target}} from the group',
@@ -781,4 +780,7 @@ export default {
   'profile.phone_visibility_desc': 'Only friends who have your number in their contacts can see this',
   'alert.permission_title': 'Permission required',
   'alert.permission_desc': 'The app needs access to your photo library.',
+
+  'chat_details.share_group': 'Share Group',
+  'chat_details.share_group_desc': 'Scan QR code to join group',
 };
