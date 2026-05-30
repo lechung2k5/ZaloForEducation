@@ -953,8 +953,8 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
           {/* Subtle overlay for mobile too */}
           <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.1)' }} />
           <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "padding"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? insets.bottom : insets.bottom}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? insets.bottom : 0}
             style={{ flex: 1 }}
           >
 
