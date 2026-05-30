@@ -1,207 +1,236 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { PermissionsAndroid, Platform, Alert, AppState } from 'react-native';
 import { useGroupCallStore } from '../store/groupCallStore';
-import { ChimeModuleBridge } from '../bridge/chime';
-import { apiPost } from '../utils/api';
-import { Camera } from 'expo-camera';
-import { Audio } from 'expo-av';
-import { useAuth } from '../context/AuthContext';
-import SocketService from '../utils/socket';
+import { chimeRef } from '../utils/chimeRef';
+import {
+  ConsoleLogger,
+  DefaultDeviceController,
+  DefaultMeetingSession,
+  LogLevel,
+  MeetingSessionConfiguration,
+} from 'amazon-chime-sdk-js';
+import { mediaDevices } from 'react-native-webrtc';
+import api from '../services/api';
+
+const normalizeAttendeeId = (id?: string | null): string | null => {
+  if (!id) return null;
+  return id.split('#')[0];
+};
 
 export const useGroupChime = () => {
-  const { 
-    callId, convId, callType, setConnected, resetGroupCall, callState,
-    videoTiles, addVideoTile, removeVideoTile
-  } = useGroupCallStore();
-  const { user } = useAuth();
-  const initialCameraState = callType === 'video';
-  const [isMicOn, setIsMicOn] = useState(true);
-  const [isCameraOn, setIsCameraOn] = useState(initialCameraState);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  
-  const heartbeatIntervalRef = useRef<any>(null);
-  const hasJoinedRef = useRef(false);
+  const store = useGroupCallStore();
+  const { callType, callState } = store;
 
-  const joinMeeting = useCallback(async () => {
-    if (!callId || hasJoinedRef.current) return;
-    hasJoinedRef.current = true;
+  const [localTileId, setLocalTileId] = useState<number | null>(null);
+  const isStarted = useRef(false);
+  const localTileIdRef = useRef<number | null>(null);
+  const activeVideoDeviceIdRef = useRef<string | null>(null);
+  const isCameraUserEnabled = useRef(false);
 
+  useEffect(() => {
+    localTileIdRef.current = localTileId;
+  }, [localTileId]);
+
+  const requestPermissions = async () => {
+    if (Platform.OS !== 'android') return true;
     try {
-      if (!callId || !convId) {
-        console.error('[GroupChime] ❌ Missing callId or convId in store:', { callId, convId });
-        throw new Error('Thiếu thông tin cuộc gọi (callId/convId)');
+      const hasAudio = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+      if (!hasAudio) {
+        const grantedAudio = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+        if (grantedAudio !== PermissionsAndroid.RESULTS.GRANTED) return false;
       }
+      const hasVideo = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+      if (!hasVideo) {
+        const grantedVideo = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+        if (grantedVideo !== PermissionsAndroid.RESULTS.GRANTED) return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn("[Chime-Permissions] Permission error:", err);
+      return false;
+    }
+  };
 
-      console.log(`[GroupChime] 🚀 Joining meeting: callId=${callId}, convId=${convId}, type=${callType}`);
-      const response = await apiPost('/group-call/join', { 
-        callId,
-        conversationId: convId,
-        userProfile: {
-          fullName: user?.fullName || user?.fullname || user?.email,
-          avatarUrl: user?.avatarUrl || user?.avatar,
-          email: user?.email
+  const cleanup = useCallback(async (reason: string = 'unknown') => {
+    console.log(`[Chime-JS] Group Cleanup session. Reason: ${reason}`);
+    
+    if (chimeRef.current?.meetingSession) {
+      try {
+        chimeRef.current.meetingSession.audioVideo.stop();
+      } catch (e) {
+        console.warn('Error stopping audioVideo:', e);
+      }
+      chimeRef.current.meetingSession = null;
+    }
+    
+    setLocalTileId(null);
+    isStarted.current = false;
+    isCameraUserEnabled.current = false;
+    
+    useGroupCallStore.getState().resetGroupCall();
+  }, []);
+
+  const setupSession = useCallback(async (meetingData: any, attendeeData: any) => {
+    if (isStarted.current) return;
+    
+    try {
+      console.log('[Chime-JS] Setting up Group session...');
+      const logger = new ConsoleLogger('MobileGroupChime', LogLevel.WARN);
+      const deviceController = new DefaultDeviceController(logger, { enableWebAudio: false });
+      
+      const configuration = new MeetingSessionConfiguration(meetingData, attendeeData);
+      const meetingSession = new DefaultMeetingSession(configuration, logger, deviceController);
+      
+      chimeRef.current.meetingSession = meetingSession;
+
+      const observer = {
+        videoTileDidUpdate: (tileState: any) => {
+          const isLocal = tileState.localTile;
+          const tileId = tileState.tileId;
+          const isContent = tileState.isContent;
+          
+          if (isLocal) {
+            setLocalTileId(tileId);
+          } else {
+            const currentStore = useGroupCallStore.getState();
+            const currentTiles = currentStore.videoTiles || [];
+            const existingIdx = currentTiles.findIndex((t: any) => t.tileId === tileId);
+            
+            if (existingIdx === -1) {
+              currentStore.addVideoTile({ tileId, isLocal: false, isContent, boundAttendeeId: tileState.boundAttendeeId });
+            } else if (currentTiles[existingIdx].isContent !== isContent) {
+              // Update if content flag changes
+              const newTiles = [...currentTiles];
+              newTiles[existingIdx] = { ...newTiles[existingIdx], isContent };
+              useGroupCallStore.setState({ videoTiles: newTiles });
+            }
+          }
+        },
+        videoTileWasRemoved: (tileId: number) => {
+          if (tileId === localTileIdRef.current) {
+            setLocalTileId(null);
+          } else {
+            useGroupCallStore.getState().removeVideoTile(tileId);
+          }
+        },
+        audioVideoDidStart: () => {
+          console.log('[Chime-JS] Group audioVideoDidStart');
+          useGroupCallStore.getState().setConnected();
+        },
+        audioVideoDidStop: (sessionStatus: any) => {
+          console.log('[Chime-JS] Group audioVideoDidStop with status:', sessionStatus.statusCode());
+          cleanup('audioVideoDidStop');
+        }
+      };
+
+      meetingSession.audioVideo.addObserver(observer);
+
+      meetingSession.audioVideo.realtimeSubscribeToAttendeeIdPresence((attendeeId, present) => {
+        const normalizedId = normalizeAttendeeId(attendeeId);
+        if (!normalizedId) return;
+        
+        const isContent = attendeeId.includes('#content');
+        if (isContent) return; // We handle content in videoTile updates mostly, or ignore roster presence for it
+
+        console.log(`[Chime-JS] Attendee presence updated: ${normalizedId} -> ${present}`);
+        if (present) {
+          useGroupCallStore.getState().updateParticipant(normalizedId, { status: 'connected' });
+        } else {
+          useGroupCallStore.getState().updateParticipant(normalizedId, { status: 'disconnected' });
         }
       });
 
-      if (!response.ok) {
-        throw new Error(response.message || 'Failed to join group call');
+      // Bind Audio Device
+      const devices: any[] = (await mediaDevices.enumerateDevices()) as any[];
+      const defaultAudio = devices.find((d: any) => d.kind === 'audioinput');
+      if (defaultAudio) {
+         await meetingSession.audioVideo.startAudioInput(defaultAudio.deviceId);
       }
-
-      const meetingData = response.meeting || response.data?.meeting;
-      const attendeeData = response.attendee || response.data?.attendee;
-      const participantsMap = response.participants || response.data?.participants;
-
-      if (participantsMap) {
-        useGroupCallStore.getState().setParticipants(participantsMap);
-      }
-
-      if (!meetingData?.MeetingId || !attendeeData?.AttendeeId || !attendeeData?.JoinToken) {
-        throw new Error('Dữ liệu phiên họp (Meeting/Attendee) không đúng cấu trúc Chime');
-      }
-
-      const { status: micStatus } = await Audio.requestPermissionsAsync();
-      let camStatus = 'denied';
-      if (callType === 'video') {
-        const { status } = await Camera.requestCameraPermissionsAsync();
-        camStatus = status;
-      } else {
-        camStatus = 'granted'; // Treat as granted for audio calls to proceed
-      }
-
-      if (micStatus !== 'granted' || (callType === 'video' && camStatus !== 'granted')) {
-        throw new Error('Cần quyền Camera và Microphone để tham gia cuộc gọi');
-      }
-
-      // Start Chime Native Session
-      await ChimeModuleBridge.startMeeting(meetingData, attendeeData);
       
-      // Start Heartbeat (15s)
-      if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
-      heartbeatIntervalRef.current = setInterval(() => {
-        if (SocketService.socket && callId) {
-          SocketService.socket.emit('group-call:heartbeat', {
-            callId: callId,
-            attendeeId: attendeeData.AttendeeId
-          });
-        }
-      }, 15000);
-
-      // [SENIOR] Ensure we are in the socket room for this conversation
-      if (SocketService.socket) {
-        console.log(`[GroupChime] 🏠 Joining socket room: ${convId}`);
-        SocketService.socket.emit('join_room', { convId: convId });
+      if (callType === 'video') {
+         isCameraUserEnabled.current = true;
+         let defaultVideo = devices.find((d: any) => d.kind === 'videoinput' && d.facing === 'front');
+         if (!defaultVideo) defaultVideo = devices.find((d: any) => d.kind === 'videoinput');
+         if (defaultVideo) {
+            await meetingSession.audioVideo.startVideoInput(defaultVideo.deviceId);
+            activeVideoDeviceIdRef.current = defaultVideo.deviceId;
+            meetingSession.audioVideo.startLocalVideoTile();
+         }
       }
 
-      // Notify other peers via socket with SSOT profile
-      if (SocketService.socket && user?.email) {
-        SocketService.socket.emit('group-call:peer_joined', {
-          convId: convId,
-          callId: callId,
-          userEmail: user.email,
-          attendeeId: attendeeData.AttendeeId.toLowerCase(),
-          participant: {
-            email: user.email,
-            name: user.fullName || user.fullname || user.email,
-            avatar: user.avatarUrl,
-            joinedAt: new Date().toISOString(),
-            lastSeenAt: Date.now()
-          }
-        });
-      }
-
-      setTimeout(() => {
-        ChimeModuleBridge.toggleMic(true);
-        ChimeModuleBridge.toggleCamera(callType === 'video');
-        setTimeout(() => {
-          ChimeModuleBridge.switchAudioOutput(true); 
-        }, 500);
-      }, 1500);
-
-      setConnected();
-    } catch (error) {
-      console.error('[GroupChime] ❌ Failed to join meeting:', error);
-      hasJoinedRef.current = false;
-      resetGroupCall();
+      meetingSession.audioVideo.start();
+      isStarted.current = true;
+      
+    } catch (e) {
+      console.error('[Chime-JS] Setup CRASHED:', e);
+      cleanup('setup_crash');
     }
-  }, [callId, setConnected, resetGroupCall, user]);
+  }, [callType, cleanup]);
 
-  useEffect(() => {
-    if (!callId) {
-      hasJoinedRef.current = false;
-      return;
-    }
-
-    console.log('[GroupChime] 👂 Registering listeners for call:', callId);
-    const addListener = ChimeModuleBridge.addListener('onVideoTileAdded', (tile: any) => {
-      console.log('[GroupChime] 📹 Video Tile Added:', tile);
-      // Ensure attendeeId is lowercased
-      const normalizedTile = {
-        ...tile,
-        attendeeId: tile.attendeeId ? tile.attendeeId.toLowerCase() : null
-      };
-      addVideoTile(normalizedTile);
-    });
-
-    const removeListener = ChimeModuleBridge.addListener('onVideoTileRemoved', (tile: any) => {
-      console.log('[GroupChime] ❌ Video Tile Removed:', tile);
-      removeVideoTile(tile.tileId);
-    });
-
-    return () => {
-      console.log('[GroupChime] 🧹 Cleaning up listeners...');
-      addListener.remove();
-      removeListener.remove();
-    };
-  }, [callId]);
-
-  // Handle meeting cleanup separately to avoid race conditions
-  useEffect(() => {
-    return () => {
-      if (hasJoinedRef.current) {
-        console.log('[GroupChime] 🏁 Final cleanup on unmount');
-        ChimeModuleBridge.toggleMic(false);
-        ChimeModuleBridge.toggleCamera(false);
-        ChimeModuleBridge.stopMeeting();
+  const toggleMic = useCallback((on: boolean) => {
+    const session = chimeRef.current?.meetingSession;
+    if (session) {
+      if (on) {
+        session.audioVideo.realtimeUnmuteLocalAudio();
+      } else {
+        session.audioVideo.realtimeMuteLocalAudio();
       }
-    };
+    }
   }, []);
 
-  const toggleMic = () => {
-    const newState = !isMicOn;
-    ChimeModuleBridge.toggleMic(newState);
-    setIsMicOn(newState);
-  };
+  const toggleCamera = useCallback(async (on: boolean) => {
+      isCameraUserEnabled.current = on;
+      const session = chimeRef.current?.meetingSession;
+      if (!session) return;
+      if (on) {
+         const devices: any[] = (await mediaDevices.enumerateDevices()) as any[];
+         let targetVideo = devices.find((d: any) => d.deviceId === activeVideoDeviceIdRef.current);
+         if (!targetVideo) targetVideo = devices.find((d: any) => d.kind === 'videoinput' && d.facing === 'front');
+         if (!targetVideo) targetVideo = devices.find((d: any) => d.kind === 'videoinput');
+         
+         if (targetVideo) {
+            await session.audioVideo.startVideoInput(targetVideo.deviceId);
+            activeVideoDeviceIdRef.current = targetVideo.deviceId;
+            session.audioVideo.startLocalVideoTile();
+         }
+      } else {
+         session.audioVideo.stopLocalVideoTile();
+      }
+  }, []);
 
-  const toggleCamera = () => {
-    const newState = !isCameraOn;
-    ChimeModuleBridge.toggleCamera(newState);
-    setIsCameraOn(newState);
-  };
-
-  const endCall = useCallback(() => {
-    console.log('[GroupChime] 🛑 Ending call and releasing hardware...');
-    if (heartbeatIntervalRef.current) {
-      clearInterval(heartbeatIntervalRef.current);
-      heartbeatIntervalRef.current = null;
+  const switchCamera = useCallback(async () => {
+    const session = chimeRef.current?.meetingSession;
+    if (!session) return;
+    
+    try {
+       const devices: any[] = (await mediaDevices.enumerateDevices()) as any[];
+       const videoDevices = devices.filter((d: any) => d.kind === 'videoinput');
+       
+       if (videoDevices.length < 2) return;
+       
+       const currentIdx = videoDevices.findIndex((d: any) => d.deviceId === activeVideoDeviceIdRef.current);
+       const nextIdx = (currentIdx + 1) % videoDevices.length;
+       const nextDevice = videoDevices[nextIdx];
+       
+       await session.audioVideo.startVideoInput(nextDevice.deviceId);
+       activeVideoDeviceIdRef.current = nextDevice.deviceId;
+    } catch (e) {
+       console.error('[Chime-JS] Error switching camera:', e);
     }
-    ChimeModuleBridge.toggleMic(false);
-    ChimeModuleBridge.toggleCamera(false);
-    ChimeModuleBridge.stopMeeting();
-    
-    setIsMicOn(false);
-    setIsCameraOn(false);
-    
-    resetGroupCall();
-    hasJoinedRef.current = false;
-  }, [resetGroupCall]);
+  }, []);
+
+  const switchAudioOutput = useCallback(async (useSpeaker: boolean) => {
+     console.log('Switch audio output (Group):', useSpeaker);
+  }, []);
 
   return {
-    videoTiles,
-    isMicOn,
-    isCameraOn,
-    isSpeakerOn,
-    joinMeeting,
+    localTileId,
+    setupSession,
+    cleanup,
     toggleMic,
     toggleCamera,
-    endCall
+    switchAudioOutput,
+    switchCamera,
+    requestPermissions
   };
 };

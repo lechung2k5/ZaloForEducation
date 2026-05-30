@@ -47,6 +47,7 @@ Notifications.setNotificationCategoryAsync('incoming_call', [
 import SplashScreen from './src/components/SplashScreen';
 import CallOverlay from './src/components/call/CallOverlay';
 import IncomingCallModal from './src/components/call/IncomingCallModal';
+import IncomingGroupCallModal from './src/components/call/IncomingGroupCallModal';
 import GroupCallOverlay from './src/components/call/GroupCallOverlay';
 import { useGroupSocketListeners } from './src/hooks/useGroupSocketListeners';
 
@@ -122,6 +123,7 @@ function MainApp() {
           <IncomingCallModal />
           <CallOverlay />
           <GroupCallOverlay />
+          <IncomingGroupCallModal />
         </NavigationContainer>
       ) : (
         <SplashScreen />

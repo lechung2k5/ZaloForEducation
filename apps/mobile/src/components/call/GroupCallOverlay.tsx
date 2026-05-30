@@ -1,696 +1,455 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
-  StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-  SafeAreaView,
-  StatusBar,
-  ActivityIndicator,
-  FlatList,
   Image,
+  TouchableOpacity,
+  Vibration,
+  StyleSheet,
   PanResponder,
   Animated,
-} from 'react-native';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useGroupCallStore, Participant } from '../../store/groupCallStore';
-import { useChatStore } from '../../store/chatStore';
-import { useGroupChime } from '../../hooks/useGroupChime';
-import { RNChimeVideoView } from '../../bridge/chime';
-import { Colors, Typography } from '../../constants/Theme';
-import { useAuth } from '../../context/AuthContext';
-import SocketService from '../../utils/socket';
-import { apiPost } from '../../utils/api';
-import { useGroupSocketListeners } from '../../hooks/useGroupSocketListeners';
-import SoundService from '../../utils/SoundService';
-import { Vibration, Platform } from 'react-native';
+  Dimensions,
+  Alert,
+  Platform,
+  ScrollView,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useGroupCallStore } from "../../store/groupCallStore";
+import { useAuth } from "../../context/AuthContext";
+import { useGroupChime } from "../../hooks/useGroupChime";
+import { RNChimeVideoView } from "../../bridge/chime";
+import { apiRequest } from "../../utils/api";
+import SocketService from "../../utils/socket";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
-const { width, height } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const GroupCallOverlay = () => {
-  // useGroupSocketListeners(); // [SENIOR] Moved to App.tsx for global scope
-  const { 
-    callState, 
-    convId, 
-    callId, 
-    fromEmail, 
-    peerProfile, 
-    groupName, 
-    groupAvatar, 
-    participants, 
-    ringingEmails, 
-    isMinimized,
+export const GroupCallOverlay: React.FC = () => {
+  const { user } = useAuth();
+  const {
+    callState,
+    convId,
+    callId,
     callType,
-    startJoining, 
+    fromEmail,
+    participants,
+    groupName,
+    groupAvatar,
+    videoTiles,
+    isMinimized,
+    toggleMinimized,
     resetGroupCall,
-    toggleMinimized
   } = useGroupCallStore();
 
   const {
-    videoTiles,
-    isMicOn,
-    isCameraOn,
-    joinMeeting,
+    localTileId,
+    setupSession,
+    cleanup,
     toggleMic,
     toggleCamera,
-    endCall,
-  } = useGroupChime();
+    switchAudioOutput,
+    switchCamera,
+    requestPermissions,
+  } = useGroupChime() as any;
 
-  const pan = useRef(new Animated.ValueXY({ x: width - 100, y: height - 150 })).current;
+  const [isMicOn, setIsMicOn] = useState(true);
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [useSpeaker, setUseSpeaker] = useState(true);
+
+  useEffect(() => {
+    const store = useGroupCallStore.getState();
+    if (store.meetingData && store.attendeeData) {
+      setupSession(store.meetingData, store.attendeeData);
+    }
+  }, [setupSession]);
+
+  // Animation values for Minimized PiP
+  const pan = useRef(new Animated.ValueXY()).current;
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+      },
       onPanResponderGrant: () => {
         pan.setOffset({
           x: (pan.x as any)._value,
-          y: (pan.y as any)._value
+          y: (pan.y as any)._value,
         });
+        pan.setValue({ x: 0, y: 0 });
       },
-      onPanResponderMove: Animated.event(
-        [null, { dx: pan.x, dy: pan.y }],
-        { useNativeDriver: false }
-      ),
-      onPanResponderRelease: (evt, gestureState) => {
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: () => {
         pan.flattenOffset();
-        // [SENIOR] Detect Tap vs Drag
-        const isTap = Math.abs(gestureState.dx) < 10 && Math.abs(gestureState.dy) < 10;
-        if (isTap) {
-          toggleMinimized(false);
-        }
-      }
+        Animated.spring(pan, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: false,
+        }).start();
+      },
     })
   ).current;
 
-  const { user } = useAuth();
-  const [videoReady, setVideoReady] = useState(false);
-
-  useEffect(() => {
-    if (callState === 'JOINING') {
-      joinMeeting();
-    }
-    if (callState === 'CONNECTED') {
-      const timer = setTimeout(() => setVideoReady(true), 500);
-      return () => clearTimeout(timer);
-    } else {
-      setVideoReady(false);
-    }
-  }, [callState, joinMeeting]);
-
-  useEffect(() => {
-    const hasRinging = ringingEmails.length > 0;
-    
-    if (callState === 'RINGING') {
-      SoundService.playRingtone();
-      if (Platform.OS !== 'web') {
-        Vibration.vibrate([0, 500, 1000], true);
-      }
-    } else if (callState === 'JOINING' || (callState === 'CONNECTED' && hasRinging)) {
-      SoundService.stopRingtone();
-      SoundService.playRingback();
-      if (Platform.OS !== 'web') Vibration.cancel();
-    } else {
-      SoundService.stopAll();
-      if (Platform.OS !== 'web') Vibration.cancel();
-    }
-
-    return () => {
-      SoundService.stopAll();
-      if (Platform.OS !== 'web') Vibration.cancel();
-    };
-  }, [callState]);
-
-  const handleHangup = async () => {
-    // [SENIOR] Identify which attendee is hanging up
-    const myAttendeeId = Object.keys(participants).find(id => participants[id].email === user?.email);
-    
-    if (SocketService.socket && convId && callId && user?.email && myAttendeeId) {
-      SocketService.socket.emit('group-call:hangup', {
-        convId,
-        callId,
-        userEmail: user.email,
-        attendeeId: myAttendeeId
-      });
-
-      try {
-        await apiPost('/group-call/hangup', { 
-          conversationId: convId, 
+  const endCall = useCallback(async () => {
+    try {
+      if (SocketService.socket && convId && callId) {
+        (SocketService.socket as any).emit("group_call:leave", {
+          convId,
           callId,
-          attendeeId: myAttendeeId
+          email: user?.email,
         });
-      } catch (e) {}
+      }
+      await cleanup("user_ended_call");
+    } catch (error) {
+      console.error("[GroupCall] End call error:", error);
+      resetGroupCall();
     }
+  }, [convId, callId, user?.email, cleanup, resetGroupCall]);
 
-    endCall();
+  const handleToggleMic = () => {
+    const nextState = !isMicOn;
+    setIsMicOn(nextState);
+    toggleMic(nextState);
   };
 
-  if (callState === 'IDLE') return null;
+  const handleToggleCamera = async () => {
+    const nextState = !isCameraOn;
+    const hasPerm = await requestPermissions();
+    if (!hasPerm) return;
+    setIsCameraOn(nextState);
+    toggleCamera(nextState);
+  };
 
-  if (isMinimized && (callState === 'CONNECTED' || callState === 'JOINING')) {
+  const handleSwitchAudio = () => {
+    const nextState = !useSpeaker;
+    setUseSpeaker(nextState);
+    switchAudioOutput(nextState);
+  };
+
+  if (callState === "IDLE") return null;
+
+  const isLocalCameraOn = isCameraOn && localTileId !== null;
+  const contentTile = videoTiles.find((t: any) => t.isContent);
+  const cameraTiles = videoTiles.filter((t: any) => !t.isContent);
+
+  // LÃ¡y danh sÃ¡ch participant cÃ³ mÄƒÌ£t
+  const connectedParticipants = Object.values(participants).filter(
+    (p: any) => p.status === "connected" && p.email !== user?.email
+  );
+
+  // --- MINIMIZED VIEW ---
+  if (isMinimized && callState === "CONNECTED") {
     return (
       <Animated.View
         {...panResponder.panHandlers}
         style={[
-          pan.getLayout(),
-          styles.minimizedBubble
+          styles.minimizedContainer,
+          { transform: pan.getTranslateTransform() },
         ]}
       >
-        <TouchableOpacity 
-          activeOpacity={0.9}
+        <TouchableOpacity
+          style={styles.minimizedContent}
           onPress={() => toggleMinimized(false)}
-          style={styles.bubbleInner}
         >
-          {videoTiles.length > 0 && isCameraOn ? (
+          {isLocalCameraOn ? (
             <RNChimeVideoView
-              tileId={videoTiles[0].tileId}
-              style={styles.bubbleVideo}
+              tileId={localTileId}
+              zOrder={2}
+              style={StyleSheet.absoluteFillObject}
             />
           ) : (
-            <View style={styles.bubblePlaceholder}>
-               <Text style={styles.bubbleInitial}>
-                 {(groupName || '?').charAt(0).toUpperCase()}
-               </Text>
+            <View style={styles.minimizedAvatarContainer}>
+              <Text style={{ color: "white", fontWeight: "bold" }}>Group</Text>
             </View>
           )}
-          <View style={styles.bubbleBadge}>
-             <Text style={styles.bubbleBadgeText}>{Object.keys(participants).length}</Text>
-          </View>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.endCallMiniBtn} onPress={endCall}>
+          <Icon name="phone-hangup" size={16} color="white" />
         </TouchableOpacity>
       </Animated.View>
     );
   }
 
-  const participantsList = Object.values(participants);
-  const activeGridCount = Math.max(participantsList.length, videoTiles.length, ringingEmails.length);
-
+  // --- FULLSCREEN VIEW ---
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
-      <LinearGradient
-        colors={['#0f172a', '#1e293b']}
-        style={StyleSheet.absoluteFill}
-      />
+    <SafeAreaView style={styles.fullContainer}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => toggleMinimized(true)}>
+          <Icon name="chevron-down" size={32} color="white" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{groupName || "Group Call"}</Text>
+        <View style={{ width: 32 }} />
+      </View>
 
-      <SafeAreaView style={styles.safeArea}>
-        {/* Header Controls */}
-        <View style={styles.headerControls}>
-          <TouchableOpacity 
-            onPress={() => toggleMinimized(true)}
-            style={styles.minimizeBtn}
-          >
-            <Text style={styles.headerIcon}>keyboard_arrow_down</Text>
-          </TouchableOpacity>
-        </View>
-        {/* --- RINGING STATE --- */}
-        {callState === 'RINGING' && (
-          <View style={styles.incomingWrapper}>
-            <View style={styles.avatarCircle}>
-              {groupAvatar ? (
-                <Image source={{ uri: groupAvatar }} style={styles.groupAvatarImage} />
-              ) : (
-                <Text style={styles.avatarText}>
-                  {(groupName || peerProfile?.fullName || fromEmail || '')?.charAt(0).toUpperCase()}
-                </Text>
-              )}
+      {/* Main Video Area */}
+      <View style={styles.videoGridContainer}>
+        {contentTile ? (
+          // CONTENT SHARE MODE
+          <View style={styles.contentShareLayout}>
+            <View style={styles.contentShareMain}>
+              <RNChimeVideoView
+                tileId={contentTile.tileId}
+                objectFit="contain"
+                zOrder={0}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <Text style={styles.contentLabel}>MÃ n hÃ¬nh Ä‘Æ°á»£c chia sáº»</Text>
             </View>
-            <Text style={styles.callerName}>{groupName || peerProfile?.fullName || 'Nhóm UniChat'}</Text>
-            <Text style={styles.callTypeLabel}>Cuộc gọi video nhóm mới...</Text>
-
-            <View style={styles.actionRow}>
-              <TouchableOpacity
-                onPress={resetGroupCall}
-                style={[styles.actionBtn, styles.declineBtn]}
-              >
-                <Text style={styles.btnIcon}>call_end</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => startJoining(convId!, callId!, callType || 'video', groupName || undefined, groupAvatar || undefined, ringingEmails)}
-                style={[styles.actionBtn, styles.acceptBtn]}
-              >
-                <Text style={styles.btnIcon}>call</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* --- JOINING STATE --- */}
-        {callState === 'JOINING' && (
-          <View style={styles.centerContent}>
-            <View style={styles.callingHeader}>
-              {groupAvatar ? (
-                <Image source={{ uri: groupAvatar }} style={styles.callingAvatar} />
-              ) : (
-                <View style={[styles.callingAvatar, styles.callingAvatarPlaceholder]}>
-                  <Text style={styles.callingPlaceholderText}>{groupName?.charAt(0) || 'G'}</Text>
+            <ScrollView horizontal style={styles.contentShareRoster}>
+              {cameraTiles.map((tile: any) => (
+                <View key={tile.tileId} style={styles.miniTile}>
+                  <RNChimeVideoView
+                    tileId={tile.tileId}
+                    zOrder={1}
+                    style={StyleSheet.absoluteFillObject}
+                  />
                 </View>
-              )}
-              <Text style={styles.callingName}>{groupName || 'Cuộc gọi nhóm'}</Text>
-              <Text style={styles.callingStatus}>Đang kết nối...</Text>
-            </View>
-            <ActivityIndicator size="large" color="#fff" style={{ marginTop: 40 }} />
-            
-            <TouchableOpacity 
-              onPress={resetGroupCall}
-              style={[styles.hangupBtnLarge, { marginTop: 100 }]}
-            >
-              <Text style={styles.controlIcon}>call_end</Text>
-            </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
-        )}
-
-        {/* --- CONNECTED STATE --- */}
-        {callState === 'CONNECTED' && (
-          <View style={styles.connectedWrapper}>
-            <View style={styles.videoGridContainer}>
-              {participantsList.length === 0 && videoTiles.length === 0 && ringingEmails.length === 0 ? (
-                <View style={styles.emptyVideo}>
-                  <ActivityIndicator color="rgba(255,255,255,0.5)" />
-                  <Text style={styles.emptyText}>Đang khởi tạo...</Text>
+        ) : (
+          // GRID MODE
+          <ScrollView contentContainerStyle={styles.gridScroll}>
+            <View style={styles.grid}>
+              {cameraTiles.map((tile: any) => (
+                <View key={tile.tileId} style={styles.gridItem}>
+                  <RNChimeVideoView
+                    tileId={tile.tileId}
+                    zOrder={0}
+                    style={StyleSheet.absoluteFillObject}
+                  />
                 </View>
-              ) : (
-                <FlatList
-                  key={`grid-${activeGridCount > 2 ? 2 : 1}`}
-                  data={(() => {
-                    // [SENIOR] SSOT Reactive Merging Logic
-                    let items: any[] = [];
-                    
-                    // 1. All video tiles
-                    videoTiles.forEach(tile => {
-                      const id = tile.attendeeId ? tile.attendeeId.toLowerCase() : '';
-                      const p = participants[id];
-                      
-                      // [SENIOR] Show the tile even if we don't have profile yet (UX resilience)
-                      // Rule 3 is relaxed for better debugging and immediate feedback
-                      items.push({
-                        attendeeId: id,
-                        email: p?.email || 'unknown',
-                        name: p?.name || (tile.isLocal ? 'Bạn' : 'Đang tham gia...'),
-                        tileId: tile.tileId,
-                        isVideoActive: true,
-                        isLocal: tile.isLocal,
-                        status: 'connected'
-                      });
-                    });
-
-                    // 2. Connected but no video (camera off)
-                    Object.entries(participants || {}).forEach(([id, p]) => {
-                      if (!id || !p) return;
-                      const hasTile = videoTiles.some(t => t.attendeeId && t.attendeeId.toLowerCase() === id.toLowerCase());
-                      if (!hasTile) {
-                        items.push({
-                          attendeeId: id,
-                          ...p as any,
-                          isVideoActive: false,
-                          isLocal: (p as any).email === user?.email,
-                          status: 'connected'
-                        });
-                      }
-                    });
-
-                    // 3. Ringing (Only those who haven't joined yet and are NOT the initiator)
-                    ringingEmails.forEach(email => {
-                      if (!email) return;
-                      const emailLower = email.toLowerCase();
-                      const alreadyJoined = Object.values(participants).some((p: any) => p.email?.toLowerCase() === emailLower);
-                      if (!alreadyJoined) {
-                        items.push({
-                          email: emailLower,
-                          status: 'ringing',
-                          isVideoActive: false,
-                          isLocal: false
-                        });
-                      }
-                    });
-
-                    return items;
-                  })()}
-                  keyExtractor={(item) => `${item.tileId || 'no-tile'}-${item.attendeeId || item.email}`}
-                  numColumns={activeGridCount > 2 ? 2 : 1}
-                  renderItem={({ item }) => (
-                    <View style={[
-                      styles.videoTileContainer,
-                      activeGridCount <= 1 && { height: height * 0.6 }
-                    ]}>
-                      {item.isVideoActive && item.tileId !== undefined ? (
-                        <RNChimeVideoView
-                          tileId={item.tileId}
-                          style={styles.videoTile}
-                        />
-                      ) : (
-                        <View style={styles.placeholderContainer}>
-                          <View style={styles.placeholderAvatar}>
-                            <Text style={styles.placeholderText}>
-                              {(item.name || item.email || '?').charAt(0).toUpperCase()}
-                            </Text>
-                          </View>
-                          <Text style={styles.cameraOffText}>
-                            {item.status === 'ringing' ? 'Đang đổ chuông...' : 'Camera tắt'}
-                          </Text>
-                        </View>
-                      )}
-                      <View style={styles.tileOverlay}>
-                        <Text style={styles.tileName} numberOfLines={1}>
-                          {item.isLocal ? 'Bạn' : (item.name || item.fullName || (item.email && item.email !== 'unknown' ? item.email.split('@')[0] : 'Người dùng'))}
-                        </Text>
-                      </View>
+              ))}
+              {/* Show avatars for participants without video */}
+              {connectedParticipants
+                .filter(
+                  (p: any) =>
+                    !cameraTiles.find((t: any) => t.boundAttendeeId === p.attendeeId)
+                )
+                .map((p: any) => (
+                  <View key={p.email} style={styles.gridItem}>
+                    <View style={styles.avatarPlaceholder}>
+                      <Text style={styles.avatarText}>
+                        {p.name ? p.name.charAt(0).toUpperCase() : "?"}
+                      </Text>
                     </View>
-                  )}
-                />
-              )}
+                  </View>
+                ))}
             </View>
-
-            {/* Controls Bar */}
-            <BlurView intensity={20} style={styles.controlsBar}>
-              <TouchableOpacity onPress={toggleMic} style={[styles.controlBtn, !isMicOn && styles.btnOff]}>
-                <Text style={[styles.controlIcon, !isMicOn && styles.iconOff]}>
-                  {isMicOn ? 'mic' : 'mic_off'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={toggleCamera} style={[styles.controlBtn, !isCameraOn && styles.btnOff]}>
-                <Text style={[styles.controlIcon, !isCameraOn && styles.iconOff]}>
-                  {isCameraOn ? 'videocam' : 'videocam_off'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={handleHangup} style={[styles.controlBtn, styles.hangupBtn]}>
-                <Text style={styles.controlIcon}>call_end</Text>
-              </TouchableOpacity>
-            </BlurView>
-          </View>
+          </ScrollView>
         )}
-      </SafeAreaView>
-    </View>
+      </View>
+
+      {/* Local PIP */}
+      {isLocalCameraOn && (
+        <View style={styles.localPip}>
+          <RNChimeVideoView
+            tileId={localTileId}
+            zOrder={1}
+            style={StyleSheet.absoluteFillObject}
+          />
+        </View>
+      )}
+
+      {/* Controls */}
+      <View style={styles.controlsBar}>
+        <TouchableOpacity
+          style={[styles.controlBtn, !isCameraOn && styles.controlBtnOff]}
+          onPress={handleToggleCamera}
+        >
+          <Icon name={isCameraOn ? "video" : "video-off"} size={28} color="white" />
+        </TouchableOpacity>
+
+        {isCameraOn && (
+          <TouchableOpacity style={styles.controlBtn} onPress={switchCamera}>
+            <Icon name="camera-flip" size={28} color="white" />
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={[styles.controlBtn, !isMicOn && styles.controlBtnOff]}
+          onPress={handleToggleMic}
+        >
+          <Icon name={isMicOn ? "microphone" : "microphone-off"} size={28} color="white" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.controlBtn, !useSpeaker && styles.controlBtnOff]}
+          onPress={handleSwitchAudio}
+        >
+          <Icon
+            name={useSpeaker ? "volume-high" : "volume-off"}
+            size={28}
+            color="white"
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.endCallBtn} onPress={endCall}>
+          <Icon name="phone-hangup" size={28} color="white" />
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 1000,
-  },
-  safeArea: {
+  fullContainer: {
     flex: 1,
+    backgroundColor: "#1a1a1a",
   },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    zIndex: 10,
   },
-  statusText: {
-    marginTop: 16,
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  incomingWrapper: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
-    marginBottom: 24,
-  },
-  avatarText: {
-    fontSize: 48,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  groupAvatarImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 60,
-  },
-  callerName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  callTypeLabel: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 40,
-  },
-  incomingTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  incomingSub: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.6)',
-    marginBottom: 60,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 40,
-  },
-  actionBtn: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 5,
-  },
-  acceptBtn: {
-    backgroundColor: '#22c55e',
-  },
-  declineBtn: {
-    backgroundColor: '#ef4444',
-  },
-  btnIcon: {
-    fontFamily: 'Material Symbols Outlined',
-    fontSize: 32,
-    color: '#fff',
-  },
-  connectedWrapper: {
-    flex: 1,
+  headerTitle: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
   },
   videoGridContainer: {
     flex: 1,
-    padding: 8,
   },
-  videoTileContainer: {
+  gridScroll: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    padding: 2,
+  },
+  gridItem: {
+    width: "48%",
+    aspectRatio: 3 / 4,
+    margin: "1%",
+    backgroundColor: "#333",
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  avatarPlaceholder: {
     flex: 1,
-    height: height * 0.3,
-    margin: 4,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    justifyContent: "center",
+    alignItems: "center",
   },
-  videoTile: {
+  avatarText: {
+    color: "white",
+    fontSize: 32,
+    fontWeight: "bold",
+  },
+  contentShareLayout: {
     flex: 1,
   },
-  tileOverlay: {
-    position: 'absolute',
-    bottom: 8,
-    left: 8,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+  contentShareMain: {
+    flex: 4,
+    backgroundColor: "black",
+  },
+  contentLabel: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    color: "white",
+    backgroundColor: "rgba(0,0,0,0.5)",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
+    zIndex: 10,
   },
-  placeholderContainer: {
+  contentShareRoster: {
     flex: 1,
-    backgroundColor: '#1e293b',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    padding: 8,
   },
-  placeholderAvatar: {
+  miniTile: {
     width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    height: 120,
+    backgroundColor: "#333",
+    marginRight: 8,
+    borderRadius: 8,
+    overflow: "hidden",
   },
-  placeholderText: {
-    fontSize: 32,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  cameraOffText: {
-    marginTop: 12,
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
-    fontWeight: '600',
-  },
-  tileName: {
-    color: '#fff',
-    fontSize: 12,
-  },
-  emptyVideo: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: 'rgba(255,255,255,0.3)',
+  localPip: {
+    position: "absolute",
+    right: 20,
+    bottom: 100,
+    width: 90,
+    height: 140,
+    backgroundColor: "#333",
+    borderRadius: 12,
+    overflow: "hidden",
+    elevation: 5,
+    zIndex: 100,
   },
   controlsBar: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+    alignItems: "center",
     paddingVertical: 20,
-    paddingBottom: 40,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    overflow: 'hidden',
+    backgroundColor: "rgba(0,0,0,0.8)",
   },
   controlBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#444",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  hangupBtn: {
-    backgroundColor: '#ef4444',
+  controlBtnOff: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
   },
-  btnOff: {
-    backgroundColor: '#fff',
+  endCallBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#ff3b30",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  controlIcon: {
-    fontFamily: 'Material Symbols Outlined',
-    fontSize: 24,
-    color: '#fff',
-  },
-  iconOff: {
-    color: '#000',
-  },
-  callingHeader: {
-    alignItems: 'center',
-    marginTop: 60,
-  },
-  callingAvatar: {
+  minimizedContainer: {
+    position: "absolute",
+    right: 20,
+    bottom: 100,
     width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.3)',
-    marginBottom: 24,
-  },
-  callingAvatarPlaceholder: {
-    backgroundColor: '#3b82f6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  callingPlaceholderText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  callingName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  callingStatus: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.7)',
-    fontWeight: '500',
-  },
-  hangupBtnLarge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  headerControls: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-  },
-  minimizeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerIcon: {
-    fontFamily: 'Material Symbols Outlined',
-    fontSize: 32,
-    color: '#fff',
-  },
-  minimizedBubble: {
-    position: 'absolute',
-    width: 80,
-    height: 110,
+    height: 180,
     borderRadius: 16,
-    backgroundColor: '#1e293b',
-    zIndex: 9999,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
-    elevation: 10,
-    shadowColor: '#000',
+    backgroundColor: "#333",
+    elevation: 8,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: 5,
+    zIndex: 999,
   },
-  bubbleInner: {
+  minimizedContent: {
     flex: 1,
+    borderRadius: 16,
+    overflow: "hidden",
   },
-  bubbleVideo: {
+  minimizedAvatarContainer: {
     flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  bubblePlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#3b82f6',
-  },
-  bubbleInitial: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  bubbleBadge: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bubbleBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
+  endCallMiniBtn: {
+    position: "absolute",
+    top: -10,
+    right: -10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#ff3b30",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 5,
+    zIndex: 1000,
   },
 });
 

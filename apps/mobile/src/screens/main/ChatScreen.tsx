@@ -875,9 +875,7 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
   };
 
   const handleStartCall = async (type: 'audio' | 'video') => {
-    if (!selectedChat || selectedChat.type !== 'direct') return Alert.alert('Thất bại', 'Chỉ hỗ trợ gọi 1:1');
-    const partnerEmail = selectedChat.partner || (Array.isArray(selectedChat.members) ? selectedChat.members.find((m: string) => m !== user?.email) : undefined);
-    if (!partnerEmail) return Alert.alert('Lỗi', 'Không tìm thấy thông tin đối phương');
+    if (!selectedChat) return;
 
     if (Platform.OS === 'android') {
       try {
@@ -899,12 +897,52 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
     }
 
     const activeCallId = uuidv4();
-    startOutgoingCall({ email: partnerEmail, fullName: getDisplayName(partnerEmail), avatarUrl: getDisplayAvatar(partnerEmail) }, type, selectedChat.id, activeCallId);
-    const res = await apiPost('/call/create', { conversationId: selectedChat.id, callId: activeCallId, type });
-    if (res.ok) {
-      setMeetingInfo(res.meeting, res.attendee);
-      SocketService.socket?.emit('call:invite', { convId: selectedChat.id, callId: activeCallId, fromEmail: user.email, toEmail: partnerEmail, callerProfile: { email: user.email, fullName: user.fullName || user.email, avatarUrl: user.avatarUrl }, callType: type });
-    } else { resetCall(); Alert.alert('Lỗi', 'Không thể khởi tạo cuộc gọi'); }
+
+    if (selectedChat.type === 'direct') {
+      const partnerEmail = selectedChat.partner || (Array.isArray(selectedChat.members) ? selectedChat.members.find((m: string) => m !== user?.email) : undefined);
+      if (!partnerEmail) return Alert.alert('Lỗi', 'Không tìm thấy thông tin đối phương');
+      
+      startOutgoingCall({ email: partnerEmail, fullName: getDisplayName(partnerEmail), avatarUrl: getDisplayAvatar(partnerEmail) }, type, selectedChat.id, activeCallId);
+      const res = await apiPost('/call/create', { conversationId: selectedChat.id, callId: activeCallId, type });
+      if (res.ok) {
+        setMeetingInfo(res.meeting, res.attendee);
+        SocketService.socket?.emit('call:invite', { convId: selectedChat.id, callId: activeCallId, fromEmail: user.email, toEmail: partnerEmail, callerProfile: { email: user.email, fullName: user.fullName || user.email, avatarUrl: user.avatarUrl }, callType: type });
+      } else { resetCall(); Alert.alert('Lỗi', 'Không thể khởi tạo cuộc gọi'); }
+    } else {
+      // Group Call
+      const recipientEmails = Array.isArray(selectedChat.members) 
+          ? selectedChat.members.filter((m: string) => m !== user?.email)
+          : [];
+
+      try {
+        const res = await useGroupCallStore.getState().initiateGroupCall(
+          selectedChat.id, 
+          activeCallId, 
+          type, 
+          recipientEmails, 
+          { email: user?.email, name: user?.name, avatar: user?.avatarUrl || user?.avatar },
+          selectedChat.name,
+          selectedChat.avatar
+        );
+        
+        if (res.meeting && res.attendee) {
+          useGroupCallStore.getState().startJoining(selectedChat.id, activeCallId, type, selectedChat.name, selectedChat.avatar, recipientEmails);
+          
+          SocketService.socket?.emit('group_call:invite', {
+            convId: selectedChat.id,
+            callId: activeCallId,
+            callType: type,
+            fromEmail: user?.email,
+            recipients: recipientEmails,
+            callerProfile: { email: user?.email, name: user?.name, avatar: user?.avatarUrl || user?.avatar },
+            groupName: selectedChat.name,
+            groupAvatar: selectedChat.avatar
+          });
+        }
+      } catch (e) {
+        Alert.alert('Lỗi', 'Không thể khởi tạo cuộc gọi nhóm');
+      }
+    }
   };
 
   const toggleReaction = async (message: any, emoji: string) => {
