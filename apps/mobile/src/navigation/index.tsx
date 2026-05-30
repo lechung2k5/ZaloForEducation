@@ -6,6 +6,7 @@ import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/Theme';
 import { useChatStore } from '../store/chatStore';
+import { useTheme } from '../context/ThemeContext';
 import { BOT_EMAIL } from '../constants/bot';
 
 // Auth Screens
@@ -18,7 +19,6 @@ import LoginOtpScreen from '../screens/auth/LoginOtpScreen';
 // Main Screens
 import HomeScreen from '../screens/main/HomeScreen';
 import ChatScreen from '../screens/main/ChatScreen';
-import BotChatScreen from '../screens/BotChatScreen';
 import SessionsScreen from '../screens/main/SessionsScreen';
 import NotificationScreen from '../screens/main/NotificationScreen';
 import SearchScreen from '../screens/main/SearchScreen';
@@ -61,6 +61,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
 function TabNavigator({ onLogout }: { onLogout: any }) {
   const insets = useSafeAreaInsets();
   const { conversations, pendingFriendRequestsCount } = useChatStore();
+  const { t } = useTheme();
 
   const totalUnread = (conversations || []).reduce((acc, conv) => {
     // Check if it's a bot conversation
@@ -111,7 +112,7 @@ function TabNavigator({ onLogout }: { onLogout: any }) {
       <Tab.Screen 
         name="Messages" 
         options={{ 
-          tabBarLabel: 'Tin nhắn',
+          tabBarLabel: t('nav.messages'),
           tabBarBadge: totalUnread > 0 ? totalUnread : undefined,
           tabBarBadgeStyle: { backgroundColor: Colors.primary, fontSize: 10 }
         }}
@@ -121,7 +122,7 @@ function TabNavigator({ onLogout }: { onLogout: any }) {
       <Tab.Screen 
         name="Contacts" 
         options={{ 
-          tabBarLabel: 'Danh bạ',
+          tabBarLabel: t('nav.contacts'),
           tabBarBadge: pendingFriendRequestsCount > 0 ? pendingFriendRequestsCount : undefined,
           tabBarBadgeStyle: { backgroundColor: '#ef4444', fontSize: 10 }
         }}
@@ -132,7 +133,7 @@ function TabNavigator({ onLogout }: { onLogout: any }) {
         name="AI" 
         component={View} 
         options={{ 
-          tabBarLabel: 'AI Assistant',
+          tabBarLabel: t('nav.ai'),
         }} 
         listeners={({ navigation }) => ({
           tabPress: (e) => {
@@ -141,7 +142,7 @@ function TabNavigator({ onLogout }: { onLogout: any }) {
           },
         })}
       />
-      <Tab.Screen name="ProfileTab" options={{ tabBarLabel: 'Cá nhân' }}>
+      <Tab.Screen name="ProfileTab" options={{ tabBarLabel: t('nav.profile') }}>
         {(props: any) => <ProfileScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} goBack={() => props.navigation.goBack()} onLogout={onLogout} params={props.route.params} />}
       </Tab.Screen>
     </Tab.Navigator>
@@ -178,7 +179,16 @@ export function RootNavigator({ user, onLogout }: { user: any; onLogout: any }) 
             {(props: any) => <ChatScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} goBack={() => props.navigation.goBack()} params={props.route?.params} />}
           </Stack.Screen>
           <Stack.Screen name="BotChat">
-            {(props: any) => <BotChatScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} goBack={() => props.navigation.goBack()} params={props.route?.params} />}
+            {(props: any) => (
+              <View style={{ flex: 1 }}>
+                <ChatScreen 
+                  {...props} 
+                  onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} 
+                  goBack={() => props.navigation.goBack()} 
+                  params={{ ...props.route?.params, targetEmail: BOT_EMAIL }} 
+                />
+              </View>
+            )}
           </Stack.Screen>
           <Stack.Screen name="Sessions">
             {(props: any) => <SessionsScreen {...props} onNavigate={(s: string, p: any) => props.navigation.navigate(s, p)} goBack={() => props.navigation.goBack()} params={props.route?.params} />}

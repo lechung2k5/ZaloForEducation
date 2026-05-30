@@ -680,18 +680,29 @@ export default function ChatInput({
 
       {mentionSuggestions.length > 0 && (
         <View style={styles.mentionSuggestions}>
-          {mentionSuggestions.map((member) => (
-            <TouchableOpacity key={member.email} style={styles.mentionSuggestionItem} onPress={() => handleSelectMention(member)}>
-              <View style={styles.mentionAvatar}>
-                <Text style={styles.mentionAvatarText}>{member.displayName.charAt(0).toUpperCase()}</Text>
-              </View>
-              <View style={styles.mentionInfo}>
-                <Text style={styles.mentionName} numberOfLines={1}>{member.displayName}</Text>
-                <Text style={styles.mentionEmail} numberOfLines={1}>{member.email}</Text>
-              </View>
-              <Text style={styles.mentionAt}>@</Text>
-            </TouchableOpacity>
-          ))}
+          {mentionSuggestions.map((member) => {
+            const profile = mentionProfiles?.[member.email] || mentionProfiles?.[member.email.replace(/^USER#/i, '')] || {};
+            const avatarUrl = profile?.avatarUrl || profile?.urlAvatar || profile?.avatar;
+            return (
+              <TouchableOpacity key={member.email} style={styles.mentionSuggestionItem} onPress={() => handleSelectMention(member)}>
+                {avatarUrl ? (
+                  <Image
+                    source={{ uri: avatarUrl }}
+                    style={[styles.mentionAvatar, { backgroundColor: 'transparent' }]}
+                  />
+                ) : (
+                  <View style={styles.mentionAvatar}>
+                    <Text style={styles.mentionAvatarText}>{member.displayName.charAt(0).toUpperCase()}</Text>
+                  </View>
+                )}
+                <View style={styles.mentionInfo}>
+                  <Text style={styles.mentionName} numberOfLines={1}>{member.displayName}</Text>
+                  <Text style={styles.mentionEmail} numberOfLines={1}>{member.email}</Text>
+                </View>
+                <Text style={styles.mentionAt}>@</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 

@@ -121,15 +121,14 @@ export class ChatController {
     try {
       const normalizedConvId = res.id.toLowerCase();
       if (this.chatGateway?.server) {
-        this.chatGateway.server
-          .to(normalizedConvId)
-          .emit("receiveMessage", sysMsg);
+        let broadcast = this.chatGateway.server.to(normalizedConvId);
         if (Array.isArray(res.members)) {
           for (const member of res.members) {
             const userRoom = `user#${String(member).toLowerCase()}`;
-            this.chatGateway.server.to(userRoom).emit("receiveMessage", sysMsg);
+            broadcast = broadcast.to(userRoom);
           }
         }
+        broadcast.emit("receiveMessage", sysMsg);
       }
     } catch (e) {
       console.warn(
@@ -497,18 +496,18 @@ export class ChatController {
 
     // 1. BROADCAST REAL-TIME VIA SOCKET
     if (this.chatGateway?.server) {
-      this.chatGateway.server.to(normalizedConvId).emit("receiveMessage", res);
-      console.log(`[SOCKET] Broadcasted to room: ${normalizedConvId}`);
+      let broadcast = this.chatGateway.server.to(normalizedConvId);
 
       // 2. BROADCAST REAL-TIME TO ALL MEMBERS' PERSONAL ROOMS (For conversation list updates)
       if (convMetadata && convMetadata.members) {
         for (const member of convMetadata.members) {
           // Emit to user#email room so all their devices update the "tab" preview
           const userRoom = `user#${member.toLowerCase()}`;
-          this.chatGateway.server.to(userRoom).emit("receiveMessage", res);
-          console.log(`[SOCKET] Broadcasted to user room: ${userRoom}`);
+          broadcast = broadcast.to(userRoom);
         }
       }
+      broadcast.emit("receiveMessage", res);
+      console.log(`[SOCKET] Broadcasted to room: ${normalizedConvId} and user rooms`);
     } else {
       console.warn(
         `[SOCKET] Skipping real-time broadcast for ${normalizedConvId} - Gateway server not initialized`,

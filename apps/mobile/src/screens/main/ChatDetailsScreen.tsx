@@ -14,10 +14,13 @@ import {
   ActivityIndicator
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as Clipboard from 'expo-clipboard';
+import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Theme';
 import { useChatStore } from '../../store/chatStore';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { chatUpload } from '../../utils/api';
 import { normalizeAttachment } from '../../store/chatHelpers';
 import { chatPatch, chatPost, chatGet } from '../../utils/api';
@@ -37,6 +40,8 @@ import {
   getMuteLabel,
   isValidTimeString,
 } from '../../utils/chatUtils';
+import { useContacts } from '../../hooks/queries/useContacts';
+import { friendEmailOf } from '../../utils/contactUtils';
 
 const { width } = Dimensions.get('window');
 const ASSET_PREVIEW_LIMIT = 5;
@@ -555,6 +560,12 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   const [showCustomMuteModal, setShowCustomMuteModal] = useState(false);
   const [customMuteStartTime, setCustomMuteStartTime] = useState('22:00');
   const [customMuteEndTime, setCustomMuteEndTime] = useState('07:00');
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [addMemberSearch, setAddMemberSearch] = useState('');
+  const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
+  const [addingMembers, setAddingMembers] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const { data: contactsData } = useContacts();
 
   const [promptConfig, setPromptConfig] = useState({
     visible: false,
@@ -688,15 +699,18 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     loadMediaPreview();
   }, [conversationId, partnerEmail]);
 
+  const { t } = useTheme();
+
   if (!chat) return null;
 
-  const chatName = chat.alias || profile?.nickname || profile?.fullName || profile?.fullname || partnerEmail || chat.name || "Hội thoại";
+  const chatName = chat.alias || profile?.nickname || profile?.fullName || profile?.fullname || partnerEmail || chat.name || t('chat_details.conversation');
   const chatAvatar = profile?.avatarUrl || profile?.urlAvatar || chat.avatar || '';
   const isMuted = isConversationMuted(conversationId);
   const isPinned = !!chat?.pinned;
   const isHidden = !!chat?.hidden;
 
-  const isBot = partnerEmail === 'bot@UniChat.system';
+  const isGroup = chat?.type === 'group';
+  const isBot = String(partnerEmail || '').toLowerCase() === 'bot@unichat.system';
 
   const allAttachments = messages.flatMap((m: any) => {
     const arr = [...(m.media || []), ...(m.files || [])];
@@ -712,34 +726,34 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     
     if (isGroupOwner) {
       Alert.alert(
-        "Xóa lịch sử trò chuyện",
-        "Chọn phạm vi xóa tin nhắn:",
+        t('chat_details.delete_history'),
+        t('chat_details.delete_history_range'),
         [
-          { text: "Hủy", style: "cancel" },
+          { text: t('common.cancel'), style: "cancel" },
           {
-            text: "Xóa phía tôi",
+            text: t('chat_details.delete_my_side'),
             onPress: async () => {
               try {
                 await clearHistory(conversationId, false);
-                Alert.alert("Thành công", "Đã xóa lịch sử trò chuyện phía bạn.", [
+                Alert.alert(t('common.success'), t('chat_details.delete_my_side_success'), [
                   { text: "OK", onPress: () => navigation.goBack() }
                 ]);
               } catch (err) {
-                Alert.alert("Lỗi", "Không thể xóa lịch sử");
+                Alert.alert(t('common.error'), t('chat_details.delete_error'));
               }
             }
           },
           {
-            text: "Xóa của tất cả thành viên",
+            text: t('chat_details.delete_all_side'),
             style: "destructive",
             onPress: async () => {
               try {
                 await clearHistory(conversationId, true);
-                Alert.alert("Thành công", "Đã xóa toàn bộ lịch sử trò chuyện.", [
+                Alert.alert(t('common.success'), t('chat_details.delete_all_side_success'), [
                   { text: "OK", onPress: () => navigation.goBack() }
                 ]);
               } catch (err) {
-                Alert.alert("Lỗi", "Không thể xóa lịch sử");
+                Alert.alert(t('common.error'), t('chat_details.delete_error'));
               }
             }
           },
@@ -747,21 +761,21 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       );
     } else {
       Alert.alert(
-        "Xóa lịch sử trò chuyện",
-        "Bạn có chắc chắn muốn xóa toàn bộ tin nhắn? Hành động này không thể hoàn tác.",
+        t('chat_details.delete_history'),
+        t('chat_details.delete_confirm_msg'),
         [
-          { text: "Hủy", style: "cancel" },
+          { text: t('common.cancel'), style: "cancel" },
           {
-            text: "Xóa",
+            text: t('common.delete'),
             style: "destructive",
             onPress: async () => {
               try {
                 await clearHistory(conversationId, false);
-                Alert.alert("Thành công", "Đã xóa lịch sử trò chuyện.", [
+                Alert.alert(t('common.success'), t('chat_details.delete_success'), [
                   { text: "OK", onPress: () => navigation.goBack() }
                 ]);
               } catch (err) {
-                Alert.alert("Lỗi", "Không thể xóa lịch sử");
+                Alert.alert(t('common.error'), t('chat_details.delete_error'));
               }
             }
           }
@@ -782,10 +796,10 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
         return { text: p?.nickname || p?.fullName || m, onPress: () => confirmTransferAndLeave(m) };
       });
       Alert.alert(
-        "Chuyển quyền Trưởng nhóm",
-        "Bạn là Trưởng nhóm. Hãy chọn người nhận quyền Trưởng nhóm trước khi rời:",
+        t('chat_details.transfer_owner'),
+        t('chat_details.transfer_owner_msg'),
         [
-          { text: "Hủy", style: "cancel" },
+          { text: t('common.cancel'), style: "cancel" },
           ...options,
         ]
       );
@@ -799,18 +813,18 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     }
 
     Alert.alert(
-      "Rời nhóm",
-      "Bạn sẽ không còn nhận được tin nhắn từ nhóm này.",
+      t('chat_details.leave_group'),
+      t('chat_details.leave_group_msg'),
       [
-        { text: "Hủy", style: "cancel" },
+        { text: t('common.cancel'), style: "cancel" },
         {
-          text: "Rời nhóm",
+          text: t('chat_details.leave_group'),
           style: "destructive",
           onPress: async () => {
             try {
               await removeMember(conversationId, user?.email || "");
               navigation.navigate('Main');
-            } catch (err: any) { Alert.alert("Lỗi", err.response?.data?.message || "Không thể rời nhóm"); }
+            } catch (err: any) { Alert.alert(t('common.error'), err.response?.data?.message || t('chat_details.leave_error')); }
           }
         }
       ]
@@ -823,24 +837,24 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       await removeMember(conversationId, user?.email || '');
       navigation.navigate('Main');
     } catch (err: any) {
-      Alert.alert('Lỗi', err.response?.data?.message || 'Không thể chuyển quyền và rời nhóm');
+      Alert.alert(t('common.error'), err.response?.data?.message || t('chat_details.transfer_error'));
     }
   };
 
   const handleDissolveGroup = () => {
     Alert.alert(
-      "Giải tán nhóm",
-      "Tất cả thành viên sẽ bị xóa và lịch sử chat sẽ bị xóa.",
+      t('chat_details.disband_group'),
+      t('chat_details.disband_group_msg'),
       [
-        { text: "Hủy", style: "cancel" },
+        { text: t('common.cancel'), style: "cancel" },
         { 
-          text: "Giải tán", 
+          text: t('chat_details.disband_group'), 
           style: "destructive",
           onPress: async () => {
             try {
               await dissolveGroup(conversationId);
               navigation.navigate('Main');
-            } catch (err: any) { Alert.alert("Lỗi", err.response?.data?.message || "Không thể giải tán nhóm"); }
+            } catch (err: any) { Alert.alert(t('common.error'), err.response?.data?.message || t('chat_details.disband_error')); }
           }
         }
       ]
@@ -849,17 +863,17 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
 
   const handleKickMember = (email: string) => {
     Alert.alert(
-      "Xóa thành viên",
-      `Xóa ${email} khỏi nhóm?`,
+      t('chat_details.kick_member'),
+      t('chat_details.kick_member_msg', { email }),
       [
-        { text: "Hủy", style: "cancel" },
+        { text: t('common.cancel'), style: "cancel" },
         { 
-          text: "Xóa", 
+          text: t('common.delete'), 
           style: "destructive",
           onPress: async () => {
             try {
               await removeMember(conversationId, email);
-            } catch (err: any) { Alert.alert("Lỗi", err.response?.data?.message || "Không thể xóa thành viên"); }
+            } catch (err: any) { Alert.alert(t('common.error'), err.response?.data?.message || t('chat_details.kick_error')); }
           }
         }
       ]
@@ -867,18 +881,18 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   };
 
   const handleChangeRole = (email: string, role: 'owner' | 'deputy' | 'member') => {
-    const label = role === 'owner' ? 'Trưởng nhóm' : role === 'deputy' ? 'Phó nhóm' : 'Thành viên';
+    const label = role === 'owner' ? t('group.role_owner') : role === 'deputy' ? t('group.role_deputy') : t('group.role_member');
     Alert.alert(
-      "Thay đổi vai trò",
-      `Đặt ${email} làm ${label}?`,
+      t('chat_details.change_role'),
+      t('chat_details.change_role_msg', { email, label }),
       [
-        { text: "Hủy", style: "cancel" },
+        { text: t('common.cancel'), style: "cancel" },
         { 
-          text: "Xác nhận", 
+          text: t('common.confirm'), 
           onPress: async () => {
             try {
               await updateMemberRole(conversationId, email, role);
-            } catch (err: any) { Alert.alert("Lỗi", err.response?.data?.message || "Không thể đổi vai trò"); }
+            } catch (err: any) { Alert.alert(t('common.error'), err.response?.data?.message || t('chat_details.change_role_error')); }
           }
         }
       ]
@@ -888,20 +902,20 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   const handleUpdateGroupName = () => {
     setPromptConfig({
       visible: true,
-      title: "Đổi tên nhóm",
-      message: "Nhập tên nhóm mới",
-      placeholder: "Tên nhóm...",
+      title: t('chat_details.change_group_name'),
+      message: t('chat_details.enter_new_group_name'),
+      placeholder: t('chat_details.group_name_placeholder'),
       value: chat?.name || '',
       keyboardType: "default",
       onSubmit: async (newName: string) => {
         if (!newName || !newName.trim()) {
-          Alert.alert("Lỗi", "Tên nhóm không được để trống");
+          Alert.alert(t('common.error'), t('chat_details.group_name_empty'));
           return;
         }
         try {
           await updateGroupInfo(conversationId, { name: newName.trim() });
         } catch (err: any) { 
-          Alert.alert("Lỗi", "Không thể đổi tên"); 
+          Alert.alert(t('common.error'), t('chat_details.cannot_change_name')); 
         }
       }
     });
@@ -926,10 +940,10 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
           const avatarUrl = uploadRes.data?.fileUrl || uploadRes.data?.dataUrl || '';
           await updateGroupInfo(conversationId, { avatar: avatarUrl });
         } else {
-          Alert.alert("Lỗi", "Không thể tải ảnh lên");
+          Alert.alert(t('common.error'), t('chat_details.err_upload_image'));
         }
       } catch (err) {
-        Alert.alert("Lỗi", "Không thể cập nhật ảnh đại diện");
+        Alert.alert(t('common.error'), t('chat_details.err_update_avatar'));
       }
     }
   };
@@ -977,9 +991,9 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       await setPinConversation(conversationId, nextPinned);
       // Also persist locally for offline support
       await persistConversationFlag(CHAT_PINNED_CONVERSATIONS_KEY, conversationId, nextPinned);
-      Alert.alert('Đã cập nhật', nextPinned ? 'Cuộc trò chuyện đã được ghim.' : 'Đã bỏ ghim cuộc trò chuyện.');
+      Alert.alert(t('common.updated'), nextPinned ? t('chat_details.chat_pinned') : t('chat_details.chat_unpinned'));
     } catch {
-      Alert.alert('Không thể cập nhật', 'Vui lòng thử lại sau.');
+      Alert.alert(t('chat_details.cannot_update'), t('common.try_again_later'));
     }
   };
 
@@ -1087,7 +1101,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       await setConversationWallpaperId(conversationId, selectedWallpaperId);
       setShowWallpaperModal(false);
     } catch {
-      Alert.alert('KhÃ´ng thá»ƒ lÆ°u', 'Vui lÃ²ng thá»­ láº¡i sau.');
+      Alert.alert(t('common.error'), t('chat_details.try_again'));
     }
   };
 
@@ -1111,15 +1125,15 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
         type === '1h' ? '1h' : type === '4h' ? '4h' : type === '12h' ? '12h' : type === 'morning' ? 'until-8am' : 'until-open',
       );
       setShowMuteMenuModal(false);
-      Alert.alert('Thông báo', schedule ? getMuteLabel(schedule) : 'Đã tắt thông báo cho đến khi bạn bật lại.');
+      Alert.alert(t('chat_details.mute_title'), schedule ? getMuteLabel(schedule) : t('chat_details.mute_success_msg'));
     } catch {
-      Alert.alert('Không thể cập nhật', 'Vui lòng thử lại sau.');
+      Alert.alert(t('chat_details.cannot_update'), t('chat_details.try_again'));
     }
   };
 
   const handleApplyCustomMuteSchedule = async () => {
     if (!isValidTimeString(customMuteStartTime) || !isValidTimeString(customMuteEndTime)) {
-      Alert.alert('Lỗi', 'Giờ không hợp lệ. Vui lòng nhập theo định dạng HH:mm.');
+      Alert.alert(t('common.error'), t('chat_details.invalid_time'));
       return;
     }
 
@@ -1129,28 +1143,28 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       await setConversationMuted(conversationId, true);
       setShowCustomMuteModal(false);
       setShowMuteMenuModal(false);
-      Alert.alert('Thông báo', getMuteLabel(schedule));
+      Alert.alert(t('chat_details.mute_title'), getMuteLabel(schedule));
     } catch {
-      Alert.alert('Không thể cập nhật', 'Vui lòng thử lại sau.');
+      Alert.alert(t('chat_details.cannot_update'), t('chat_details.try_again'));
     }
   };
 
   const handleToggleMute = () => {
     if (isMuted) {
       Alert.alert(
-        "Bật thông báo",
-        "Bật lại thông báo cho cuộc trò chuyện này?",
+        t('chat_details.unmute_confirm_title'),
+        t('chat_details.unmute_confirm_msg'),
         [
-          { text: "Hủy", style: "cancel" },
+          { text: t('common.cancel'), style: "cancel" },
           {
-            text: "Bật",
+            text: t('common.confirm'),
             onPress: async () => {
               try {
                 await persistMuteSchedule(conversationId, null);
                 await clearConversationMuted(conversationId);
-                Alert.alert("Đã bật thông báo", "Cuộc trò chuyện này sẽ nhận thông báo trở lại.");
+                Alert.alert(t('common.success'), t('chat_details.unmute_success_msg'));
               } catch {
-                Alert.alert("Không thể cập nhật", "Vui lòng thử lại sau.");
+                Alert.alert(t('chat_details.cannot_update'), t('chat_details.try_again'));
               }
             },
           },
@@ -1167,21 +1181,21 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
   const handleBlockUser = async () => {
     if (!partnerEmail) return;
     Alert.alert(
-      'Chặn người dùng',
-      `Chặn ${chatName} khỏi danh bạ?`,
+      t('chat_details.block_user'),
+      t('chat_details.block_confirm', { name: chatName }),
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Chặn',
+          text: t('chat_details.block'),
           style: 'destructive',
           onPress: async () => {
             try {
               const res = await chatPost('/friends/block', { targetEmail: partnerEmail });
               if (!res?.ok) throw new Error('BLOCK_FAILED');
-              Alert.alert('Đã chặn', 'Bạn có thể quản lý danh sách chặn trong Danh bạ.');
+              Alert.alert(t('common.success'), t('chat_details.block_success'));
               navigation.navigate('Main', { screen: 'Contacts' });
             } catch {
-              Alert.alert('Không thể chặn', 'Vui lòng thử lại sau.');
+              Alert.alert(t('chat_details.cannot_block'), t('chat_details.try_again'));
             }
           },
         },
@@ -1193,21 +1207,21 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
     const totalBytes = allAttachments.reduce((sum: number, item: any) => sum + Number(item?.size || 0), 0);
     const totalMB = (totalBytes / 1024 / 1024).toFixed(2);
     Alert.alert(
-      'Dung lượng trò chuyện',
-      `Số tin nhắn đính kèm: ${allAttachments.length}\nDung lượng ước tính: ${totalMB} MB`,
+      t('chat_details.chat_storage'),
+      t('chat_details.storage_msg', { count: allAttachments.length, mb: totalMB }),
       [
-        { text: 'Đóng', style: 'cancel' },
-        { text: 'Mở kho lưu trữ', onPress: () => navigation.navigate('ChatGallery', { conversationId }) },
+        { text: t('common.close'), style: 'cancel' },
+        { text: t('chat_details.open_gallery'), onPress: () => navigation.navigate('ChatGallery', { conversationId }) },
       ]
     );
   };
 
   const handleAutoDelete = () => {
     Alert.alert(
-      'Tin nhắn tự xóa',
-      'Chọn thời hạn tự xóa tin nhắn cũ',
+      t('chat_details.auto_delete'),
+      t('chat_details.auto_delete_msg'),
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         ...AUTO_DELETE_OPTIONS.map((opt) => ({
           text: opt.label,
           onPress: async () => {
@@ -1221,9 +1235,9 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
               }
               await AsyncStorage.setItem(CHAT_AUTO_DELETE_KEY, JSON.stringify(map));
               setAutoDeleteDays(opt.days);
-              Alert.alert('Đã lưu', `Tin nhắn sẽ tự xóa sau ${opt.days === 0 ? 'không bao giờ (đã tắt)' : `${opt.days} ngày`}.`);
+              Alert.alert(t('common.saved'), t('chat_details.auto_delete_saved', { time: opt.days === 0 ? t('chat_details.auto_delete_never') : t('chat_details.n_days', { count: opt.days }) }));
             } catch {
-              Alert.alert('Không thể lưu', 'Vui lòng thử lại sau.');
+              Alert.alert(t('common.error'), t('chat_details.try_again'));
             }
           }
         }))
@@ -1241,17 +1255,17 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       if (res?.ok && Array.isArray(res.data)) {
         setCommonGroups(res.data);
         if (res.data.length === 0) {
-          Alert.alert('Nhóm chung', 'Bạn không có nhóm chung nào với người này.');
+          Alert.alert(t('chat_details.common_groups_title'), t('chat_details.common_groups_empty'));
         } else {
           const groupNames = res.data.map((g: any) => g.name).join(', ');
-          Alert.alert('Nhóm chung', `Bạn có ${res.data.length} nhóm chung:\n\n${groupNames}`);
+          Alert.alert(t('chat_details.common_groups_title'), t('chat_details.common_groups_list', { count: res.data.length, groups: groupNames }));
         }
       } else {
-        Alert.alert('Nhóm chung', 'Không thể tải danh sách nhóm chung.');
+        Alert.alert(t('chat_details.common_groups_title'), t('chat_details.common_groups_error'));
       }
     } catch (error) {
       console.error('Failed to fetch common groups', error);
-      Alert.alert('Nhóm chung', 'Không thể tải danh sách nhóm chung.');
+      Alert.alert(t('chat_details.common_groups_title'), t('chat_details.common_groups_error'));
     } finally {
       setLoadingGroups(false);
 
@@ -1310,6 +1324,12 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       </View>
     );
   };
+  const joinLink = `https://zaloforeducation.vercel.app/join/${conversationId}`;
+
+  const handleCopyJoinLink = async () => {
+    await Clipboard.setStringAsync(joinLink);
+    Alert.alert(t('common.success') || 'Thành công', t('chat.copied') || 'Đã sao chép liên kết tham gia.');
+  };
 
   return (
     <View style={styles.container}>
@@ -1318,7 +1338,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.headerIcon}>arrow_back_ios</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tuỳ chọn</Text>
+        <Text style={styles.headerTitle}>{t('chat_details.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -1343,21 +1363,27 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
           <View style={styles.quickActions}>
               <TouchableOpacity style={styles.actionItem} onPress={handleSearchMessages}>
               <View style={styles.actionCircle}><Text style={styles.actionIcon}>search</Text></View>
-              <Text style={styles.actionLabel}>Tìm{"\n"}tin nhắn</Text>
+              <Text style={styles.actionLabel}>{t('chat_details.search_msg_short')}</Text>
             </TouchableOpacity>
-            {!isBot && (
+            {!isBot && !isGroup && (
               <TouchableOpacity style={styles.actionItem} onPress={handleOpenProfile} disabled={!partnerEmail} activeOpacity={partnerEmail ? 0.85 : 1}>
                 <View style={styles.actionCircle}><Text style={styles.actionIcon}>person</Text></View>
-                <Text style={styles.actionLabel}>Trang{"\n"}cá nhân</Text>
+                <Text style={styles.actionLabel}>{t('chat_details.personal_page_short')}</Text>
+              </TouchableOpacity>
+            )}
+            {isGroup && (
+              <TouchableOpacity style={styles.actionItem} onPress={() => setShowShareModal(true)}>
+                <View style={styles.actionCircle}><Text style={styles.actionIcon}>qr_code</Text></View>
+                <Text style={styles.actionLabel}>{t('chat_details.share_group') || 'Chia sẻ nhóm'}</Text>
               </TouchableOpacity>
             )}
               <TouchableOpacity style={styles.actionItem} onPress={handleChangeWallpaper}>
               <View style={styles.actionCircle}><Text style={styles.actionIcon}>palette</Text></View>
-              <Text style={styles.actionLabel}>Đổi{"\n"}hình nền</Text>
+              <Text style={styles.actionLabel}>{t('chat_details.change_wallpaper_short')}</Text>
             </TouchableOpacity>
               <TouchableOpacity style={styles.actionItem} onPress={handleToggleMute}>
               <View style={styles.actionCircle}><Text style={styles.actionIcon}>notifications_none</Text></View>
-                <Text style={styles.actionLabel}>{isMuted ? 'Bật\nthông báo' : 'Tắt\nthông báo'}</Text>
+                <Text style={styles.actionLabel}>{isMuted ? t('chat_details.unmute_short') : t('chat_details.mute_short')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1365,9 +1391,9 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
         <View style={styles.divider} />
 
         {/* Settings List */}
-        {!isBot && (
+        {!isBot && !isGroup && (
           <>
-            {renderMenuItem("edit", "Đổi tên gợi nhớ", <Text style={styles.subText}>{chat.alias ? 'Đã đặt' : 'Chưa đặt'}</Text>, () => setShowAliasModal(true))}
+            {renderMenuItem("edit", t('chat_details.change_alias'), <Text style={styles.subText}>{chat.alias ? t('chat_details.set') : t('chat_details.not_set')}</Text>, () => setShowAliasModal(true))}
           </>
         )}
 
@@ -1381,22 +1407,22 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
           <View style={styles.mediaHeader}>
             <View style={styles.menuLeft}>
               <Text style={styles.menuIcon}>grid_view</Text>
-              <Text style={styles.menuText}>Ảnh, file, link</Text>
+              <Text style={styles.menuText}>{t('chat_details.media_files_links')}</Text>
             </View>
             <Text style={styles.chevron}>chevron_right</Text>
           </View>
           <View style={styles.assetSummaryRow}>
             <View style={styles.assetSummaryPill}>
               <Text style={styles.assetSummaryIcon}>image</Text>
-              <Text style={styles.assetSummaryText}>{assetCounts.media} ảnh/video</Text>
+              <Text style={styles.assetSummaryText}>{t('chat_details.n_photos', { count: assetCounts.media })}</Text>
             </View>
             <View style={styles.assetSummaryPill}>
               <Text style={styles.assetSummaryIcon}>description</Text>
-              <Text style={styles.assetSummaryText}>{assetCounts.file} file</Text>
+              <Text style={styles.assetSummaryText}>{t('chat_details.n_files', { count: assetCounts.file })}</Text>
             </View>
             <View style={styles.assetSummaryPill}>
               <Text style={styles.assetSummaryIcon}>link</Text>
-              <Text style={styles.assetSummaryText}>{assetCounts.link} link</Text>
+              <Text style={styles.assetSummaryText}>{t('chat_details.n_links', { count: assetCounts.link })}</Text>
             </View>
           </View>
           <View style={styles.mediaPreview}>
@@ -1405,7 +1431,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
             ) : mediaPreviewItems.length > 0 ? (
               mediaPreviewItems.map(renderAssetPreviewItem)
             ) : (
-              <View style={styles.emptyMedia}><Text style={styles.emptyText}>Chưa có ảnh, file hoặc link</Text></View>
+              <View style={styles.emptyMedia}><Text style={styles.emptyText}>{t('chat_details.no_media')}</Text></View>
             )}
             <View style={styles.previewMore}>
               <Text style={styles.headerIcon}>arrow_forward</Text>
@@ -1415,11 +1441,11 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
 
         <View style={styles.divider} />
 
-        {!isBot && (
+        {!isBot && !isGroup && (
           <>
             <View style={styles.divider} />
 
-            {renderMenuItem("groups", `Xem nhóm chung (${commonGroups.length})`, undefined, handleViewCommonGroups)}
+            {renderMenuItem("groups", `${t('chat_details.common_groups_title')} (${commonGroups.length})`, undefined, handleViewCommonGroups)}
           </>
         )}
 
@@ -1427,82 +1453,85 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
 
         {renderMenuItem(
           "push_pin",
-          isPinned ? "Bỏ ghim trò chuyện" : "Ghim trò chuyện",
-          <Text style={styles.subText}>{isPinned ? 'Đã ghim' : 'Chưa ghim'}</Text>,
+          isPinned ? t('chat_details.unpin_chat') : t('chat_details.pin_chat'),
+          <Text style={styles.subText}>{isPinned ? t('chat_details.pinned') : t('chat_details.unpinned')}</Text>,
           handleTogglePin
         )}
         {renderMenuItem(
           "visibility_off",
-          isHidden ? "Hiện trò chuyện" : "Ẩn trò chuyện",
-          <Text style={styles.subText}>{isHidden ? 'Đang ẩn' : 'Đang hiện'}</Text>,
+          isHidden ? t('chat_details.unhide_chat') : t('chat_details.hide_chat'),
+          <Text style={styles.subText}>{isHidden ? t('chat_details.hidden') : t('chat_details.visible')}</Text>,
           handleToggleHidden
         )}
-        {renderMenuItem("notifications_none", isMuted ? "Bật thông báo" : "Tắt thông báo", 
-          <Text style={styles.subText}>{isMuted ? 'Đang tắt' : 'Đang bật'}</Text>,
+        {renderMenuItem("notifications_none", isMuted ? t('chat_details.unmute_notifications') : t('chat_details.mute_notifications'), 
+          <Text style={styles.subText}>{isMuted ? t('chat_details.muted') : t('chat_details.unmuted')}</Text>,
           handleToggleMute
         )}
 
         {renderMenuItem(
           "history", 
-          "Tin nhắn tự xóa", 
-          <Text style={styles.subText}>{autoDeleteDays === 0 ? 'Không tự xóa' : `${autoDeleteDays} ngày`}</Text>,
+          t('chat_details.auto_delete'), 
+          <Text style={styles.subText}>{autoDeleteDays === 0 ? t('chat_details.no_auto_delete') : t('chat_details.n_days', { count: autoDeleteDays })}</Text>,
           handleAutoDelete
         )}
 
         <View style={styles.divider} />
 
 
-        {!isBot && renderMenuItem("block", "Chặn người dùng", undefined, handleBlockUser, '#ef4444')}
-        {renderMenuItem("storage", "Dung lượng trò chuyện", undefined, handleConversationStorage)}
-        {renderMenuItem("delete_outline", "Xóa lịch sử trò chuyện", undefined, handleClearChat, '#ef4444')}
+        {!isBot && !isGroup && renderMenuItem("block", t('chat_details.block_user'), undefined, handleBlockUser, '#ef4444')}
+        {renderMenuItem("storage", t('chat_details.chat_storage'), undefined, handleConversationStorage)}
+        {renderMenuItem("delete_outline", t('chat_details.delete_history'), undefined, handleClearChat, '#ef4444')}
 
         {chat.type === 'group' && (
           <>
             <View style={styles.divider} />
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Quản lý nhóm</Text>
+              <Text style={styles.sectionTitle}>{t('chat_details.group_management')}</Text>
             </View>
-            {renderMenuItem("edit", "Đổi tên nhóm", undefined, handleUpdateGroupName)}
+            {renderMenuItem("edit", t('chat_details.change_group_name'), undefined, handleUpdateGroupName)}
             {(chat.owner === user?.email || chat.admin === user?.email) && (
-              renderMenuItem("delete_forever", "Giải tán nhóm", undefined, handleDissolveGroup, '#ef4444')
+              renderMenuItem("delete_forever", t('chat_details.disband_group'), undefined, handleDissolveGroup, '#ef4444')
             )}
-            {renderMenuItem("logout", "Rời nhóm", undefined, handleLeaveGroup, '#ef4444')}
+            {renderMenuItem("logout", t('chat_details.leave_group'), undefined, handleLeaveGroup, '#ef4444')}
 
             <View style={styles.divider} />
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Thành viên ({chat.members?.length || 0})</Text>
+              <Text style={styles.sectionTitle}>{t('chat_details.members_count', { count: chat.members?.length || 0 })}</Text>
             </View>
             <TouchableOpacity style={styles.addMemberBtn} onPress={() => {
-               setPromptConfig({
-                 visible: true,
-                 title: "Thêm thành viên",
-                 message: "Nhập email",
-                 placeholder: "Email người dùng",
-                 value: "",
-                 keyboardType: 'email-address',
-                 onSubmit: async (email: string) => {
-                    if (email && email.trim()) await addMembers(conversationId, [email.trim()]);
-                 }
-               });
+               setSelectedEmails([]);
+               setAddMemberSearch('');
+               setShowAddMemberModal(true);
             }}>
                <Text style={styles.addMemberIcon}>add</Text>
-               <Text style={styles.addMemberText}>Thêm thành viên</Text>
+               <Text style={styles.addMemberText}>{t('chat_details.add_member')}</Text>
             </TouchableOpacity>
 
             {chat.members?.map((m: string) => {
                const p = userProfiles[m.trim().toLowerCase()];
-               const isMe = m === user?.email;
+               const isMe = m.trim().toLowerCase() === (user?.email || '').trim().toLowerCase();
                const isOwner = chat.owner === m || chat.admin === m;
                const isDeputy = (chat.deputies || []).includes(m);
                const myRole = (chat.owner === user?.email || chat.admin === user?.email) ? 'owner' : (chat.deputies || []).includes(user?.email || "") ? 'deputy' : 'member';
+               const displayName = isMe
+                 ? (user?.fullName || user?.nickname || p?.nickname || p?.fullName || m)
+                 : (p?.nickname || p?.fullName || m);
+               const displayAvatar = isMe
+                 ? (user?.avatarUrl || p?.avatarUrl || p?.urlAvatar || p?.avatar || undefined)
+                 : (p?.avatarUrl || p?.urlAvatar || p?.avatar || undefined);
 
                return (
-                 <View key={m} style={styles.memberItem}>
-                    <Image source={avatarSource(p?.avatarUrl || p?.urlAvatar || p?.avatar)} style={styles.memberAvatar} />
+                 <TouchableOpacity
+                   key={m}
+                   style={styles.memberItem}
+                   activeOpacity={0.7}
+                   onPress={() => navigation.navigate('Profile', { userId: m })}
+                 >
+                    <Image source={avatarSource(displayAvatar)} style={styles.memberAvatar} />
                     <View style={styles.memberInfo}>
-                       <Text style={styles.memberName}>{p?.nickname || p?.fullName || m} {isMe && "(Bạn)"}</Text>
+                       <Text style={styles.memberName}>{displayName} {isMe && `(${t('chat_details.you')})`}</Text>
                        <Text style={styles.memberRole}>
-                          {isOwner ? "Trưởng nhóm" : isDeputy ? "Phó nhóm" : "Thành viên"}
+                          {isOwner ? t('group.role_owner') : isDeputy ? t('group.role_deputy') : t('group.role_member')}
                        </Text>
                     </View>
                     {!isMe && (
@@ -1510,30 +1539,183 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
                           {myRole === 'owner' && (
                              <>
                                 {!isOwner && (
-                                   <TouchableOpacity onPress={() => handleChangeRole(m, isDeputy ? 'member' : 'deputy')}>
+                                   <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleChangeRole(m, isDeputy ? 'member' : 'deputy'); }}>
                                       <Text style={[styles.actionIconSm, { color: Colors.primary }]}>{isDeputy ? "shield_outlined" : "shield"}</Text>
                                    </TouchableOpacity>
                                 )}
                                 {!isOwner && (
-                                   <TouchableOpacity onPress={() => handleChangeRole(m, 'owner')}>
+                                   <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleChangeRole(m, 'owner'); }}>
                                       <Text style={[styles.actionIconSm, { color: '#f59e0b' }]}>star</Text>
                                    </TouchableOpacity>
                                 )}
                              </>
                           )}
                           {(myRole === 'owner' || (myRole === 'deputy' && !isOwner && !isDeputy)) && (
-                             <TouchableOpacity onPress={() => handleKickMember(m)}>
+                             <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); handleKickMember(m); }}>
                                 <Text style={[styles.actionIconSm, { color: '#ef4444' }]}>person_remove</Text>
                              </TouchableOpacity>
                           )}
                        </View>
                     )}
-                 </View>
+                 </TouchableOpacity>
                );
             })}
           </>
         )}
       </ScrollView>
+
+      {/* Add Member Modal */}
+      <Modal
+        visible={showAddMemberModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAddMemberModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', paddingHorizontal: 20 }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', maxHeight: '80%' }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+              <Text style={{ fontFamily: 'Material Symbols Outlined', fontSize: 22, color: '#1e293b', marginRight: 8 }}>person_add</Text>
+              <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: '#1e293b' }}>{t('chat_details.add_member')}</Text>
+              <TouchableOpacity onPress={() => setShowAddMemberModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={{ fontFamily: 'Material Symbols Outlined', fontSize: 22, color: '#94a3b8' }}>close</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Search */}
+            <View style={{ margin: 14, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 10, paddingHorizontal: 12 }}>
+              <Text style={{ fontFamily: 'Material Symbols Outlined', fontSize: 18, color: '#94a3b8', marginRight: 8 }}>search</Text>
+              <TextInput
+                placeholder={t('chat_details.add_member_search')}
+                placeholderTextColor="#94a3b8"
+                value={addMemberSearch}
+                onChangeText={setAddMemberSearch}
+                autoCapitalize="none"
+                style={{ flex: 1, fontSize: 14, paddingVertical: 10, color: '#1e293b' }}
+              />
+              {addMemberSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setAddMemberSearch('')}>
+                  <Text style={{ fontFamily: 'Material Symbols Outlined', fontSize: 18, color: '#94a3b8' }}>close</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {/* List */}
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }}>
+              {(() => {
+                const currentMembers = new Set((chat.members || []).map((m: string) => m.trim().toLowerCase()));
+                const q = addMemberSearch.toLowerCase().trim();
+                const isEmailQuery = q.includes('@') && q.length > 4;
+                const emailAlreadyMember = isEmailQuery && currentMembers.has(q);
+                const friends = (contactsData?.friendships || [])
+                  .filter((f: any) => f.status === 'accepted')
+                  .map((f: any) => {
+                    const email = friendEmailOf(f, user?.email || '');
+                    const profile = userProfiles[email.toLowerCase()] || {};
+                    return { email, name: f.nickname || profile?.fullName || profile?.nickname || email, avatar: profile?.avatarUrl || profile?.urlAvatar };
+                  })
+                  .filter((f: any) => !currentMembers.has(f.email.toLowerCase()))
+                  .filter((f: any) => { if (!q) return true; return f.name.toLowerCase().includes(q) || f.email.toLowerCase().includes(q); });
+                const emailAlreadyFriend = friends.some((f: any) => f.email.toLowerCase() === q);
+                const showDirectAdd = isEmailQuery && !emailAlreadyMember && !emailAlreadyFriend;
+                return (
+                  <>
+                    {showDirectAdd && (
+                      <>
+                        <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#94a3b8', letterSpacing: 0.8 }}>{t('chat_details.add_member_via_gmail')}</Text>
+                        </View>
+                        <TouchableOpacity activeOpacity={0.7}
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 }}
+                          onPress={() => setSelectedEmails(prev => prev.includes(q) ? prev.filter(e => e !== q) : [...prev, q])}>
+                          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                            <Text style={{ fontFamily: 'Material Symbols Outlined', fontSize: 22, color: '#22c55e' }}>person_add</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 15, fontWeight: '600', color: '#1e293b' }}>{q}</Text>
+                            <Text style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>{t('chat_details.add_member_via_gmail_sub')}</Text>
+                          </View>
+                          <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: selectedEmails.includes(q) ? Colors.primary : '#cbd5e1', backgroundColor: selectedEmails.includes(q) ? Colors.primary : '#fff', alignItems: 'center', justifyContent: 'center' }}>
+                            {selectedEmails.includes(q) && <Text style={{ fontFamily: 'Material Symbols Outlined', fontSize: 13, color: '#fff' }}>check</Text>}
+                          </View>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                    {friends.length > 0 && (
+                      <View style={{ paddingHorizontal: 16, paddingTop: showDirectAdd ? 8 : 4, paddingBottom: 4 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#94a3b8', letterSpacing: 0.8 }}>{t('chat_details.add_member_friends_section')}</Text>
+                      </View>
+                    )}
+                    {friends.map((f: any) => {
+                      const isSelected = selectedEmails.includes(f.email);
+                      return (
+                        <TouchableOpacity key={f.email} activeOpacity={0.7}
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 }}
+                          onPress={() => setSelectedEmails(prev => prev.includes(f.email) ? prev.filter(e => e !== f.email) : [...prev, f.email])}>
+                          {f.avatar ? (
+                            <Image source={{ uri: f.avatar }} style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }} />
+                          ) : (
+                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                              <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>{f.name.charAt(0).toUpperCase()}</Text>
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 15, fontWeight: '600', color: '#1e293b' }}>{f.name}</Text>
+                            <Text style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>{f.email}</Text>
+                          </View>
+                          <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: isSelected ? Colors.primary : '#cbd5e1', backgroundColor: isSelected ? Colors.primary : '#fff', alignItems: 'center', justifyContent: 'center' }}>
+                            {isSelected && <Text style={{ fontFamily: 'Material Symbols Outlined', fontSize: 13, color: '#fff' }}>check</Text>}
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                    {friends.length === 0 && !showDirectAdd && (
+                      <View style={{ alignItems: 'center', paddingVertical: 36 }}>
+                        <Text style={{ fontFamily: 'Material Symbols Outlined', fontSize: 44, color: '#e2e8f0' }}>group_add</Text>
+                        <Text style={{ marginTop: 10, color: '#94a3b8', fontSize: 14, textAlign: 'center', paddingHorizontal: 24 }}>
+                          {q ? t('chat_details.add_member_no_results') : t('chat_details.add_member_no_friends')}
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
+            </ScrollView>
+            {/* Footer */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
+              <Text style={{ flex: 1, fontSize: 14, color: '#64748b' }}>{t('chat_details.add_member_selected', { count: selectedEmails.length })}</Text>
+              <TouchableOpacity
+                onPress={() => { setShowAddMemberModal(false); setSelectedEmails([]); }}
+                style={{ paddingHorizontal: 18, paddingVertical: 9, borderRadius: 8, backgroundColor: '#f1f5f9', marginRight: 10 }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#475569' }}>{t('common.cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled={selectedEmails.length === 0 || addingMembers}
+                onPress={async () => {
+                  if (selectedEmails.length === 0) return;
+                  setAddingMembers(true);
+                  try {
+                    await addMembers(conversationId, selectedEmails);
+                    setShowAddMemberModal(false);
+                    setSelectedEmails([]);
+                  } catch (err: any) {
+                    Alert.alert(t('common.error'), err?.message || t('chat_details.add_member_error'));
+                  } finally {
+                    setAddingMembers(false);
+                  }
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 9, borderRadius: 8, backgroundColor: selectedEmails.length > 0 ? Colors.primary : '#e2e8f0' }}>
+                {addingMembers ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Text style={{ fontFamily: 'Material Symbols Outlined', fontSize: 16, color: selectedEmails.length > 0 ? '#fff' : '#94a3b8', marginRight: 4 }}>person_add</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: selectedEmails.length > 0 ? '#fff' : '#94a3b8' }}>{t('common.confirm')}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showAliasModal}
@@ -1543,25 +1725,25 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.aliasModalCard}>
-            <Text style={styles.aliasModalTitle}>Đổi tên gợi nhớ</Text>
-            <Text style={styles.aliasModalSubtitle}>Tên này chỉ hiển thị trên thiết bị của bạn.</Text>
+            <Text style={styles.aliasModalTitle}>{t('chat_details.alias_title')}</Text>
+            <Text style={styles.aliasModalSubtitle}>{t('chat_details.alias_subtitle')}</Text>
             <TextInput
               value={aliasDraft}
               onChangeText={setAliasDraft}
-              placeholder="Nhập tên gợi nhớ"
+              placeholder={t('chat_details.alias_placeholder')}
               style={styles.aliasInput}
               autoFocus
             />
             <View style={styles.aliasActions}>
               <TouchableOpacity style={styles.aliasCancelBtn} onPress={() => setShowAliasModal(false)}>
-                <Text style={styles.aliasCancelText}>Hủy</Text>
+                <Text style={styles.aliasCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.aliasSaveBtn, savingAlias && { opacity: 0.6 }]}
                 onPress={handleSaveAlias}
                 disabled={savingAlias}
               >
-                <Text style={styles.aliasSaveText}>{savingAlias ? 'Đang lưu' : 'Lưu'}</Text>
+                <Text style={styles.aliasSaveText}>{savingAlias ? t('common.saving') : t('common.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1576,8 +1758,8 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalBackdrop}>
           <View style={[styles.aliasModalCard, { maxWidth: 420, maxHeight: '86%' }]}>
-            <Text style={styles.aliasModalTitle}>{'H\u00ecnh n\u1ec1n cu\u1ed9c tr\u00f2 chuy\u1ec7n'}</Text>
-            <Text style={styles.aliasModalSubtitle}>{'Ch\u1ecdn h\u00ecnh n\u1ec1n gi\u00e1o d\u1ee5c gi\u1ed1ng phi\u00ean b\u1ea3n web'}</Text>
+            <Text style={styles.aliasModalTitle}>{t('chat_details.wallpaper_title')}</Text>
+            <Text style={styles.aliasModalSubtitle}>{t('chat_details.wallpaper_subtitle')}</Text>
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.wallpaperGrid}>
                 {CHAT_WALLPAPERS.map((item) => {
@@ -1605,10 +1787,10 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
             </ScrollView>
             <View style={styles.aliasActions}>
               <TouchableOpacity style={styles.aliasCancelBtn} onPress={() => setShowWallpaperModal(false)}>
-                <Text style={styles.aliasCancelText}>{'H\u1ee7y'}</Text>
+                <Text style={styles.aliasCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.aliasSaveBtn} onPress={handleSaveWallpaper}>
-                <Text style={styles.aliasSaveText}>{'L\u01b0u'}</Text>
+                <Text style={styles.aliasSaveText}>{t('common.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1623,15 +1805,15 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.aliasModalCard}>
-            <Text style={styles.aliasModalTitle}>Thông báo cuộc trò chuyện</Text>
-            <Text style={styles.aliasModalSubtitle}>Chọn thời gian tắt thông báo</Text>
+            <Text style={styles.aliasModalTitle}>{t('chat.chat_notifications')}</Text>
+            <Text style={styles.aliasModalSubtitle}>{t('chat.mute_time_desc')}</Text>
             {[
-              { label: 'Tắt 1 giờ', action: () => handleSelectMuteSchedule('1h') },
-              { label: 'Tắt 4 giờ', action: () => handleSelectMuteSchedule('4h') },
-              { label: 'Tắt 12 giờ', action: () => handleSelectMuteSchedule('12h') },
-              { label: 'Đến 8:00 sáng', action: () => handleSelectMuteSchedule('morning') },
-              { label: 'Khung giờ tùy chỉnh', action: () => setShowCustomMuteModal(true) },
-              { label: 'Cho đến khi bật lại', action: () => handleSelectMuteSchedule('forever') },
+              { label: t('chat.mute_1h'), action: () => handleSelectMuteSchedule('1h') },
+              { label: t('chat.mute_4h'), action: () => handleSelectMuteSchedule('4h') },
+              { label: t('chat_details.mute_12h'), action: () => handleSelectMuteSchedule('12h') },
+              { label: t('chat.mute_8am'), action: () => handleSelectMuteSchedule('morning') },
+              { label: t('chat.mute_custom'), action: () => setShowCustomMuteModal(true) },
+              { label: t('chat_details.mute_forever'), action: () => handleSelectMuteSchedule('forever') },
             ].map((item) => (
               <TouchableOpacity
                 key={item.label}
@@ -1642,7 +1824,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
               </TouchableOpacity>
             ))}
             <TouchableOpacity style={[styles.aliasCancelBtn, { marginTop: 14, alignItems: 'center' }]} onPress={() => setShowMuteMenuModal(false)}>
-              <Text style={styles.aliasCancelText}>Hủy</Text>
+              <Text style={styles.aliasCancelText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1656,11 +1838,11 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.aliasModalCard}>
-            <Text style={styles.aliasModalTitle}>Khung giờ tắt thông báo</Text>
-            <Text style={styles.aliasModalSubtitle}>Nhập giờ theo định dạng 24h HH:mm</Text>
+            <Text style={styles.aliasModalTitle}>{t('chat.custom_mute_title')}</Text>
+            <Text style={styles.aliasModalSubtitle}>{t('chat.custom_mute_desc')}</Text>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.subText, { marginBottom: 6 }]}>Từ</Text>
+                <Text style={[styles.subText, { marginBottom: 6 }]}>{t('chat_details.from')}</Text>
                 <TextInput
                   value={customMuteStartTime}
                   onChangeText={setCustomMuteStartTime}
@@ -1673,7 +1855,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.subText, { marginBottom: 6 }]}>Đến</Text>
+                <Text style={[styles.subText, { marginBottom: 6 }]}>{t('chat_details.to')}</Text>
                 <TextInput
                   value={customMuteEndTime}
                   onChangeText={setCustomMuteEndTime}
@@ -1688,10 +1870,10 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
             </View>
             <View style={styles.aliasActions}>
               <TouchableOpacity style={styles.aliasCancelBtn} onPress={() => setShowCustomMuteModal(false)}>
-                <Text style={styles.aliasCancelText}>Hủy</Text>
+                <Text style={styles.aliasCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.aliasSaveBtn} onPress={handleApplyCustomMuteSchedule}>
-                <Text style={styles.aliasSaveText}>Lưu</Text>
+                <Text style={styles.aliasSaveText}>{t('common.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1720,7 +1902,7 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
             />
             <View style={styles.aliasActions}>
               <TouchableOpacity style={styles.aliasCancelBtn} onPress={() => setPromptConfig(prev => ({ ...prev, visible: false }))}>
-                <Text style={styles.aliasCancelText}>Hủy</Text>
+                <Text style={styles.aliasCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.aliasSaveBtn}
@@ -1729,8 +1911,40 @@ const ChatDetailsScreen = ({ route, navigation }: any) => {
                   setPromptConfig(prev => ({ ...prev, visible: false }));
                 }}
               >
-                <Text style={styles.aliasSaveText}>Xác nhận</Text>
+                <Text style={styles.aliasSaveText}>{t('common.confirm')}</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Share Group Modal */}
+      <Modal visible={showShareModal} transparent animationType="fade" onRequestClose={() => setShowShareModal(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.aliasModalCard}>
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16}}>
+              <Text style={styles.aliasModalTitle}>{t('chat_details.share_group') || 'Chia sẻ nhóm'}</Text>
+              <TouchableOpacity onPress={() => setShowShareModal(false)} style={{padding: 4}}>
+                <Text style={{fontFamily: 'Material Symbols Outlined', fontSize: 24, color: '#757575'}}>close</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{alignItems: 'center', marginBottom: 20}}>
+              <View style={{backgroundColor: '#fff', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#eee', marginBottom: 16}}>
+                <QRCode value={joinLink} size={180} />
+              </View>
+              <Text style={{fontSize: 13, color: '#666', textAlign: 'center', marginBottom: 16}}>
+                {t('chat_details.share_group_desc') || 'Quét mã QR bằng camera hoặc chia sẻ đường link bên dưới để mời mọi người tham gia nhóm.'}
+              </Text>
+              <View style={{flexDirection: 'row', alignItems: 'center', backgroundColor: '#f3f4f6', padding: 8, borderRadius: 12, width: '100%'}}>
+                <TextInput 
+                  value={joinLink} 
+                  editable={false} 
+                  style={{flex: 1, color: '#111827', fontSize: 13, marginRight: 8}} 
+                />
+                <TouchableOpacity onPress={handleCopyJoinLink} style={{backgroundColor: '#dbeafe', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8}}>
+                  <Text style={{color: '#2563eb', fontWeight: 'bold', fontSize: 12}}>Copy</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>

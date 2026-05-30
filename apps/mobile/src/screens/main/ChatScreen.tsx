@@ -29,7 +29,8 @@ import ChatInput from '../../components/chat/ChatInput';
 import SystemCallMessageItem from '../../components/chat/SystemCallMessageItem';
 import SystemNotificationItem from '../../components/chat/SystemNotificationItem';
 import { ConversationList } from '../../components/home/ConversationList';
-import styles from './style/ChatScreen.styles';
+import { getStyles } from './style/ChatScreen.styles';
+import { useTheme } from '../../context/ThemeContext';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { 
@@ -81,6 +82,8 @@ type MentionPayload = {
 };
 
 export default function ChatScreen({ navigation, onNavigate, goBack, params }: ChatScreenProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
@@ -312,9 +315,9 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
   }, [navigation, loadWallpaper]);
 
   const isBot = useMemo(() => {
-    const pEmail = selectedChat?.partner || targetEmail || '';
-    return pEmail === 'bot@UniChat.system';
-  }, [selectedChat, targetEmail]);
+    const pEmail = selectedChat?.partner || (Array.isArray(selectedChat?.members) ? selectedChat.members.find((m: string) => m !== user?.email) : undefined) || targetEmail || '';
+    return normalizeEmail(pEmail) === 'bot@unichat.system';
+  }, [selectedChat, targetEmail, user?.email, normalizeEmail]);
 
 
   const activePinnedMessages = useMemo(() => {
@@ -348,6 +351,9 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
     if (!email) return "Người dùng";
     const normalized = normalizeEmail(email);
     
+    // Bot display name
+    if (normalized === "bot@unichat.system") return "UniChat AI";
+    
     // Check if there's an alias for this conversation
     if (selectedChat?.alias) return selectedChat.alias;
     
@@ -360,6 +366,8 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
     const defaultAvatar = "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
     const normalized = normalizeEmail(email);
     if (!normalized) return defaultAvatar;
+    // Bot avatar
+    if (normalized === "bot@unichat.system") return "https://api.dicebear.com/9.x/bottts-neutral/png?seed=UniBotPremium&backgroundColor=0284c7,0ea5e9&radius=50";
     if (normalized === normalizeEmail(user?.email)) return user?.avatarUrl || defaultAvatar;
     const profile = userProfiles[normalized];
     return profile?.avatarUrl || profile?.avatar || defaultAvatar;
@@ -910,9 +918,11 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
   const isOnline = selectedChat?.type === 'direct' && partnerProfile?.status === 'online';
   const typingText = typingUsers.size > 0 
     ? `${getDisplayName([...typingUsers][0])} đang gõ...` 
-    : (selectedChat?.type === 'direct' 
-        ? (partnerProfile?.statusMessage || partnerProfile?.currentStatus || (isOnline ? "Đang hoạt động" : "Vừa mới truy cập")) 
-        : `${selectedChat?.members?.length || 0} thành viên`);
+    : (isBot 
+        ? "Trợ lý AI của bạn"
+        : (selectedChat?.type === 'direct' 
+            ? (partnerProfile?.statusMessage || partnerProfile?.currentStatus || (isOnline ? "Đang hoạt động" : "Vừa mới truy cập")) 
+            : `${selectedChat?.members?.length || 0} thành viên`));
 
   return (
     <View style={{ flex: 1, flexDirection: 'row', backgroundColor: '#fff' }}>

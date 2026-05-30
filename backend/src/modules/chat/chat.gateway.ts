@@ -207,20 +207,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       senderId: data.message.senderId || user.email,
     };
 
-    // 1. Broadcast message to everyone in the conversation room (for active chat UI)
-    socket.to(room).emit("receiveMessage", safeMessage);
-
-    // 2. [SENIOR] Broadcast to user-specific rooms (for Inbox/HomeScreen update & Notifications)
+    // 1. Broadcast message to everyone in the conversation room and personal rooms
     const metadata = await this.chatService.getConversationMetadata(data.convId);
+    
+    let broadcast = socket.to(room); // Excludes sender from conversation room
+    let serverBroadcast = this.server.to(room); // Used for sending to all including sender's other devices
+    
     if (metadata && Array.isArray(metadata.members)) {
       const senderEmail = user.email.toLowerCase();
       for (const member of metadata.members) {
         const memberEmail = String(member).toLowerCase();
         const userRoom = `user#${memberEmail}`;
         
-        // Emit to user room so Inbox updates even if they are NOT in the chat room
-        // We use this.server.to() to ensure ALL devices (including sender's other devices) get it.
-        this.server.to(userRoom).emit("receiveMessage", safeMessage);
+        serverBroadcast = serverBroadcast.to(userRoom);
 
         // Also trigger a formal notification event for the Store (only for others)
         if (memberEmail !== senderEmail) {
@@ -239,6 +238,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         }
       }
     }
+    
+    // Emit the receiveMessage once for all rooms deduplicated
+    serverBroadcast.emit("receiveMessage", safeMessage);
   }
 
   /**
@@ -248,16 +250,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const room = convId.toLowerCase();
     const metadata = await this.chatService.getConversationMetadata(convId);
     
-    // 1. Broadcast to the active room
-    this.server.to(room).emit("receiveMessage", message);
+    let broadcast = this.server.to(room);
     
     // 2. Broadcast to each member's personal room (for Inbox updates)
     if (metadata && Array.isArray(metadata.members)) {
       for (const member of metadata.members) {
         const userRoom = `user#${String(member).toLowerCase()}`;
-        this.server.to(userRoom).emit("receiveMessage", message);
+        broadcast = broadcast.to(userRoom);
       }
     }
+    
+    broadcast.emit("receiveMessage", message);
     this.logger.log(`[SOCKET] Broadcasted receiveMessage for ${message.id} in ${convId}`);
   }
 
