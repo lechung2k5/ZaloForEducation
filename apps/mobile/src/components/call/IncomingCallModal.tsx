@@ -63,6 +63,44 @@ const IncomingCallModal = () => {
     }
   }, [callState, isIncoming, insets.top]);
 
+  const handleReject = () => {
+    if (SocketService.socket) {
+      (SocketService.socket as any).emit("call:reject", {
+        convId: conversationId,
+        callId: activeCallId,
+        fromEmail: user.email,
+        toEmail: caller?.email,
+        reason: "NO_ANSWER",
+      });
+    }
+    rejectCall();
+  };
+
+  const handleTimeout = () => {
+    if (SocketService.socket) {
+      (SocketService.socket as any).emit("call:timeout", {
+        convId: conversationId,
+        callId: activeCallId,
+        fromEmail: user.email,
+        toEmail: caller?.email,
+      });
+    }
+    rejectCall();
+  };
+
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    if (callState === 'RINGING' && isIncoming) {
+      timeout = setTimeout(() => {
+        console.log('[IncomingCall] Timeout after 60s');
+        handleTimeout();
+      }, 60000);
+    }
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [callState, isIncoming]);
+
   if (callState !== 'RINGING' || !isIncoming) {
     return null;
   }
@@ -114,18 +152,7 @@ const IncomingCallModal = () => {
     }
   };
 
-  const handleReject = () => {
-    if (SocketService.socket) {
-      (SocketService.socket as any).emit("call:reject", {
-        convId: conversationId,
-        callId: activeCallId,
-        fromEmail: user.email,
-        toEmail: caller?.email,
-        reason: "NO_ANSWER",
-      });
-    }
-    rejectCall();
-  };
+
 
   return (
     <Animated.View style={[styles.container, { transform: [{ translateY: slideAnim }] }]}>

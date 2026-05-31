@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -20,7 +20,8 @@ import { useGroupChime } from "../../hooks/useGroupChime";
 import { RNChimeVideoView } from "../../bridge/chime";
 import { apiRequest } from "../../utils/api";
 import SocketService from "../../utils/socket";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import SoundService from "../../utils/SoundService";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -39,6 +40,8 @@ export const GroupCallOverlay: React.FC = () => {
     isMinimized,
     toggleMinimized,
     resetGroupCall,
+    attendeeData,
+    meetingData,
   } = useGroupCallStore();
 
   const {
@@ -53,15 +56,21 @@ export const GroupCallOverlay: React.FC = () => {
   } = useGroupChime() as any;
 
   const [isMicOn, setIsMicOn] = useState(true);
-  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [isCameraOn, setIsCameraOn] = useState(callType === 'video');
   const [useSpeaker, setUseSpeaker] = useState(true);
 
   useEffect(() => {
-    const store = useGroupCallStore.getState();
-    if (store.meetingData && store.attendeeData) {
-      setupSession(store.meetingData, store.attendeeData);
+    if (callId) {
+      setIsCameraOn(callType === 'video');
+      setIsMicOn(true);
     }
-  }, [setupSession]);
+  }, [callId, callType]);
+
+  useEffect(() => {
+    if (meetingData && attendeeData) {
+      setupSession(meetingData, attendeeData);
+    }
+  }, [meetingData, attendeeData, setupSession]);
 
   // Animation values for Minimized PiP
   const pan = useRef(new Animated.ValueXY()).current;
@@ -92,12 +101,13 @@ export const GroupCallOverlay: React.FC = () => {
   ).current;
 
   const endCall = useCallback(async () => {
+    SoundService.playHangupSound();
     try {
       if (SocketService.socket && convId && callId) {
-        (SocketService.socket as any).emit("group_call:leave", {
+        (SocketService.socket as any).emit("group-call:hangup", {
           convId,
           callId,
-          email: user?.email,
+          userEmail: user?.email,
         });
       }
       await cleanup("user_ended_call");
@@ -127,16 +137,76 @@ export const GroupCallOverlay: React.FC = () => {
     switchAudioOutput(nextState);
   };
 
-  if (callState === "IDLE") return null;
+  const availableStreams = useMemo(() => {
+    let items: any[] = [];
+    
+    // 1. Add all active video tiles (except content)
+    videoTiles.forEach((tile: any) => {
+      if (tile.isContent) return;
+      const attendeeId = (tile.boundAttendeeId || "").toLowerCase();
+      const isLocal = tile.isLocal || tile.tileId === localTileId;
+      const p = participants[attendeeId];
 
-  const isLocalCameraOn = isCameraOn && localTileId !== null;
+      items.push({
+        id: isLocal ? 'local-camera' : `remote-camera-${attendeeId || tile.tileId}`,
+        attendeeId,
+        email: p?.email || (isLocal ? user?.email : 'unknown'),
+        name: isLocal ? 'Bạn' : (p?.name || p?.fullName || null),
+        avatar: p?.avatar || p?.avatarUrl || (isLocal ? user?.avatarUrl : null),
+        tileId: tile.tileId,
+        isVideoActive: true,
+        isLocal: isLocal,
+        isContent: false,
+      });
+    });
+
+    // 2. Add connected participants who DON'T have a video tile
+    Object.entries(participants || {}).forEach(([id, p]: [string, any]) => {
+      if (!id || !p) return;
+      if (p.status !== 'connected') return;
+      
+      const attendeeId = id.toLowerCase();
+      const hasTile = videoTiles.some((t: any) => t.boundAttendeeId && t.boundAttendeeId.toLowerCase() === attendeeId && !t.isContent);
+      
+      if (!hasTile) {
+        const isLocal = attendeeId === (attendeeData?.AttendeeId || "").toLowerCase();
+        items.push({
+          id: isLocal ? 'local-camera' : `remote-camera-${attendeeId}`,
+          attendeeId: attendeeId,
+          email: p?.email,
+          name: isLocal ? 'Bạn' : (p?.name || p?.fullName),
+          avatar: p?.avatar || p?.avatarUrl,
+          tileId: isLocal ? localTileId : null,
+          isVideoActive: isLocal ? (localTileId !== null && isCameraOn) : false,
+          isLocal: isLocal,
+          isContent: false,
+        });
+      }
+    });
+
+    // 3. Local user fallback if no tile and not in participants
+    const localId = (attendeeData?.AttendeeId || "").toLowerCase();
+    if (localId && !items.find(i => i.isLocal)) {
+      items.push({
+        id: 'local-camera',
+        attendeeId: localId,
+        email: user?.email || 'unknown',
+        name: 'Bạn',
+        avatar: user?.avatarUrl || null,
+        tileId: localTileId,
+        isVideoActive: localTileId !== null && isCameraOn,
+        isLocal: true,
+        isContent: false,
+      });
+    }
+
+    return items;
+  }, [participants, videoTiles, localTileId, attendeeData?.AttendeeId, isCameraOn, user]);
+
   const contentTile = videoTiles.find((t: any) => t.isContent);
-  const cameraTiles = videoTiles.filter((t: any) => !t.isContent);
+  const isLocalCameraOn = isCameraOn && localTileId !== null;
 
-  // LÃ¡y danh sÃ¡ch participant cÃ³ mÄƒÌ£t
-  const connectedParticipants = Object.values(participants).filter(
-    (p: any) => p.status === "connected" && p.email !== user?.email
-  );
+  if (callState === "IDLE") return null;
 
   // --- MINIMIZED VIEW ---
   if (isMinimized && callState === "CONNECTED") {
@@ -193,18 +263,27 @@ export const GroupCallOverlay: React.FC = () => {
                 tileId={contentTile.tileId}
                 objectFit="contain"
                 zOrder={0}
-                style={StyleSheet.absoluteFillObject}
+                style={[StyleSheet.absoluteFillObject, { backgroundColor: "transparent" }]}
               />
-              <Text style={styles.contentLabel}>MÃ n hÃ¬nh Ä‘Æ°á»£c chia sáº»</Text>
+              <Text style={styles.contentLabel}>Màn hình được chia sẻ</Text>
             </View>
             <ScrollView horizontal style={styles.contentShareRoster}>
-              {cameraTiles.map((tile: any) => (
-                <View key={tile.tileId} style={styles.miniTile}>
-                  <RNChimeVideoView
-                    tileId={tile.tileId}
-                    zOrder={1}
-                    style={StyleSheet.absoluteFillObject}
-                  />
+              {availableStreams.map((stream: any) => (
+                <View key={stream.id} style={styles.miniTile}>
+                  {stream.isVideoActive && stream.tileId !== null ? (
+                    <RNChimeVideoView
+                      tileId={stream.tileId}
+                      zOrder={1}
+                      style={[StyleSheet.absoluteFillObject, { backgroundColor: "transparent" }]}
+                    />
+                  ) : (
+                    <View style={[styles.avatarPlaceholder, { backgroundColor: '#222' }]}>
+                       <Text style={{color: 'white'}}>{(stream.name || stream.email || "?").charAt(0).toUpperCase()}</Text>
+                    </View>
+                  )}
+                  <View style={styles.nameOverlay}>
+                    <Text style={styles.nameText} numberOfLines={1}>{stream.name || stream.email || "Unknown"}</Text>
+                  </View>
                 </View>
               ))}
             </ScrollView>
@@ -213,45 +292,38 @@ export const GroupCallOverlay: React.FC = () => {
           // GRID MODE
           <ScrollView contentContainerStyle={styles.gridScroll}>
             <View style={styles.grid}>
-              {cameraTiles.map((tile: any) => (
-                <View key={tile.tileId} style={styles.gridItem}>
-                  <RNChimeVideoView
-                    tileId={tile.tileId}
-                    zOrder={0}
-                    style={StyleSheet.absoluteFillObject}
-                  />
-                </View>
-              ))}
-              {/* Show avatars for participants without video */}
-              {connectedParticipants
-                .filter(
-                  (p: any) =>
-                    !cameraTiles.find((t: any) => t.boundAttendeeId === p.attendeeId)
-                )
-                .map((p: any) => (
-                  <View key={p.email} style={styles.gridItem}>
-                    <View style={styles.avatarPlaceholder}>
-                      <Text style={styles.avatarText}>
-                        {p.name ? p.name.charAt(0).toUpperCase() : "?"}
-                      </Text>
+              {availableStreams.map((stream: any) => {
+                const gridStyle = availableStreams.length === 1 ? styles.gridItemFull : 
+                                  availableStreams.length === 2 ? styles.gridItemHalf : 
+                                  styles.gridItemQuarter;
+                return (
+                  <View key={stream.id} style={[styles.gridItem, gridStyle]}>
+                    {stream.isVideoActive && stream.tileId !== null ? (
+                      <RNChimeVideoView
+                        tileId={stream.tileId}
+                        style={[StyleSheet.absoluteFillObject, { backgroundColor: "transparent" }]}
+                      />
+                    ) : (
+                      <View style={styles.avatarPlaceholder}>
+                        {stream.avatar ? (
+                          <Image source={{ uri: stream.avatar }} style={styles.avatarImage} />
+                        ) : (
+                          <Text style={styles.avatarText}>
+                            {(stream.name || stream.email || "?").charAt(0).toUpperCase()}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                    <View style={styles.nameOverlay}>
+                      <Text style={styles.nameText} numberOfLines={1}>{stream.name || stream.email || "Unknown"}</Text>
                     </View>
                   </View>
-                ))}
+                );
+              })}
             </View>
           </ScrollView>
         )}
       </View>
-
-      {/* Local PIP */}
-      {isLocalCameraOn && (
-        <View style={styles.localPip}>
-          <RNChimeVideoView
-            tileId={localTileId}
-            zOrder={1}
-            style={StyleSheet.absoluteFillObject}
-          />
-        </View>
-      )}
 
       {/* Controls */}
       <View style={styles.controlsBar}>
@@ -296,8 +368,9 @@ export const GroupCallOverlay: React.FC = () => {
 
 const styles = StyleSheet.create({
   fullContainer: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "#1a1a1a",
+    zIndex: 1000,
   },
   header: {
     flexDirection: "row",
@@ -321,16 +394,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   grid: {
+    width: "100%",
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
     padding: 2,
   },
   gridItem: {
-    width: "48%",
-    aspectRatio: 3 / 4,
-    margin: "1%",
-    backgroundColor: "#333",
+    backgroundColor: "transparent",
     borderRadius: 8,
     overflow: "hidden",
   },
@@ -343,6 +414,42 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 32,
     fontWeight: "bold",
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  nameOverlay: {
+    position: "absolute",
+    bottom: 8,
+    left: 8,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    maxWidth: "80%",
+  },
+  nameText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  gridItemFull: {
+    width: SCREEN_WIDTH - 20,
+    height: SCREEN_HEIGHT * 0.7,
+    margin: 10,
+  },
+  gridItemHalf: {
+    width: SCREEN_WIDTH - 20,
+    height: (SCREEN_HEIGHT * 0.7) / 2 - 10,
+    marginHorizontal: 10,
+    marginVertical: 5,
+  },
+  gridItemQuarter: {
+    width: (SCREEN_WIDTH - 30) / 2,
+    height: ((SCREEN_WIDTH - 30) / 2) * (4 / 3),
+    margin: 5,
   },
   contentShareLayout: {
     flex: 1,

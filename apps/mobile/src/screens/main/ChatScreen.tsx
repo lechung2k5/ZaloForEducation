@@ -928,7 +928,7 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
         if (res.meeting && res.attendee) {
           useGroupCallStore.getState().startJoining(selectedChat.id, activeCallId, type, selectedChat.name, selectedChat.avatar, recipientEmails);
           
-          SocketService.socket?.emit('group_call:invite', {
+          SocketService.socket?.emit('group-call:invite', {
             convId: selectedChat.id,
             callId: activeCallId,
             callType: type,
@@ -941,6 +941,53 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
         }
       } catch (e) {
         Alert.alert('Lỗi', 'Không thể khởi tạo cuộc gọi nhóm');
+      }
+    }
+  };
+
+  const handleJoinCall = async (callId: string, type: string) => {
+    if (!selectedChat) return;
+
+    if (Platform.OS === 'android') {
+      try {
+        const hasAudio = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+        if (!hasAudio) {
+          const grantedAudio = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+          if (grantedAudio !== PermissionsAndroid.RESULTS.GRANTED) return;
+        }
+        if (type === 'video') {
+          const hasVideo = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+          if (!hasVideo) {
+            const grantedVideo = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+            if (grantedVideo !== PermissionsAndroid.RESULTS.GRANTED) return;
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    if (selectedChat.type === 'group') {
+      try {
+        const { apiPost } = require('../../utils/api');
+        const { useGroupCallStore } = require('../../store/groupCallStore');
+        const res = await apiPost('/group-call/join', {
+          conversationId: selectedChat.id,
+          callId
+        });
+
+        if (res.meeting && res.attendee) {
+          useGroupCallStore.getState().setMeetingData(res.meeting, res.attendee);
+          useGroupCallStore.getState().startJoining(selectedChat.id, callId, type, selectedChat.name, selectedChat.avatar);
+          useGroupCallStore.getState().toggleMinimized(false);
+          if (res.participants) {
+            useGroupCallStore.getState().setParticipants(res.participants);
+          }
+        } else {
+          Alert.alert('Lỗi', 'Không thể tham gia cuộc gọi');
+        }
+      } catch (e: any) {
+        Alert.alert('Lỗi', e.message || 'Không thể tham gia cuộc gọi');
       }
     }
   };
@@ -1127,7 +1174,7 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
                 </View>
               );
             }
-            if (m.type === 'call' || m.type === 'SYSTEM_CALL' || (m.type === 'system' && m.content?.includes('Cuộc gọi'))) return <SystemCallMessageItem message={m} currentUserEmail={user?.email} onCallBack={handleStartCall} />;
+            if (m.type === 'call' || m.type === 'SYSTEM_CALL' || (m.type === 'system' && m.content?.includes('Cuộc gọi'))) return <SystemCallMessageItem message={m} currentUserEmail={user?.email} onCallBack={handleStartCall} onJoinCall={handleJoinCall} />;
             if (m.type === 'system') return <SystemNotificationItem message={m} onJump={(id) => setActiveConversation(selectedChat.id, id)} />;
             
             // Tìm xem đối phương đã đọc đến đây chưa (Messenger Style: Hiện Avatar seen dưới tin nhắn của MÌNH)

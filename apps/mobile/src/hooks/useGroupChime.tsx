@@ -10,22 +10,24 @@ import {
   MeetingSessionConfiguration,
 } from 'amazon-chime-sdk-js';
 import { mediaDevices } from 'react-native-webrtc';
-import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import SocketService from '../utils/socket';
 
 const normalizeAttendeeId = (id?: string | null): string | null => {
   if (!id) return null;
-  return id.split('#')[0];
+  return id.split('#')[0].toLowerCase();
 };
 
 export const useGroupChime = () => {
+  const { user } = useAuth();
   const store = useGroupCallStore();
-  const { callType, callState } = store;
+  const { callType, callState, localTileId } = store;
 
-  const [localTileId, setLocalTileId] = useState<number | null>(null);
   const isStarted = useRef(false);
   const localTileIdRef = useRef<number | null>(null);
   const activeVideoDeviceIdRef = useRef<string | null>(null);
   const isCameraUserEnabled = useRef(false);
+  const heartbeatIntervalRef = useRef<any>(null);
 
   useEffect(() => {
     localTileIdRef.current = localTileId;
@@ -54,6 +56,11 @@ export const useGroupChime = () => {
   const cleanup = useCallback(async (reason: string = 'unknown') => {
     console.log(`[Chime-JS] Group Cleanup session. Reason: ${reason}`);
     
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+
     if (chimeRef.current?.meetingSession) {
       try {
         chimeRef.current.meetingSession.audioVideo.stop();
@@ -63,12 +70,26 @@ export const useGroupChime = () => {
       chimeRef.current.meetingSession = null;
     }
     
-    setLocalTileId(null);
+    useGroupCallStore.getState().setLocalTileId(null);
     isStarted.current = false;
     isCameraUserEnabled.current = false;
     
     useGroupCallStore.getState().resetGroupCall();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (isStarted.current) {
+        cleanup('unmount');
+      }
+    };
+  }, [cleanup]);
+
+  useEffect(() => {
+    if (callState === 'IDLE' && isStarted.current) {
+      cleanup('callState IDLE');
+    }
+  }, [callState, cleanup]);
 
   const setupSession = useCallback(async (meetingData: any, attendeeData: any) => {
     if (isStarted.current) return;
@@ -79,9 +100,14 @@ export const useGroupChime = () => {
       const deviceController = new DefaultDeviceController(logger, { enableWebAudio: false });
       
       const configuration = new MeetingSessionConfiguration(meetingData, attendeeData);
+      // [FIX] Disable simulcast for React Native to prevent "Could not get transceiver" exception
+      configuration.enableSimulcastForUnifiedPlanChromiumBasedBrowsers = false;
+      
       const meetingSession = new DefaultMeetingSession(configuration, logger, deviceController);
       
-      chimeRef.current.meetingSession = meetingSession;
+      if (chimeRef.current) {
+        chimeRef.current.meetingSession = meetingSession;
+      }
 
       const observer = {
         videoTileDidUpdate: (tileState: any) => {
@@ -89,26 +115,35 @@ export const useGroupChime = () => {
           const tileId = tileState.tileId;
           const isContent = tileState.isContent;
           
+          const currentStore = useGroupCallStore.getState();
+          const rawAttendeeId = isLocal ? currentStore.attendeeData?.AttendeeId : tileState.boundAttendeeId;
+          const boundAttendeeId = normalizeAttendeeId(rawAttendeeId);
+
+          if (!boundAttendeeId) {
+            console.log(`[Chime-JS] Ignoring videoTileDidUpdate for tile ${tileId} because boundAttendeeId is missing`);
+            return;
+          }
+
           if (isLocal) {
-            setLocalTileId(tileId);
+            useGroupCallStore.getState().setLocalTileId(tileId);
           } else {
-            const currentStore = useGroupCallStore.getState();
             const currentTiles = currentStore.videoTiles || [];
             const existingIdx = currentTiles.findIndex((t: any) => t.tileId === tileId);
             
             if (existingIdx === -1) {
-              currentStore.addVideoTile({ tileId, isLocal: false, isContent, boundAttendeeId: tileState.boundAttendeeId });
-            } else if (currentTiles[existingIdx].isContent !== isContent) {
-              // Update if content flag changes
+              currentStore.addVideoTile({ tileId, isLocal: false, isContent, boundAttendeeId });
+            } else if (currentTiles[existingIdx].isContent !== isContent || currentTiles[existingIdx].boundAttendeeId !== boundAttendeeId) {
+              // Update if content flag or attendeeId changes
               const newTiles = [...currentTiles];
-              newTiles[existingIdx] = { ...newTiles[existingIdx], isContent };
-              useGroupCallStore.setState({ videoTiles: newTiles });
+              newTiles[existingIdx] = { ...newTiles[existingIdx], isContent, boundAttendeeId };
+              currentStore.removeVideoTile(tileId);
+              currentStore.addVideoTile(newTiles[existingIdx]);
             }
           }
         },
         videoTileWasRemoved: (tileId: number) => {
           if (tileId === localTileIdRef.current) {
-            setLocalTileId(null);
+            useGroupCallStore.getState().setLocalTileId(null);
           } else {
             useGroupCallStore.getState().removeVideoTile(tileId);
           }
@@ -116,9 +151,44 @@ export const useGroupChime = () => {
         audioVideoDidStart: () => {
           console.log('[Chime-JS] Group audioVideoDidStart');
           useGroupCallStore.getState().setConnected();
+          
+          const currentStore = useGroupCallStore.getState();
+          if (SocketService.socket && currentStore.convId && currentStore.callId) {
+            console.log(`[Chime-JS] Joining socket room: ${currentStore.convId}`);
+            (SocketService.socket as any).emit('join_room', { convId: currentStore.convId });
+            
+            console.log('[Chime-JS] Emitting group-call:peer_joined');
+            (SocketService.socket as any).emit('group-call:peer_joined', {
+              convId: currentStore.convId,
+              callId: currentStore.callId,
+              userEmail: user?.email,
+              attendeeId: attendeeData.AttendeeId,
+              participant: {
+                email: user?.email,
+                name: user?.fullName || user?.name,
+                avatar: user?.avatarUrl || user?.avatar,
+                joinedAt: new Date().toISOString()
+              }
+            });
+
+            // [SENIOR] Start Heartbeat (15s)
+            if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+            heartbeatIntervalRef.current = setInterval(() => {
+              if (SocketService.socket && useGroupCallStore.getState().callId) {
+                (SocketService.socket as any).emit('group-call:heartbeat', {
+                  callId: useGroupCallStore.getState().callId,
+                  attendeeId: attendeeData.AttendeeId,
+                });
+              }
+            }, 15000);
+          }
         },
         audioVideoDidStop: (sessionStatus: any) => {
           console.log('[Chime-JS] Group audioVideoDidStop with status:', sessionStatus.statusCode());
+          if (heartbeatIntervalRef.current) {
+            clearInterval(heartbeatIntervalRef.current);
+            heartbeatIntervalRef.current = null;
+          }
           cleanup('audioVideoDidStop');
         }
       };

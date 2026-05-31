@@ -43,7 +43,7 @@ const IncomingCallModal: React.FC = () => {
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [callState, activeCallId, resetCall]);
+  }, [callState, activeCallId]);
 
   // Camera preview cho video call
   useEffect(() => {
@@ -73,6 +73,38 @@ const IncomingCallModal: React.FC = () => {
       setPreviewStream(null);
     };
   }, [callState, callType]);
+
+  const handleDecline = () => {
+    // Notify caller
+    if (toEmail && socket && conversationId && activeCallId && user) {
+      socket.emit('call:reject', { 
+        convId: conversationId, 
+        callId: activeCallId,
+        fromEmail: user.email,
+        toEmail 
+      });
+    }
+    resetCall();
+  };
+
+  const handleTimeout = () => {
+    if (toEmail && socket && conversationId && activeCallId && user) {
+      socket.emit('call:timeout', { 
+        convId: conversationId, 
+        callId: activeCallId,
+        fromEmail: user.email,
+        toEmail 
+      });
+    }
+    resetCall();
+  };
+
+  useEffect(() => {
+    if (timeLeft === 0 && callState === 'RINGING') {
+      console.log('[IncomingCall] Timeout after 60s');
+      handleTimeout();
+    }
+  }, [timeLeft, callState]);
 
   const handleAccept = async () => {
     if (!activeCallId) return;
@@ -111,19 +143,6 @@ const IncomingCallModal: React.FC = () => {
       console.error('[IncomingCall] Accept error:', error);
       resetCall();
     }
-  };
-
-  const handleDecline = () => {
-    // Notify caller
-    if (toEmail && socket && conversationId && activeCallId && user) {
-      socket.emit('call:reject', { 
-        convId: conversationId, 
-        callId: activeCallId,
-        fromEmail: user.email,
-        toEmail 
-      });
-    }
-    resetCall();
   };
 
   if (callState !== 'RINGING') return null;

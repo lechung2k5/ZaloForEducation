@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallStore } from "../../store/callStore";
+import SoundService from "../../utils/SoundService";
 import { useAuth } from "../../context/AuthContext";
 import { useChime } from "../../hooks/useChime";
 import { RNChimeVideoView } from "../../bridge/chime";
@@ -487,6 +488,7 @@ const CallOverlay = () => {
   };
 
   const handleHangup = async () => {
+    SoundService.playHangupSound();
     const currentStore = useCallStore.getState();
     const now = Date.now();
     const start = currentStore.startTime;

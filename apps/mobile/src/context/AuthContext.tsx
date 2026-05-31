@@ -52,6 +52,7 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
 
   const isKickingRef = useRef(false);
   const callTimeoutRef = useRef<any>(null);
+  const isListenersSetupRef = useRef(false);
 
   const checkSessionStatus = async () => {
     const token = await AsyncStorage.getItem('token');
@@ -177,13 +178,21 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
   const setupSocketListeners = useCallback((currentDeviceId: string) => {
     if (!SocketService.socket) return;
 
-    // Clear existing to avoid dupes
+    // [FIX DUPLICATE] Guard: chỉ setup 1 lần, tránh duplicate listeners khi re-render
+    if (isListenersSetupRef.current) {
+      console.log('[AuthContext] Socket listeners already set up, skipping duplicate registration');
+      return;
+    }
+    isListenersSetupRef.current = true;
+
+    // Clear existing to avoid dupes (phòng trường hợp reconnect)
     SocketService.off('force_logout');
     SocketService.off('profile_update');
     SocketService.off('receiveMessage');
     SocketService.off('message_patched');
     SocketService.off('PIN_UPDATE');
     SocketService.off('conversation_marked_read');
+    SocketService.off('conversation:updated');
     SocketService.off('notification:new');
     SocketService.off('security_alert');
     SocketService.off('call:incoming');
@@ -199,6 +208,7 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
     SocketService.off('friend_request_received');
     SocketService.off('friendship_updated');
     SocketService.off('presence_update');
+    SocketService.off('CALL_ENDED');
 
     SocketService.on('force_logout', (data: any) => {
       if (handleForceLogoutRef.current) {
@@ -671,6 +681,8 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
     });
 
     return () => {
+      // [FIX DUPLICATE] Reset guard on unmount
+      isListenersSetupRef.current = false;
       SocketService.off('force_logout');
       SocketService.off('profile_update');
       SocketService.off('receiveMessage');
@@ -693,6 +705,7 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       SocketService.off('friend_request_received');
       SocketService.off('friendship_updated');
       SocketService.off('presence_update');
+      SocketService.off('CALL_ENDED');
       subscription.remove();
       responseListener.remove();
     };
@@ -708,6 +721,8 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
     setProfileVersion(Date.now());
     useChatStore.getState().setCurrentUserEmail(userData.email);
     SocketService.connect(userData.email, currentDeviceId, accessToken);
+    // [FIX DUPLICATE] Reset guard so listeners re-register after login (fresh connection)
+    isListenersSetupRef.current = false;
     setupSocketListeners(currentDeviceId);
   };
 

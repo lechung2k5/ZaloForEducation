@@ -1,61 +1,109 @@
 import React, { useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Image, Vibration } from 'react-native';
 import { useGroupCallStore } from '../../store/groupCallStore';
-import { useGroupChime } from '../../hooks/useGroupChime';
-import { apiRequest } from '../../utils/api';
+import { apiPost } from '../../utils/api';
 import SocketService from '../../utils/socket';
 import { useAuth } from '../../context/AuthContext';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { playRingtone, stopAudio } from '../../utils/audioUtils';
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+import { Audio } from 'expo-av';
 
 const IncomingGroupCallModal = () => {
-  const { callState, convId, callId, callType, fromEmail, peerProfile, groupName, resetGroupCall } = useGroupCallStore();
-  const { setupSession } = useGroupChime() as any;
+  const { callState, convId, callId, callType, fromEmail, peerProfile, groupName, groupAvatar, resetGroupCall } = useGroupCallStore();
   const { user } = useAuth();
 
+  const ringtoneSound = React.useRef<any>(null);
+
   useEffect(() => {
+    let isMounted = true;
+    const playRing = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          staysActiveInBackground: true,
+          playThroughEarpieceAndroid: false,
+        });
+
+        if (ringtoneSound.current) {
+          await ringtoneSound.current.unloadAsync();
+        }
+
+        const { sound } = await Audio.Sound.createAsync(
+          require('../../../assets/audio_sound/ringtone.mp3'),
+          { shouldPlay: true, isLooping: true }
+        );
+        
+        if (isMounted) {
+          ringtoneSound.current = sound;
+        } else {
+          sound.unloadAsync();
+        }
+      } catch (err) {
+        console.warn('Error playing ringtone', err);
+      }
+    };
+
+    const stopRing = async () => {
+      if (ringtoneSound.current) {
+        try {
+          await ringtoneSound.current.stopAsync();
+          await ringtoneSound.current.unloadAsync();
+        } catch (err) {}
+        ringtoneSound.current = null;
+      }
+      Vibration.cancel();
+    };
+
     if (callState === 'RINGING') {
-      playRingtone();
+      playRing();
       Vibration.vibrate([1000, 2000, 1000, 2000], true);
     } else {
-      stopAudio();
+      stopRing();
+    }
+    
+    return () => {
+      isMounted = false;
+      stopRing();
       Vibration.cancel();
+    };
+  }, [callState]);
+
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    if (callState === 'RINGING') {
+      timeout = setTimeout(() => {
+        console.log('[IncomingGroupCall] Timeout after 60s');
+        handleDecline();
+      }, 60000);
     }
     return () => {
-      stopAudio();
-      Vibration.cancel();
+      if (timeout) clearTimeout(timeout);
     };
   }, [callState]);
 
   if (callState !== 'RINGING') return null;
 
   const handleAccept = async () => {
-    stopAudio();
+    if (ringtoneSound.current) {
+      ringtoneSound.current.stopAsync().catch(() => {});
+      ringtoneSound.current.unloadAsync().catch(() => {});
+      ringtoneSound.current = null;
+    }
     Vibration.cancel();
 
     try {
-      const res = await apiRequest(`/api/chat/group-call/join`, 'POST', {
-        convId,
+      const res = await apiPost('/group-call/join', {
+        conversationId: convId,
         callId
       });
 
       if (res.meeting && res.attendee) {
+        useGroupCallStore.getState().setMeetingData(res.meeting, res.attendee);
         useGroupCallStore.getState().startJoining(convId!, callId!, callType!);
-        
-        if (SocketService.socket && convId && callId) {
-          (SocketService.socket as any).emit('group_call:join', {
-            convId,
-            callId,
-            email: user?.email,
-            participant: {
-              email: user?.email,
-              name: user?.name,
-              avatar: user?.avatar,
-            }
-          });
+        if (res.participants) {
+          useGroupCallStore.getState().setParticipants(res.participants);
         }
-        
-        await setupSession(res.meeting, res.attendee);
       }
     } catch (e) {
       console.error('[IncomingGroupCall] Accept error:', e);
@@ -64,10 +112,14 @@ const IncomingGroupCallModal = () => {
   };
 
   const handleDecline = () => {
-    stopAudio();
+    if (ringtoneSound.current) {
+      ringtoneSound.current.stopAsync().catch(() => {});
+      ringtoneSound.current.unloadAsync().catch(() => {});
+      ringtoneSound.current = null;
+    }
     Vibration.cancel();
     if (SocketService.socket && convId && callId) {
-      (SocketService.socket as any).emit('group_call:decline', {
+      (SocketService.socket as any).emit('group-call:decline', {
         convId,
         callId,
         email: user?.email
@@ -76,7 +128,7 @@ const IncomingGroupCallModal = () => {
     resetGroupCall();
   };
 
-  const avatarSource = groupName ? null : peerProfile?.avatarUrl || peerProfile?.avatar;
+  const avatarSource = groupName ? groupAvatar : (peerProfile?.avatarUrl || peerProfile?.avatar);
   const displayName = groupName || peerProfile?.fullName || peerProfile?.name || fromEmail;
 
   return (
@@ -87,12 +139,12 @@ const IncomingGroupCallModal = () => {
             <Image source={{ uri: avatarSource }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
-              <Icon name="account-group" size={60} color="white" />
+              <Icon name={groupName ? "account-group" : "account"} size={60} color="white" />
             </View>
           )}
           <Text style={styles.name}>{displayName}</Text>
           <Text style={styles.status}>
-            {callType === 'video' ? 'Cuá»™c gá» i Video NhÃ³m Ä‘áº¿n...' : 'Cuá»™c gá» i Thoáº¡i NhÃ³m Ä‘áº¿n...'}
+            {callType === 'video' ? 'Cuộc gọi Video Nhóm đến...' : 'Cuộc gọi Thoại Nhóm đến...'}
           </Text>
         </View>
 

@@ -60,6 +60,19 @@ const IncomingGroupCallModal: React.FC = () => {
     resetGroupCall();
   };
 
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    if (callState === 'RINGING') {
+      timeout = setTimeout(() => {
+        console.log('[IncomingGroupCall] Timeout after 60s');
+        handleDecline();
+      }, 60000);
+    }
+    return () => {
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [callState]);
+
   if (callState !== 'RINGING') return null;
 
   return (

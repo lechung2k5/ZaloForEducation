@@ -67,6 +67,14 @@ export const useGroupChime = () => {
       const myId = normalizeAttendeeId(attendeeData.AttendeeId)?.toLowerCase();
       if (myId) {
         store.setScreenShare(myId, { stream: null, isSharing: false });
+        
+        // [FIX] Khởi tạo việc xóa tile ngay lập tức thay vì đợi AWS Chime SDK delay
+        const tileId = contentTileIdsRef.current.get(myId);
+        if (tileId !== undefined) {
+          store.removeRemoteTile(tileId);
+          delete groupRemoteVideoRefs.current[tileId];
+          contentTileIdsRef.current.delete(myId);
+        }
       }
     }
   };
@@ -263,11 +271,10 @@ export const useGroupChime = () => {
             attendeeId: attendeeData.AttendeeId.toLowerCase(),
             participant: {
               email: user.email,
-              name: user.fullName || user.email,
-              avatar: user.avatarUrl,
-              joinedAt: new Date().toISOString(),
-              lastSeenAt: Date.now(),
-            },
+              name: user.fullName || user.name,
+              avatar: user.avatarUrl || user.avatar,
+              status: 'connected',
+            }
           });
         }
 

@@ -29,6 +29,7 @@ interface GroupCallStore {
   isMinimized: boolean;
   meetingData: any | null;
   attendeeData: any | null;
+  localTileId: number | null;
 
   // Actions
   setIncomingGroupCall: (convId: string, callId: string, callType: string, fromEmail: string, peerProfile?: any, groupName?: string, groupAvatar?: string) => void;
@@ -39,6 +40,7 @@ interface GroupCallStore {
   removeParticipant: (attendeeId: string) => void;
   addVideoTile: (tile: any) => void;
   removeVideoTile: (tileId: number) => void;
+  setLocalTileId: (tileId: number | null) => void;
   resetGroupCall: () => void;
   toggleMinimized: (minimized?: boolean) => void;
   setMeetingData: (meetingData: any, attendeeData: any) => void;
@@ -60,6 +62,7 @@ export const useGroupCallStore = create<GroupCallStore>((set, get) => ({
   isMinimized: false,
   meetingData: null,
   attendeeData: null,
+  localTileId: null,
 
   setIncomingGroupCall: (convId, callId, callType, fromEmail, peerProfile, groupName, groupAvatar) => set({
     callState: 'RINGING',
@@ -144,8 +147,10 @@ export const useGroupCallStore = create<GroupCallStore>((set, get) => ({
 
   removeVideoTile: (tileId) =>
     set((state) => ({
-      videoTiles: state.videoTiles.filter(t => t.tileId !== tileId)
-    })),
+      videoTiles: get().videoTiles.filter(t => t.tileId !== tileId)
+  })),
+
+  setLocalTileId: (tileId) => set({ localTileId: tileId }),
 
   resetGroupCall: () => set({ 
     callState: 'IDLE', 
@@ -162,6 +167,7 @@ export const useGroupCallStore = create<GroupCallStore>((set, get) => ({
     isMinimized: false,
     meetingData: null,
     attendeeData: null,
+    localTileId: null
   }),
 
   toggleMinimized: (minimized) => set((state) => ({ 
@@ -182,14 +188,20 @@ export const useGroupCallStore = create<GroupCallStore>((set, get) => ({
     });
 
     try {
-      const { apiRequest } = require('../utils/api');
-      const res = await apiRequest("/api/chat/group-call/create", "POST", {
+      const { apiPost } = require('../utils/api');
+      const res = await apiPost('/group-call/create', {
         conversationId: convId,
         callId: callId,
         type: type,
         initiatorProfile: profile
       });
       get().setMeetingData(res.meeting || res.data?.meeting, res.attendee || res.data?.attendee);
+      
+      const participants = res.participants || res.data?.participants;
+      if (participants) {
+        get().setParticipants(participants);
+      }
+      
       return res;
     } catch (e) {
       console.error('[GroupCallStore] initiateGroupCall failed:', e);

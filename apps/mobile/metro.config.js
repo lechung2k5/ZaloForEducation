@@ -29,4 +29,20 @@ config.resolver.blockList = [
 // 6. Đảm bảo hỗ trợ New Architecture nếu cần
 config.resolver.disableHierarchicalLookup = false;
 
+// 7. [WEB FIX] Swap react-native-webrtc → web mock khi chạy trên browser.
+//    react-native-webrtc dùng requireNativeComponent, không tồn tại trên browser.
+const originalResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === 'react-native-webrtc' && platform === 'web') {
+    return {
+      filePath: path.resolve(projectRoot, 'src/mocks/react-native-webrtc.web.js'),
+      type: 'sourceFile',
+    };
+  }
+  if (originalResolveRequest) {
+    return originalResolveRequest(context, moduleName, platform);
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = config;

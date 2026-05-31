@@ -61,6 +61,24 @@ class SoundService {
     }
   }
 
+  async playHangupSound() {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../../assets/audio_sound/hangup.wav'),
+        { shouldPlay: true, isLooping: false }
+      );
+      
+      // Auto unload after playing
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync().catch(() => {});
+        }
+      });
+    } catch (error) {
+      console.log('[SoundService] playHangupSound error:', error);
+    }
+  }
+
   async stopAll() {
     await this.stopRingtone();
     await this.stopRingback();

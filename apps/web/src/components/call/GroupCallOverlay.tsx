@@ -128,6 +128,9 @@ const GroupCallOverlay: React.FC = () => {
     
     // 1. Add all active video tiles
     remoteTiles.forEach(tile => {
+      // Skip the local screen-share tile if we've already stopped sharing
+      if (tile.isLocal && tile.isContent && !isLocalScreenSharing) return;
+
       const attendeeId = (tile.attendeeId || "").toLowerCase();
       const p = participants[attendeeId];
 
@@ -463,10 +466,10 @@ const VideoTile: React.FC<{
   }, [item.isLocal, item.isContent, item.tileId, item.attendeeId, setLocalRef, setRemoteRef, setContentRef]);
 
   const displayName = item.isLocal 
-    ? (item.isContent ? 'Màn hình của bạn' : 'Bạn') 
+    ? 'Bạn'
     : (item.name || (item.email ? item.email.split('@')[0] : 'Người dùng'));
   
-  const finalName = item.isContent && !item.isLocal 
+  const finalName = item.isContent
     ? `${displayName} (Đang chia sẻ)` 
     : displayName;
 

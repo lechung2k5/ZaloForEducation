@@ -127,7 +127,7 @@ export default function LoginScreen({ onNavigate }: LoginProps) {
               />
             </View>
             <Text style={styles.brandTitle}>UniChat</Text>
-            <Text style={styles.brandSubtitle}>"+t('auth.brand_subtitle')+"</Text>
+            <Text style={styles.brandSubtitle}>{t('auth.brand_subtitle')}</Text>
           </View>
 
           <View style={styles.cardContainer}>

@@ -393,14 +393,6 @@ export default function HomeScreen({
               <Text style={styles.addMenuIcon}>group_add</Text>
               <Text style={styles.addMenuLabel}>{t('home.create_group')}</Text>
             </TouchableOpacity>
-
-            <View style={styles.addMenuDivider} />
-
-            <TouchableOpacity style={styles.addMenuItem}>
-              <Text style={styles.addMenuIcon}>videocam</Text>
-              <Text style={styles.addMenuLabel}>{t('home.create_group_call')}</Text>
-            </TouchableOpacity>
-
             <TouchableOpacity style={styles.addMenuItem}>
               <Text style={styles.addMenuIcon}>devices</Text>
               <Text style={styles.addMenuLabel}>{t('home.login_devices')}</Text>
