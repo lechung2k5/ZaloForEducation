@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
 # Copy root package.json for workspace definition
@@ -26,7 +26,7 @@ ENV VITE_API_URL=/api
 RUN npm run build -w apps/web
 
 # --- Production Image ---
-FROM node:20-alpine AS backend
+FROM node:20-bookworm-slim AS backend
 WORKDIR /app
 
 # Copy package.json and built node_modules
