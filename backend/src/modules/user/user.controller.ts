@@ -36,6 +36,12 @@ export class UserController {
 
   // ─── Avatar — chỉ cho phép upload qua S3, không nhận URL tùy ý ───────────
 
+  @Get('notifications')
+  @UseGuards(JwtAuthGuard)
+  async getNotifications(@Req() req) {
+    return this.userService.listNotifications(req.user.email);
+  }
+
   @Post('avatar/upload')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(FileInterceptor('file'))

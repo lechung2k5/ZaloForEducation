@@ -21,6 +21,7 @@ export interface User {
   createdAt: string;
   updatedAt: string;
   status: "active" | "suspended" | "LOCKED" | "DELETED";
+  role?: "admin" | "user";
   isActive: boolean;
   isDeleted?: boolean;
   deletedAt?: string;

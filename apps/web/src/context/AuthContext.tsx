@@ -6,7 +6,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-import api, { getApiUrl } from "../services/api";
+import api, { ensureFreshAccessToken, getApiUrl } from "../services/api";
 import { io } from "socket.io-client";
 import { getDeviceId, getDeviceInfo } from "../utils/device";
 import Swal from "sweetalert2";
@@ -112,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     window.location.href = "/login";
   }, []);
 
-  const setupSocket = useCallback((email: string) => {
+  const setupSocket = useCallback(async (email: string) => {
     // FIX 3: disconnect socket cũ trước khi tạo mới
     if (socketRef.current) {
       socketRef.current.disconnect();
@@ -120,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     const apiUrl = getApiUrl();
-    const token = localStorage.getItem("token");
+    const token = await ensureFreshAccessToken();
 
     const socketUrl = apiUrl === "/api" ? "/" : apiUrl;
 
@@ -227,6 +227,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     });
 
+    newSocket.on("notification:new", (data) => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("admin-notification-received", { detail: data }),
+        );
+      }
+
+      Swal.fire({
+        toast: true,
+        position: "top-end",
+        icon: "info",
+        title: data?.title || "Thong bao moi",
+        text: data?.body || "Ban vua nhan mot thong bao moi.",
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true,
+      });
+    });
+
     // FIX 2: lưu vào ref để quản lý lifecycle
     socketRef.current = newSocket;
     setSocket(newSocket);
@@ -244,6 +263,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           const parsedUser = JSON.parse(savedUser);
           setUser(parsedUser);
           setupSocket(parsedUser.email);
+          api.get("/auth/me").then((res) => {
+            if (res.data.profile) {
+              setUser(res.data.profile);
+              localStorage.setItem("user", JSON.stringify(res.data.profile));
+            }
+          }).catch(() => undefined);
         } catch (e) {
           console.error("Failed to parse saved user:", e);
         }

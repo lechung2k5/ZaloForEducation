@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Req, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Req, Param, Delete, Headers, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterRequestDto, LoginRequestDto } from '@zalo-edu/shared';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -89,10 +89,12 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @UseGuards(JwtAuthGuard)
-  async refresh(@Req() req) {
-    const { email, deviceId } = req.user;
-    return this.authService.refreshToken(email, deviceId);
+  async refresh(@Headers('authorization') authorization?: string) {
+    const [type, token] = authorization?.split(' ') ?? [];
+    if (type !== 'Bearer' || !token) {
+      throw new UnauthorizedException('Khong tim thay token de lam moi.');
+    }
+    return this.authService.refreshAccessToken(token);
   }
 
   @Post('logout')

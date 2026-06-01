@@ -11,7 +11,8 @@ import {
   Settings, 
   User, 
   LogOut,
-  Bot
+  Bot,
+  ShieldCheck
 } from 'lucide-react';
 
 const Sidebar: React.FC = () => {
@@ -58,6 +59,7 @@ const Sidebar: React.FC = () => {
 
   const hasUnreadMessages = conversations.some(conv => !isBotConversation(conv) && isUnread(conv, user?.email));
   const hasBotUnread = conversations.some(conv => isBotConversation(conv) && isUnread(conv, user?.email));
+  const isAdmin = String(user?.role || '').toLowerCase() === 'admin';
   
   const totalUnreadCount = conversations.reduce((acc, c) => {
     if (isBotConversation(c) || c.isMuted) return acc;
@@ -74,6 +76,7 @@ const Sidebar: React.FC = () => {
     { id: 'contacts', icon: Users, label: t('sidebar.contacts'), path: '/contacts', hasBadge: pendingFriendRequestsCount > 0, count: pendingFriendRequestsCount },
     { id: 'notifications', icon: Bell, label: t('sidebar.notifications'), path: '/notifications', hasBadge: false },
     { id: 'bot', icon: Bot, label: t('sidebar.bot'), path: '/bot', hasBadge: hasBotUnread, count: botUnreadCount },
+    ...(isAdmin ? [{ id: 'admin', icon: ShieldCheck, label: 'Admin', path: '/admin', hasBadge: false }] : []),
   ];
 
   const handleNavClick = (id: string) => {
