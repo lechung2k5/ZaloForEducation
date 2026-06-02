@@ -8,15 +8,20 @@ interface BlockedListProps {
   profileMap: Record<string, any>;
   onUnblock: (email: string) => void;
   searchText: string;
+  myEmail?: string;
 }
 
-export const BlockedList = ({ blockedUsers, profileMap, onUnblock, searchText }: BlockedListProps) => {
+export const BlockedList = ({ blockedUsers, profileMap, onUnblock, searchText, myEmail }: BlockedListProps) => {
   const { t, colors } = useTheme();
   const styles = getContactsStyles(colors);;
   const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
   
   const filtered = blockedUsers.filter(item => {
-    const email = String(item.friend_email || item.blockedEmail || item.email || "").toLowerCase();
+    const email = String(
+      myEmail 
+        ? (item.sender_id === myEmail ? item.receiver_id : item.sender_id) 
+        : (item.friend_email || item.blockedEmail || item.email || item.receiver_id || "")
+    ).toLowerCase();
     const profile = profileMap[email] || {};
     const name = (profile.fullName || profile.fullname || email).toLowerCase();
     const q = searchText.toLowerCase();
@@ -39,7 +44,11 @@ export const BlockedList = ({ blockedUsers, profileMap, onUnblock, searchText }:
         <Text style={styles.groupHeaderText}>DANH SÁCH CHẶN ({filtered.length})</Text>
       </View>
       {filtered.map((item, idx) => {
-        const email = String(item.friend_email || item.blockedEmail || item.email || "").toLowerCase();
+        const email = String(
+          myEmail 
+            ? (item.sender_id === myEmail ? item.receiver_id : item.sender_id) 
+            : (item.friend_email || item.blockedEmail || item.email || item.receiver_id || "")
+        ).toLowerCase();
         const profile = profileMap[email] || {};
         const name = profile.fullName || profile.fullname || email;
         const avatar = profile.avatarUrl || DEFAULT_AVATAR;

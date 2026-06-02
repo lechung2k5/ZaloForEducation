@@ -4,7 +4,8 @@ import api from '../services/api';
 export interface Friendship {
   sender_id: string;
   receiver_id: string;
-  status: 'pending' | 'accepted';
+  status: 'pending' | 'accepted' | 'blocked';
+  blockedBy?: string;
 }
 
 export const useFriendships = () => {
@@ -25,6 +26,15 @@ export const useFriendships = () => {
 
   useEffect(() => {
     fetchFriendships();
+
+    const handleFriendshipUpdate = () => {
+      fetchFriendships();
+    };
+
+    window.addEventListener("friendship-updated", handleFriendshipUpdate);
+    return () => {
+      window.removeEventListener("friendship-updated", handleFriendshipUpdate);
+    };
   }, []);
 
   const acceptedFriends = friendships
@@ -33,10 +43,14 @@ export const useFriendships = () => {
   const pendingFriends = friendships
     .filter((f) => f.status === 'pending');
 
+  const blockedFriendships = friendships
+    .filter((f) => f.status === 'blocked');
+
   return {
     friendships,
     acceptedFriends,
     pendingFriends,
+    blockedFriendships,
     loading,
     refreshFriendships: fetchFriendships
   };

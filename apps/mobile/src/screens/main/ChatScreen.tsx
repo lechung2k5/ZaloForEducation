@@ -146,6 +146,7 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
   const [isPollModalOpen, setIsPollModalOpen] = useState(false);
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
   const [wallpaperId, setWallpaperId] = useState<ChatWallpaperId>(DEFAULT_CHAT_WALLPAPER_ID);
+  const [blockedFriendships, setBlockedFriendships] = useState<any[]>([]);
 
   useEffect(() => {
     if (conversationId) setCurrentConvId(conversationId);
@@ -471,7 +472,20 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
 
     initChat();
 
+    const reloadBlockStatus = async () => {
+      try {
+        const res = await chatGet('/friends');
+        if (res.ok && res.data) {
+          setBlockedFriendships(res.data.filter((f: any) => f.status === 'blocked'));
+        }
+      } catch (err) {}
+    };
+    reloadBlockStatus();
+
+    SocketService.on("friendship_updated", reloadBlockStatus);
+
     return () => {
+      SocketService.off("friendship_updated", reloadBlockStatus);
       const idToLeave = currentConvId || conversationId;
       if (SocketService.socket && idToLeave) {
         SocketService.socket.emit("leave_room", { convId: idToLeave });
@@ -1051,6 +1065,12 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
             ? (partnerProfile?.statusMessage || partnerProfile?.currentStatus || (isOnline ? "Đang hoạt động" : "Vừa mới truy cập")) 
             : `${selectedChat?.members?.length || 0} thành viên`));
 
+  const blockedRelation = partner 
+    ? blockedFriendships.find((f: any) => normalizeEmail(f.sender_id) === normalizeEmail(partner) || normalizeEmail(f.receiver_id) === normalizeEmail(partner))
+    : null;
+  const isBlocked = !!blockedRelation;
+  const iBlockedThem = blockedRelation?.blockedBy === user?.email;
+
   return (
     <View style={{ flex: 1, flexDirection: 'row', backgroundColor: '#fff' }}>
       
@@ -1261,20 +1281,48 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
         </View>
           </View>
 
-          <ChatInput 
-            key={`input-${selectedChat.id}`} 
-            onSendMessage={handleChatSend} 
-            replyTarget={replyTarget} 
-            onClearReply={() => setReplyTarget(null)}
-            onTyping={() => { if (SocketService.socket && selectedChat.id && !typingTimeoutRef.current) { SocketService.socket.emit("typing", { convId: selectedChat.id, isTyping: true }); typingTimeoutRef.current = setTimeout(() => { typingTimeoutRef.current = null; }, 2000); } }}
-            onOpenPollModal={() => setIsPollModalOpen(true)}
-            onOpenReminderModal={() => setIsReminderModalOpen(true)}
-            isBot={isBot}
-            conversationType={selectedChat?.type}
-            members={selectedChat?.members || []}
-            userProfiles={userProfiles}
-            currentUserEmail={user?.email || currentUserEmail}
-          />
+          {isBlocked ? (
+            <View style={{ padding: 16, backgroundColor: isDark ? '#1e293b' : '#f8fafc', borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#e2e8f0', alignItems: 'center', paddingBottom: Math.max(insets.bottom, 16) }}>
+              <Text style={{ fontSize: 14, color: isDark ? '#94a3b8' : '#64748b', textAlign: 'center', marginBottom: iBlockedThem ? 12 : 0 }}>
+                {iBlockedThem ? "Bạn đã chặn người dùng này. Bạn sẽ không thể gửi tin nhắn cho họ." : "Người dùng này không thể nhận tin nhắn lúc này."}
+              </Text>
+              {iBlockedThem && (
+                <TouchableOpacity
+                  style={{ backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 }}
+                  onPress={async () => {
+                    try {
+                      const res = await chatPost('/friends/unblock', { targetEmail: partner });
+                      if (res.ok) {
+                        setBlockedFriendships(prev => prev.filter(f => normalizeEmail(f.sender_id) !== normalizeEmail(partner) && normalizeEmail(f.receiver_id) !== normalizeEmail(partner)));
+                        Alert.alert("Thành công", "Đã bỏ chặn người dùng.");
+                      } else {
+                        Alert.alert("Lỗi", "Không thể bỏ chặn.");
+                      }
+                    } catch (err) {
+                      Alert.alert("Lỗi", "Không thể bỏ chặn.");
+                    }
+                  }}
+                >
+                  <Text style={{ color: 'white', fontWeight: 'bold' }}>Bỏ chặn</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <ChatInput 
+              key={`input-${selectedChat.id}`} 
+              onSendMessage={handleChatSend} 
+              replyTarget={replyTarget} 
+              onClearReply={() => setReplyTarget(null)}
+              onTyping={() => { if (SocketService.socket && selectedChat.id && !typingTimeoutRef.current) { SocketService.socket.emit("typing", { convId: selectedChat.id, isTyping: true }); typingTimeoutRef.current = setTimeout(() => { typingTimeoutRef.current = null; }, 2000); } }}
+              onOpenPollModal={() => setIsPollModalOpen(true)}
+              onOpenReminderModal={() => setIsReminderModalOpen(true)}
+              isBot={isBot}
+              conversationType={selectedChat?.type}
+              members={selectedChat?.members || []}
+              userProfiles={userProfiles}
+              currentUserEmail={user?.email || currentUserEmail}
+            />
+          )}
 
         {/* TARGETING MESSAGE OVERLAY */}
         {isLoadingMessages && targetMessageId && (

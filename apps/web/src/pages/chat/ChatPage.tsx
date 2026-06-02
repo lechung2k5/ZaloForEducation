@@ -19,6 +19,7 @@ import { getMessageTimeContext, getDisplayName } from "../../utils/chatUtils";
 import type { Attachment } from "../../utils/chatUtils";
 import { useGroupSocketListeners } from "../../hooks/useGroupSocketListeners";
 import { useGroupCallStore } from "../../store/groupCallStore";
+import { useFriendships } from "../../hooks/useFriendships";
 import type { Message } from "@zalo-edu/shared";
 import { useTheme } from "../../context/ThemeContext";
 import {
@@ -81,6 +82,13 @@ const ChatPage: React.FC = () => {
       : undefined;
 
   const isBot = partnerEmail?.toLowerCase() === 'bot@UniChat.system';
+
+  const { blockedFriendships } = useFriendships();
+  const blockedRelation = partnerEmail
+    ? blockedFriendships.find((f) => f.sender_id === partnerEmail || f.receiver_id === partnerEmail)
+    : null;
+  const isBlocked = !!blockedRelation;
+  const iBlockedThem = blockedRelation?.blockedBy === user?.email;
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -780,16 +788,40 @@ const ChatPage: React.FC = () => {
               </div>
             </div>
 
-            <ChatInput
-              onSendMessage={handleSendMessage}
-              onSendContactCard={handleSendContactCard}
-              onSendLocation={handleSendLocation}
-              replyTarget={replyTarget}
-              onClearReply={() => setReplyTarget(null)}
-              onOpenPollModal={() => setIsPollModalOpen(true)}
-              onOpenReminderModal={() => setIsReminderModalOpen(true)}
-              isBot={isBot}
-            />
+            {isBlocked ? (
+              <div className="p-4 bg-surface-container-low border-t border-outline-variant/10 text-center flex flex-col items-center justify-center space-y-3">
+                <p className="text-sm font-medium text-on-surface-variant">
+                  {iBlockedThem ? "Bạn đã chặn người dùng này. Bạn sẽ không thể gửi tin nhắn cho họ." : "Người dùng này không thể nhận tin nhắn lúc này."}
+                </p>
+                {iBlockedThem && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const api = (await import('../../services/api')).default;
+                        await api.post('/chat/friends/unblock', { targetEmail: partnerEmail });
+                      } catch (err) {
+                        Swal.fire("Lỗi", "Không thể bỏ chặn.", "error");
+                      }
+                    }}
+                    className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-sm hover:opacity-90"
+                  >
+                    Bỏ chặn
+                  </button>
+                )}
+              </div>
+            ) : (
+              <ChatInput
+                onSendMessage={handleSendMessage}
+                onSendContactCard={handleSendContactCard}
+                onSendLocation={handleSendLocation}
+                replyTarget={replyTarget}
+                onClearReply={() => setReplyTarget(null)}
+                onOpenPollModal={() => setIsPollModalOpen(true)}
+                onOpenReminderModal={() => setIsReminderModalOpen(true)}
+                isBot={isBot}
+              />
+            )}
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center bg-gradient-to-br from-surface-container-lowest to-surface-container-low">

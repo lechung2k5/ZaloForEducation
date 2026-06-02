@@ -998,31 +998,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
             </div>
           )}
 
-          {!isBot && (
+          {!isBot && activeChat?.type === "group" && (
             <>
               <div className="w-px h-4 bg-outline-variant/35 mx-0.5" />
 
-              <button
-                type="button"
-                className="w-8 h-8 rounded-md flex items-center justify-center text-primary hover:bg-primary/10"
-                title="Cắt ảnh (sắp có)"
-              >
-                <Crop size={16} />
-              </button>
-              <button
-                type="button"
-                className="w-8 h-8 rounded-md flex items-center justify-center text-primary hover:bg-primary/10"
-                title="Ghi chú ảnh (sắp có)"
-              >
-                <PenTool size={16} />
-              </button>
-              <button
-                type="button"
-                className="w-8 h-8 rounded-md flex items-center justify-center text-primary hover:bg-primary/10"
-                title="Tin nhắn nhanh (sắp có)"
-              >
-                <CreditCard size={16} />
-              </button>
               <div className="relative">
                 <button
                   type="button"

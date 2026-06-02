@@ -374,6 +374,7 @@ export default function ContactsScreen({
             profileMap={profileMap}
             onUnblock={handleUnblock}
             searchText={searchText}
+            myEmail={user?.email}
           />
         )}
       </ScrollView>

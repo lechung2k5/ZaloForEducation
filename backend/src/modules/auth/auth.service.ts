@@ -54,7 +54,29 @@ export class AuthService {
       "1094444929007-avg6u84ak9i7n9ggnc543e1prb4otv9g.apps.googleusercontent.com",
   );
 
+  private requireString(value: any, message: string) {
+    if (typeof value !== "string" || value.trim() === "") {
+      throw new BadRequestException(message);
+    }
+    return value.trim();
+  }
+
+  private normalizeEmail(email: any) {
+    return this.requireString(email, "Email khong hop le.").toLowerCase();
+  }
+
+  private async comparePassword(plainPassword: any, passwordHash: any) {
+    const password = this.requireString(plainPassword, "Mat khau khong hop le.");
+    if (typeof passwordHash !== "string" || passwordHash.trim() === "") {
+      throw new BadRequestException(
+        "Tai khoan nay chua co mat khau. Vui long dat lai mat khau hoac dang nhap bang Google.",
+      );
+    }
+    return bcrypt.compare(password, passwordHash);
+  }
+
   private validatePassword(password: string) {
+    password = this.requireString(password, "Mat khau khong hop le.");
     const passwordRegex =
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(password)) {
@@ -65,6 +87,9 @@ export class AuthService {
   }
 
   private validateRegistrationData(dto: RegisterRequestDto) {
+    if (!dto) {
+      throw new BadRequestException("Du lieu dang ky khong hop le.");
+    }
     if (!dto.phone || !/^(0|84)(3|5|7|8|9)([0-9]{8})$/.test(dto.phone)) {
       throw new BadRequestException(
         "Số điện thoại không hợp lệ. Vui lòng nhập SĐT Việt Nam.",
@@ -85,6 +110,7 @@ export class AuthService {
   }
 
   async requestRegisterOtp(email: string) {
+    email = this.normalizeEmail(email);
     await this.otpLimiterService.checkCooldown(email, "register");
     const existingUser = await this.db.docClient.send(
       new GetCommand({
@@ -117,6 +143,7 @@ export class AuthService {
 
   async confirmRegister(dto: RegisterRequestDto) {
     this.validateRegistrationData(dto);
+    dto.email = this.normalizeEmail(dto.email);
     await this.otpService.verifyOtp(dto.email, dto.otp);
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
@@ -152,10 +179,14 @@ export class AuthService {
   }
 
   async login(dto: LoginRequestDto) {
+    if (!dto) {
+      throw new BadRequestException("Du lieu dang nhap khong hop le.");
+    }
+    const email = this.normalizeEmail(dto.email);
     const result = await this.db.docClient.send(
       new GetCommand({
         TableName: this.db.tableName,
-        Key: { PK: `USER#${dto.email}`, SK: "METADATA" },
+        Key: { PK: `USER#${email}`, SK: "METADATA" },
       }),
     );
 
@@ -176,13 +207,10 @@ export class AuthService {
       );
     }
 
-    const isPasswordValid = await bcrypt.compare(
-      dto.password,
-      user.passwordHash,
-    );
+    const isPasswordValid = await this.comparePassword(dto.password, user.passwordHash);
 
     // RULE 3: Failed Login Attempts tracking
-    const failKey = `login_fail:${dto.email}`;
+    const failKey = `login_fail:${email}`;
     if (!isPasswordValid) {
       const fails = await this.redisService.incr(failKey);
       await this.redisService.expire(failKey, 3600); // 1 hour TTL
@@ -324,6 +352,7 @@ export class AuthService {
   }
 
   async forgotPasswordRequestOtp(email: string) {
+    email = this.normalizeEmail(email);
     await this.otpLimiterService.checkCooldown(email, "forgot_password");
     const result = await this.db.docClient.send(
       new GetCommand({
@@ -348,6 +377,8 @@ export class AuthService {
   }
 
   async forgotPasswordVerifyOtp(email: string, otp: string) {
+    email = this.normalizeEmail(email);
+    otp = this.requireString(otp, "Ma OTP khong hop le.");
     const savedCode = await this.otpService.getOtp(email);
 
     if (!savedCode || savedCode !== otp) {
@@ -358,6 +389,8 @@ export class AuthService {
   }
 
   async resetPassword(email: string, otp: string, newPassword: string) {
+    email = this.normalizeEmail(email);
+    otp = this.requireString(otp, "Ma OTP khong hop le.");
     this.validatePassword(newPassword);
     await this.otpService.verifyOtp(email, otp);
 
@@ -525,6 +558,7 @@ export class AuthService {
   // ===== KHÓA TÀI KHOẢN =====
 
   async requestLockAccount(email: string, currentPassword: string) {
+    email = this.normalizeEmail(email);
     // 1. Lấy user
     const result = await this.db.docClient.send(
       new GetCommand({
@@ -536,10 +570,7 @@ export class AuthService {
     if (!user) throw new BadRequestException("Người dùng không tồn tại.");
 
     // 2. Kiểm tra mật khẩu hiện tại
-    const isPasswordValid = await bcrypt.compare(
-      currentPassword,
-      user.passwordHash,
-    );
+    const isPasswordValid = await this.comparePassword(currentPassword, user.passwordHash);
     if (!isPasswordValid) {
       throw new BadRequestException("Mật khẩu không chính xác.");
     }
@@ -557,6 +588,8 @@ export class AuthService {
   }
 
   async confirmLockAccount(email: string, otp: string) {
+    email = this.normalizeEmail(email);
+    otp = this.requireString(otp, "Ma OTP khong hop le.");
     // 1. Xác thực OTP
     await this.otpService.verifyOtp(email, otp);
 
@@ -588,6 +621,7 @@ export class AuthService {
   // ===== XÓA TÀI KHOẢN =====
 
   async requestDeleteAccount(email: string, currentPassword: string) {
+    email = this.normalizeEmail(email);
     // 1. Lấy user
     const result = await this.db.docClient.send(
       new GetCommand({
@@ -599,10 +633,7 @@ export class AuthService {
     if (!user) throw new BadRequestException("Người dùng không tồn tại.");
 
     // 2. Kiểm tra mật khẩu hiện tại
-    const isPasswordValid = await bcrypt.compare(
-      currentPassword,
-      user.passwordHash,
-    );
+    const isPasswordValid = await this.comparePassword(currentPassword, user.passwordHash);
     if (!isPasswordValid) {
       throw new BadRequestException("Mật khẩu không chính xác.");
     }
@@ -623,6 +654,8 @@ export class AuthService {
   }
 
   async confirmDeleteAccount(email: string, otp: string) {
+    email = this.normalizeEmail(email);
+    otp = this.requireString(otp, "Ma OTP khong hop le.");
     // 1. Xác thực OTP
     await this.otpService.verifyOtp(email, otp);
 
@@ -640,6 +673,7 @@ export class AuthService {
     currentPassword: string,
     newPassword: string,
   ) {
+    email = this.normalizeEmail(email);
     // 1. Lấy thông tin User
     const result = await this.db.docClient.send(
       new GetCommand({
@@ -652,10 +686,7 @@ export class AuthService {
     if (!user) throw new BadRequestException("Người dùng không tồn tại.");
 
     // 2. Kiểm tra mật khẩu hiện tại
-    const isPasswordValid = await bcrypt.compare(
-      currentPassword,
-      user.passwordHash,
-    );
+    const isPasswordValid = await this.comparePassword(currentPassword, user.passwordHash);
     if (!isPasswordValid) {
       throw new BadRequestException("Mật khẩu hiện tại không chính xác.");
     }
@@ -680,6 +711,8 @@ export class AuthService {
   }
 
   async confirmChangePassword(email: string, otp: string) {
+    email = this.normalizeEmail(email);
+    otp = this.requireString(otp, "Ma OTP khong hop le.");
     // 1. Xác thực OTP
     await this.otpService.verifyOtp(email, otp);
 
@@ -757,6 +790,7 @@ export class AuthService {
     email: string,
     type: "register" | "forgot_password" | "login",
   ) {
+    email = this.normalizeEmail(email);
     await this.otpLimiterService.checkCooldown(email, type);
     const code = await this.otpService.createOtp(email, type as any);
     await this.emailService.sendOtp(email, code, type as any);
@@ -764,11 +798,15 @@ export class AuthService {
   }
 
   async verifyOtpGeneric(email: string, otp: string) {
+    email = this.normalizeEmail(email);
+    otp = this.requireString(otp, "Ma OTP khong hop le.");
     await this.otpService.verifyOtp(email, otp);
     return { message: "Xác thực mã OTP thành công." };
   }
 
   async refreshToken(email: string, deviceId: string) {
+    email = this.normalizeEmail(email);
+    deviceId = this.requireString(deviceId, "Thiet bi dang nhap khong hop le.");
     const session = await this.sessionService.getSession(email, deviceId);
 
     if (!session) {
@@ -782,6 +820,7 @@ export class AuthService {
   }
 
   async testEmail(email: string) {
+    email = this.normalizeEmail(email);
     await this.emailService.sendMail(
       email,
       "UniChat - Test Email Configuration",
@@ -804,6 +843,8 @@ export class AuthService {
     qrCodeId: string,
     isBiometricVerified?: boolean,
   ) {
+    email = this.normalizeEmail(email);
+    qrCodeId = this.requireString(qrCodeId, "Ma QR khong hop le.");
     const redisKey = `qr_login:${qrCodeId}`;
     const status = await this.redisService.get(redisKey);
 
@@ -1194,6 +1235,7 @@ export class AuthService {
   // ===== LUỒNG XÓA TÀI KHOẢN KHI ĐANG BỊ KHÓA (LOCKED DELETION) =====
 
   async requestDeleteLockedAccount(email: string, currentPassword: string) {
+    email = this.normalizeEmail(email);
     // 1. Lấy thông tin User
     const result = await this.db.docClient.send(
       new GetCommand({
@@ -1205,10 +1247,7 @@ export class AuthService {
     if (!user) throw new BadRequestException("Tài khoản không tồn tại.");
 
     // 2. Kiểm tra mật khẩu (để đảm bảo chính chủ yêu cầu)
-    const isPasswordValid = await bcrypt.compare(
-      currentPassword,
-      user.passwordHash,
-    );
+    const isPasswordValid = await this.comparePassword(currentPassword, user.passwordHash);
     if (!isPasswordValid) {
       throw new BadRequestException("Mật khẩu không chính xác.");
     }
@@ -1229,6 +1268,8 @@ export class AuthService {
   }
 
   async confirmDeleteLockedAccount(email: string, otp: string) {
+    email = this.normalizeEmail(email);
+    otp = this.requireString(otp, "Ma OTP khong hop le.");
     // 1. Xác thực OTP
     await this.otpService.verifyOtp(email, otp);
 

@@ -19,8 +19,8 @@ import ConfirmDialog from "../../components/contacts/ConfirmDialog";
 import PromptDialog from "../../components/contacts/PromptDialog";
 import UserProfileModal from "../../components/contacts/UserProfileModal";
 
-type ContactsFilter = "all" | "with-nickname" | "without-nickname" | "blocked";
-type SidebarSection = "friends" | "groups" | "requests" | "invitations";
+type ContactsFilter = "all" | "with-nickname" | "without-nickname";
+type SidebarSection = "friends" | "groups" | "requests" | "invitations" | "blocked";
 
 type ChatUserProfile = {
   email: string;
@@ -112,7 +112,6 @@ const ContactsPage: React.FC = () => {
     all: t("contacts.filter_all"),
     "with-nickname": t("contacts.filter_nickname"),
     "without-nickname": t("contacts.filter_no_nickname"),
-    blocked: t("contacts.filter_blocked"),
   };
   const [hiddenSuggestionEmails, setHiddenSuggestionEmails] = useState<
     string[]
@@ -246,7 +245,7 @@ const ContactsPage: React.FC = () => {
       }
 
       nextFriendships
-        .filter((item: Friendship) => item.status === "accepted")
+        .filter((item: Friendship) => item.status === "accepted" || item.status === "blocked")
         .forEach((item: Friendship) => {
           const friendEmail =
             item.sender_id === myEmail ? item.receiver_id : item.sender_id;
@@ -472,7 +471,7 @@ const ContactsPage: React.FC = () => {
   ]);
 
   const groupedContacts = useMemo(() => {
-    const visible = filter === "blocked" ? blockedContacts : acceptedContacts;
+    const visible = sidebarSection === "blocked" ? blockedContacts : acceptedContacts;
     const groups = new Map<string, typeof visible>();
 
     for (const contact of visible) {
@@ -498,7 +497,7 @@ const ContactsPage: React.FC = () => {
             : right.displayName.localeCompare(left.displayName, "vi"),
         ),
       }));
-  }, [acceptedContacts, blockedContacts, filter, sortOrder]);
+  }, [acceptedContacts, blockedContacts, sidebarSection, sortOrder]);
 
   const groupConversations = useMemo(
     () => conversations.filter((conversation) => conversation.type === "group"),
@@ -795,6 +794,12 @@ const ContactsPage: React.FC = () => {
               "mail",
               0,
             )}
+            {renderSidebarItem(
+              "Danh sách chặn",
+              "blocked",
+              "block",
+              blockedContacts.length,
+            )}
           </div>
         </div>
       </aside>
@@ -817,15 +822,15 @@ const ContactsPage: React.FC = () => {
           </header>
 
           <div className="flex-1 overflow-y-auto p-6">
-            {sidebarSection === "friends" && (
+            {(sidebarSection === "friends" || sidebarSection === "blocked") && (
               <section className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-[22px] font-black text-on-surface">
-                      {t("contacts.title")} ({activeFriendCount})
+                      {sidebarSection === "friends" ? `${t("contacts.title")} (${activeFriendCount})` : `Danh sách chặn (${blockedContacts.length})`}
                     </h2>
                     <p className="mt-1 text-[13px] text-on-surface-variant">
-                      {t("contacts.description")}
+                      {sidebarSection === "friends" ? t("contacts.description") : "Những người bạn đã chặn sẽ hiển thị ở đây."}
                     </p>
                   </div>
                 </div>
@@ -853,43 +858,44 @@ const ContactsPage: React.FC = () => {
                       {t("contacts.sort_name")} ({sortOrder === "asc" ? "A-Z" : "Z-A"})
                     </button>
 
-                    <div className="relative" ref={dropdownRef}>
-                      <button
-                        onClick={() => setFilterMenuOpen((prev) => !prev)}
-                        className="flex min-w-45 items-center justify-between rounded-2xl border border-outline-variant/25 bg-white px-4 py-2.5 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/30"
-                      >
-                        <span>{t("contacts.filter")}: {FILTER_LABELS[filter] || filter}</span>
-                        <span className="material-symbols-outlined text-[18px]">
-                          expand_more
-                        </span>
-                      </button>
-                      {filterMenuOpen && (
-                        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 overflow-hidden rounded-2xl border border-outline-variant/20 bg-white shadow-xl">
-                          {[
-                            ["all", "Tất cả"],
-                            ["with-nickname", "Có biệt danh"],
-                            ["without-nickname", "Không có biệt danh"],
-                            ["blocked", "Đã chặn"],
-                          ].map(([value, label]) => (
-                            <button
-                              key={value}
-                              onClick={() => {
-                                setFilter(value as ContactsFilter);
-                                setFilterMenuOpen(false);
-                              }}
-                              className={`flex w-full items-center justify-between px-4 py-3 text-left text-[13px] transition-colors hover:bg-surface-container ${filter === value ? "text-primary" : "text-on-surface"}`}
-                            >
-                              <span>{label}</span>
-                              {filter === value && (
-                                <span className="material-symbols-outlined text-[18px]">
-                                  check
-                                </span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    {sidebarSection === "friends" && (
+                      <div className="relative" ref={dropdownRef}>
+                        <button
+                          onClick={() => setFilterMenuOpen((prev) => !prev)}
+                          className="flex min-w-45 items-center justify-between rounded-2xl border border-outline-variant/25 bg-white px-4 py-2.5 text-[12px] font-bold text-on-surface transition-colors hover:border-primary/30"
+                        >
+                          <span>{t("contacts.filter")}: {FILTER_LABELS[filter] || filter}</span>
+                          <span className="material-symbols-outlined text-[18px]">
+                            expand_more
+                          </span>
+                        </button>
+                        {filterMenuOpen && (
+                          <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-52 overflow-hidden rounded-2xl border border-outline-variant/20 bg-white shadow-xl">
+                            {[
+                              ["all", "Tất cả"],
+                              ["with-nickname", "Có biệt danh"],
+                              ["without-nickname", "Không có biệt danh"],
+                            ].map(([value, label]) => (
+                              <button
+                                key={value}
+                                onClick={() => {
+                                  setFilter(value as ContactsFilter);
+                                  setFilterMenuOpen(false);
+                                }}
+                                className={`flex w-full items-center justify-between px-4 py-3 text-left text-[13px] transition-colors hover:bg-surface-container ${filter === value ? "text-primary" : "text-on-surface"}`}
+                              >
+                                <span>{label}</span>
+                                {filter === value && (
+                                  <span className="material-symbols-outlined text-[18px]">
+                                    check
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
