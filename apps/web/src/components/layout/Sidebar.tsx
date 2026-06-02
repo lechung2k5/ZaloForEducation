@@ -66,14 +66,23 @@ const Sidebar: React.FC = () => {
       }
     };
 
+    const handleAdminNotificationReceived = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.id && detail?.read !== true) {
+        setNotificationUnreadCount((count) => count + 1);
+      }
+
+      void syncNotificationUnread();
+    };
+
     syncNotificationUnread();
     window.addEventListener('security-alerts-updated', syncNotificationUnread);
-    window.addEventListener('admin-notification-received', syncNotificationUnread);
+    window.addEventListener('admin-notification-received', handleAdminNotificationReceived);
 
     return () => {
       cancelled = true;
       window.removeEventListener('security-alerts-updated', syncNotificationUnread);
-      window.removeEventListener('admin-notification-received', syncNotificationUnread);
+      window.removeEventListener('admin-notification-received', handleAdminNotificationReceived);
     };
   }, [user?.email]);
 

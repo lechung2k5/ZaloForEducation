@@ -375,11 +375,13 @@ export class AdminService {
           },
         }),
       );
-      this.chatGateway.server.to(`user:${email}`).emit("notification:new", {
+      const userRoom = `user#${email.toLowerCase()}`;
+      this.chatGateway.server.to(userRoom).emit("notification:new", {
         id,
         title,
         body,
         type: "admin",
+        read: false,
         sentAt: now,
       });
     }
