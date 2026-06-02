@@ -76,7 +76,7 @@ const Sidebar: React.FC = () => {
     { id: 'contacts', icon: Users, label: t('sidebar.contacts'), path: '/contacts', hasBadge: pendingFriendRequestsCount > 0, count: pendingFriendRequestsCount },
     { id: 'notifications', icon: Bell, label: t('sidebar.notifications'), path: '/notifications', hasBadge: false },
     { id: 'bot', icon: Bot, label: t('sidebar.bot'), path: '/bot', hasBadge: hasBotUnread, count: botUnreadCount },
-    ...(isAdmin ? [{ id: 'admin', icon: ShieldCheck, label: 'Admin', path: '/admin', hasBadge: false }] : []),
+    ...(isAdmin ? [{ id: 'admin', icon: ShieldCheck, label: 'Quản trị', path: '/admin', hasBadge: false }] : []),
   ];
 
   const handleNavClick = (id: string) => {

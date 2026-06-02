@@ -78,7 +78,7 @@ const formatDate = (value?: string) => {
 
 const errorMessage = (error: unknown) => {
   const err = error as { response?: { data?: { message?: string } }; message?: string };
-  return err.response?.data?.message || err.message || "Thao tac that bai.";
+  return err.response?.data?.message || err.message || "Thao tác thất bại.";
 };
 
 const AdminPage: React.FC = () => {
@@ -141,10 +141,10 @@ const AdminPage: React.FC = () => {
     value: number;
     Icon: React.ElementType;
   }> = [
-    { label: "Tong user", value: statistics?.userCount ?? 0, Icon: Users },
-    { label: "Dang hoat dong", value: statistics?.activeUserCount ?? 0, Icon: UserPlus },
-    { label: "Dang khoa", value: statistics?.lockedUserCount ?? 0, Icon: Lock },
-    { label: "Luot truy cap", value: statistics?.totalVisits ?? 0, Icon: Search },
+    { label: "Tổng người dùng", value: statistics?.userCount ?? 0, Icon: Users },
+    { label: "Đang hoạt động", value: statistics?.activeUserCount ?? 0, Icon: UserPlus },
+    { label: "Đang khóa", value: statistics?.lockedUserCount ?? 0, Icon: Lock },
+    { label: "Lượt truy cập", value: statistics?.totalVisits ?? 0, Icon: Search },
   ];
 
   const resetForm = () => {
@@ -177,10 +177,10 @@ const AdminPage: React.FC = () => {
       if (isEditing && !payload.password) delete (payload as Partial<UserForm>).password;
       if (isEditing) {
         await api.patch(`/admin/users/${encodeURIComponent(editingEmail || "")}`, payload);
-        setMessage("Da cap nhat tai khoan.");
+        setMessage("Đã cập nhật tài khoản.");
       } else {
         await api.post("/admin/users", payload);
-        setMessage("Da tao tai khoan.");
+        setMessage("Đã tạo tài khoản.");
       }
       resetForm();
       await loadData();
@@ -196,7 +196,7 @@ const AdminPage: React.FC = () => {
     setMessage("");
     try {
       await api.patch(`/admin/users/${encodeURIComponent(user.email)}/${locked ? "lock" : "unlock"}`);
-      setMessage(locked ? "Da khoa tai khoan." : "Da mo khoa tai khoan.");
+      setMessage(locked ? "Đã khóa tài khoản." : "Đã mở khóa tài khoản.");
       await loadData();
     } catch (err) {
       setError(errorMessage(err));
@@ -204,12 +204,12 @@ const AdminPage: React.FC = () => {
   };
 
   const deleteUser = async (user: AdminUser) => {
-    if (!window.confirm(`Xoa tai khoan ${user.email}?`)) return;
+    if (!window.confirm(`Xóa tài khoản ${user.email}?`)) return;
     setError("");
     setMessage("");
     try {
       await api.delete(`/admin/users/${encodeURIComponent(user.email)}`);
-      setMessage("Da xoa tai khoan.");
+      setMessage("Đã xóa tài khoản.");
       await loadData();
     } catch (err) {
       setError(errorMessage(err));
@@ -229,7 +229,7 @@ const AdminPage: React.FC = () => {
         sendToAll: notificationForm.sendToAll,
       });
       setNotificationForm({ title: "", body: "", targetEmails: "", sendToAll: false });
-      setMessage("Da gui thong bao.");
+      setMessage("Đã gửi thông báo.");
       await loadData();
     } catch (err) {
       setError(errorMessage(err));
@@ -243,8 +243,8 @@ const AdminPage: React.FC = () => {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
         <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-on-surface">Quan tri he thong</h1>
-            <p className="text-sm text-on-surface-variant">Tai khoan, thong bao va thong ke truy cap</p>
+            <h1 className="text-2xl font-bold text-on-surface">Quản trị hệ thống</h1>
+            <p className="text-sm text-on-surface-variant">Tài khoản, thông báo và thống kê truy cập</p>
           </div>
           <button
             type="button"
@@ -252,7 +252,7 @@ const AdminPage: React.FC = () => {
             className="inline-flex h-10 items-center gap-2 rounded-lg border border-outline bg-surface px-3 text-sm font-semibold text-on-surface hover:bg-surface-container"
           >
             <RefreshCw size={16} />
-            Lam moi
+            Làm mới
           </button>
         </header>
 
@@ -283,32 +283,32 @@ const AdminPage: React.FC = () => {
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="rounded-lg border border-outline/50 bg-surface">
             <div className="flex flex-col gap-3 border-b border-outline/50 p-4 md:flex-row md:items-center md:justify-between">
-              <h2 className="text-lg font-bold text-on-surface">Quan ly tai khoan</h2>
+              <h2 className="text-lg font-bold text-on-surface">Quản lý tài khoản người dùng</h2>
               <label className="relative block w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   className="h-10 w-full rounded-lg border border-outline bg-surface-container-low pl-9 pr-3 text-sm text-on-surface outline-none focus:border-primary"
-                  placeholder="Tim email, ten, SĐT..."
+                  placeholder="Tìm email, tên, số điện thoại..."
                 />
               </label>
             </div>
 
             {loading ? (
-              <div className="p-8 text-center text-sm text-on-surface-variant">Dang tai du lieu...</div>
+              <div className="p-8 text-center text-sm text-on-surface-variant">Đang tải dữ liệu...</div>
             ) : users.length === 0 ? (
-              <div className="p-8 text-center text-sm text-on-surface-variant">Khong co tai khoan phu hop.</div>
+              <div className="p-8 text-center text-sm text-on-surface-variant">Không có tài khoản phù hợp.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left text-sm">
                   <thead className="bg-surface-container-low text-xs uppercase text-on-surface-variant">
                     <tr>
-                      <th className="px-4 py-3">Nguoi dung</th>
-                      <th className="px-4 py-3">Vai tro</th>
-                      <th className="px-4 py-3">Trang thai</th>
-                      <th className="px-4 py-3">Dang nhap cuoi</th>
-                      <th className="px-4 py-3 text-right">Thao tac</th>
+                      <th className="px-4 py-3">Người dùng</th>
+                      <th className="px-4 py-3">Vai trò</th>
+                      <th className="px-4 py-3">Trạng thái</th>
+                      <th className="px-4 py-3">Đăng nhập cuối</th>
+                      <th className="px-4 py-3 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline/40">
@@ -323,7 +323,7 @@ const AdminPage: React.FC = () => {
                           </td>
                           <td className="px-4 py-3">
                             <span className="rounded-full bg-primary-container px-2 py-1 text-xs font-bold text-on-primary-container">
-                              {user.role === "admin" ? "Admin" : "User"}
+                              {user.role === "admin" ? "Quản trị viên" : "Người dùng"}
                             </span>
                           </td>
                           <td className="px-4 py-3">
@@ -332,19 +332,19 @@ const AdminPage: React.FC = () => {
                                 locked ? "bg-error-container text-on-error-container" : "bg-surface-container text-on-surface"
                               }`}
                             >
-                              {locked ? "Da khoa" : "Hoat dong"}
+                              {locked ? "Đã khóa" : "Hoạt động"}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-on-surface-variant">{formatDate(user.lastLoginAt)}</td>
                           <td className="px-4 py-3">
                             <div className="flex justify-end gap-2">
-                              <button type="button" onClick={() => editUser(user)} className="rounded-lg border border-outline p-2 hover:bg-surface-container" title="Sua">
+                              <button type="button" onClick={() => editUser(user)} className="rounded-lg border border-outline p-2 hover:bg-surface-container" title="Chỉnh sửa">
                                 <Pencil size={16} />
                               </button>
-                              <button type="button" onClick={() => setLock(user, !locked)} className="rounded-lg border border-outline p-2 hover:bg-surface-container" title={locked ? "Mo khoa" : "Khoa"}>
+                              <button type="button" onClick={() => setLock(user, !locked)} className="rounded-lg border border-outline p-2 hover:bg-surface-container" title={locked ? "Mở khóa" : "Khóa"}>
                                 {locked ? <LockOpen size={16} /> : <Lock size={16} />}
                               </button>
-                              <button type="button" onClick={() => deleteUser(user)} className="rounded-lg border border-error/40 p-2 text-error hover:bg-error/10" title="Xoa">
+                              <button type="button" onClick={() => deleteUser(user)} className="rounded-lg border border-error/40 p-2 text-error hover:bg-error/10" title="Xóa">
                                 <Trash2 size={16} />
                               </button>
                             </div>
@@ -359,26 +359,26 @@ const AdminPage: React.FC = () => {
           </div>
 
           <form onSubmit={saveUser} className="rounded-lg border border-outline/50 bg-surface p-4">
-            <h2 className="mb-4 text-lg font-bold text-on-surface">{isEditing ? "Chinh sua tai khoan" : "Them tai khoan"}</h2>
+            <h2 className="mb-4 text-lg font-bold text-on-surface">{isEditing ? "Chỉnh sửa tài khoản" : "Thêm tài khoản"}</h2>
             <div className="grid gap-3">
               <input className="h-10 rounded-lg border border-outline bg-surface-container-low px-3 text-sm" placeholder="Email" value={form.email} disabled={isEditing} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              <input className="h-10 rounded-lg border border-outline bg-surface-container-low px-3 text-sm" placeholder={isEditing ? "Mat khau moi (bo trong neu khong doi)" : "Mat khau"} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-              <input className="h-10 rounded-lg border border-outline bg-surface-container-low px-3 text-sm" placeholder="Ho ten" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
-              <input className="h-10 rounded-lg border border-outline bg-surface-container-low px-3 text-sm" placeholder="So dien thoai" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <input className="h-10 rounded-lg border border-outline bg-surface-container-low px-3 text-sm" placeholder={isEditing ? "Mật khẩu mới (bỏ trống nếu không đổi)" : "Mật khẩu"} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+              <input className="h-10 rounded-lg border border-outline bg-surface-container-low px-3 text-sm" placeholder="Họ tên" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
+              <input className="h-10 rounded-lg border border-outline bg-surface-container-low px-3 text-sm" placeholder="Số điện thoại" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               <input className="h-10 rounded-lg border border-outline bg-surface-container-low px-3 text-sm" type="date" value={form.dataOfBirth} onChange={(e) => setForm({ ...form, dataOfBirth: e.target.value })} />
               <select className="h-10 rounded-lg border border-outline bg-surface-container-low px-3 text-sm" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as "user" | "admin" })}>
-                <option value="user">User</option>
-                <option value="admin">Admin</option>
+                <option value="user">Người dùng</option>
+                <option value="admin">Quản trị viên</option>
               </select>
-              <textarea className="min-h-20 rounded-lg border border-outline bg-surface-container-low px-3 py-2 text-sm" placeholder="Dia chi / ghi chu" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+              <textarea className="min-h-20 rounded-lg border border-outline bg-surface-container-low px-3 py-2 text-sm" placeholder="Địa chỉ / ghi chú" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
               <div className="flex gap-2">
                 <button disabled={saving} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-bold text-on-primary disabled:opacity-60">
                   <UserPlus size={16} />
-                  {isEditing ? "Luu" : "Them"}
+                  {isEditing ? "Lưu" : "Thêm"}
                 </button>
                 {isEditing && (
                   <button type="button" onClick={resetForm} className="h-10 rounded-lg border border-outline px-3 text-sm font-semibold">
-                    Huy
+                    Hủy
                   </button>
                 )}
               </div>
@@ -390,30 +390,30 @@ const AdminPage: React.FC = () => {
           <form onSubmit={sendNotification} className="rounded-lg border border-outline/50 bg-surface p-4">
             <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-on-surface">
               <Bell size={18} />
-              Gui thong bao
+              Gửi thông báo
             </h2>
             <div className="grid gap-3">
-              <input className="h-10 rounded-lg border border-outline bg-surface-container-low px-3 text-sm" placeholder="Tieu de" value={notificationForm.title} onChange={(e) => setNotificationForm({ ...notificationForm, title: e.target.value })} />
-              <textarea className="min-h-24 rounded-lg border border-outline bg-surface-container-low px-3 py-2 text-sm" placeholder="Noi dung" value={notificationForm.body} onChange={(e) => setNotificationForm({ ...notificationForm, body: e.target.value })} />
+              <input className="h-10 rounded-lg border border-outline bg-surface-container-low px-3 text-sm" placeholder="Tiêu đề" value={notificationForm.title} onChange={(e) => setNotificationForm({ ...notificationForm, title: e.target.value })} />
+              <textarea className="min-h-24 rounded-lg border border-outline bg-surface-container-low px-3 py-2 text-sm" placeholder="Nội dung" value={notificationForm.body} onChange={(e) => setNotificationForm({ ...notificationForm, body: e.target.value })} />
               <label className="flex items-center gap-2 text-sm font-semibold text-on-surface">
                 <input type="checkbox" checked={notificationForm.sendToAll} onChange={(e) => setNotificationForm({ ...notificationForm, sendToAll: e.target.checked })} />
-                Gui tat ca nguoi dung
+                Gửi tất cả người dùng
               </label>
-              <textarea className="min-h-20 rounded-lg border border-outline bg-surface-container-low px-3 py-2 text-sm disabled:opacity-50" disabled={notificationForm.sendToAll} placeholder="Email nguoi nhan, cach nhau bang dau phay hoac xuong dong" value={notificationForm.targetEmails} onChange={(e) => setNotificationForm({ ...notificationForm, targetEmails: e.target.value })} />
+              <textarea className="min-h-20 rounded-lg border border-outline bg-surface-container-low px-3 py-2 text-sm disabled:opacity-50" disabled={notificationForm.sendToAll} placeholder="Email người nhận, cách nhau bằng dấu phẩy hoặc xuống dòng" value={notificationForm.targetEmails} onChange={(e) => setNotificationForm({ ...notificationForm, targetEmails: e.target.value })} />
               <button disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-bold text-on-primary disabled:opacity-60">
                 <Send size={16} />
-                Gui thong bao
+                Gửi thông báo
               </button>
             </div>
           </form>
 
           <div className="rounded-lg border border-outline/50 bg-surface">
             <div className="border-b border-outline/50 p-4">
-              <h2 className="text-lg font-bold text-on-surface">Lich su thong bao</h2>
-              <p className="text-sm text-on-surface-variant">Hom nay: {statistics?.todayVisits ?? 0} luot truy cap</p>
+              <h2 className="text-lg font-bold text-on-surface">Lịch sử thông báo</h2>
+              <p className="text-sm text-on-surface-variant">Hôm nay: {statistics?.todayVisits ?? 0} lượt truy cập</p>
             </div>
             {notifications.length === 0 ? (
-              <div className="p-8 text-center text-sm text-on-surface-variant">Chua co thong bao nao.</div>
+              <div className="p-8 text-center text-sm text-on-surface-variant">Chưa có thông báo nào.</div>
             ) : (
               <div className="divide-y divide-outline/40">
                 {notifications.map((item) => (
@@ -424,7 +424,7 @@ const AdminPage: React.FC = () => {
                     </div>
                     <p className="text-sm text-on-surface-variant">{item.body}</p>
                     <p className="mt-2 text-xs text-on-surface-variant">
-                      Gui boi {item.sentBy} den {item.targetEmails?.length || 0} nguoi nhan
+                      Gửi bởi {item.sentBy} đến {item.targetEmails?.length || 0} người nhận
                     </p>
                   </article>
                 ))}

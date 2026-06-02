@@ -79,7 +79,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const colors = useMemo(() => (isDark ? DarkColors : LightColors), [isDark]);
 
   const t = useMemo(() => {
-    const dict: any = language === 'en' ? en : vi;
+    const dict: any = vi;
     return (key: string, params?: Record<string, string | number>) => {
       let str = dict[key] || key;
       if (params) {

@@ -15,7 +15,7 @@ const docClient = DynamoDBDocumentClient.from(client);
 const tableName = process.env.DYNAMODB_TABLE_NAME || "ZaloForEducation";
 
 async function ensureAdmin() {
-  const email = "admin@gmail.com";
+  const email = "taovankhanh2408@gmail.com";
   const PK = `USER#${email}`;
   const SK = "METADATA";
 

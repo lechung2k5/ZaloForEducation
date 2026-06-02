@@ -103,7 +103,7 @@ export const NotificationPage: React.FC = () => {
 
         {loadingAdminNotifications ? (
           <div className="rounded-2xl border border-outline/40 bg-surface p-8 text-center">
-            <p className="text-sm text-on-surface-variant">Dang tai thong bao...</p>
+            <p className="text-sm text-on-surface-variant">Đang tải thông báo...</p>
           </div>
         ) : alerts.length === 0 && adminNotifications.length === 0 ? (
           <div className="rounded-2xl border border-outline/40 bg-surface p-8 text-center">
@@ -123,7 +123,7 @@ export const NotificationPage: React.FC = () => {
                     <h3 className="font-semibold text-on-surface">{item.title}</h3>
                   </div>
                   <span className="rounded-full bg-surface-container px-2 py-0.5 text-xs text-on-surface-variant">
-                    Admin
+                    Quản trị
                   </span>
                 </div>
                 <p className="text-sm text-on-surface-variant">{item.body}</p>
@@ -161,7 +161,7 @@ export const CloudPage: React.FC = () => {
     <div className="flex-1 h-full flex items-center justify-center bg-surface-container-lowest">
       <div className="text-center">
         <span className="material-symbols-outlined text-[64px] text-primary/20 mb-4">cloud</span>
-        <h2 className="text-xl font-bold text-on-surface opacity-30">My Cloud</h2>
+        <h2 className="text-xl font-bold text-on-surface opacity-30">Kho lưu trữ của tôi</h2>
         <p className="text-sm text-on-surface-variant opacity-40">{t('notif_page.cloud_pending')}</p>
       </div>
     </div>

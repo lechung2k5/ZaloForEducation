@@ -565,8 +565,8 @@ const AccountActionModal: React.FC<{
   const icon = isLock ? 'lock_person' : 'delete_forever';
   const confirmLabel = isLock ? t('modal.lock_account') : t('modal.delete_account');
   const warningMsg = isLock
-    ? 'Account will be temporarily locked. All login sessions will be disabled immediately.'
-    : 'This action CANNOT be undone. All account data will be permanently deleted.';
+    ? 'Tài khoản sẽ bị khóa tạm thời. Tất cả phiên đăng nhập sẽ bị vô hiệu hóa ngay lập tức.'
+    : 'Thao tác này không thể hoàn tác. Toàn bộ dữ liệu tài khoản sẽ bị xóa vĩnh viễn.';
 
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();

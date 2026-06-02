@@ -83,20 +83,36 @@ export class AdminService {
     };
   }
 
+  private async scanUserRecords() {
+    const items: Record<string, any>[] = [];
+    let lastEvaluatedKey: Record<string, any> | undefined;
+
+    do {
+      const result = await this.db.docClient.send(
+        new ScanCommand({
+          TableName: this.db.tableName,
+          ConsistentRead: true,
+          FilterExpression: "begins_with(PK, :userPrefix) AND SK = :sk",
+          ExpressionAttributeValues: {
+            ":userPrefix": "USER#",
+            ":sk": "METADATA",
+          },
+          ExclusiveStartKey: lastEvaluatedKey,
+        }),
+      );
+
+      items.push(...((result.Items || []) as Record<string, any>[]));
+      lastEvaluatedKey = result.LastEvaluatedKey as Record<string, any> | undefined;
+    } while (lastEvaluatedKey);
+
+    return items;
+  }
+
   async listUsers(search = "") {
     const normalizedSearch = search.trim().toLowerCase();
-    const result = await this.db.docClient.send(
-      new ScanCommand({
-        TableName: this.db.tableName,
-        FilterExpression: "begins_with(PK, :userPrefix) AND SK = :sk",
-        ExpressionAttributeValues: {
-          ":userPrefix": "USER#",
-          ":sk": "METADATA",
-        },
-      }),
-    );
+    const records = await this.scanUserRecords();
 
-    const users = (result.Items || [])
+    const users = records
       .filter((item) => item.isDeleted !== true)
       .map((item) => this.toPublicUser(item));
 
@@ -109,6 +125,19 @@ export class AdminService {
           .toLowerCase()
           .includes(normalizedSearch),
       ),
+    };
+  }
+
+  async countUsers() {
+    const records = await this.scanUserRecords();
+    const users = records
+      .filter((item) => item.isDeleted !== true)
+      .map((item) => this.toPublicUser(item));
+
+    return {
+      userCount: users.length,
+      activeUserCount: users.filter((user) => user.status !== "LOCKED").length,
+      lockedUserCount: users.filter((user) => user.status === "LOCKED").length,
     };
   }
 
@@ -372,15 +401,13 @@ export class AdminService {
   }
 
   async getStatistics() {
-    const users = await this.listUsers();
+    const userStats = await this.countUsers();
     const today = new Date().toISOString().slice(0, 10);
     const totalVisits = Number(await this.redisService.get("analytics:visits:total")) || 0;
     const todayVisits = Number(await this.redisService.get(`analytics:visits:${today}`)) || 0;
 
     return {
-      userCount: users.users.length,
-      activeUserCount: users.users.filter((user) => user.status !== "LOCKED").length,
-      lockedUserCount: users.users.filter((user) => user.status === "LOCKED").length,
+      ...userStats,
       totalVisits,
       todayVisits,
     };

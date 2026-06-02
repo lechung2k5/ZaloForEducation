@@ -343,7 +343,7 @@ const BotChatPage: React.FC = () => {
       {/* Header */}
       <header className="h-16 flex items-center gap-4 px-6 bg-white/90 dark:bg-surface-container/90 backdrop-blur-xl border-b border-outline-variant/15 dark:border-outline-variant/30 z-20 shrink-0">
         <div className="relative">
-          <img src={BOT_AVATAR} className="w-11 h-11 rounded-full object-cover ring-2 ring-primary/20 shadow-sm" alt="Bot" />
+          <img src={BOT_AVATAR} className="w-11 h-11 rounded-full object-cover ring-2 ring-primary/20 shadow-sm" alt="Trợ lý AI" />
           <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-primary border-2 border-white dark:border-surface-container rounded-full flex items-center justify-center">
             <Sparkles size={8} className="text-white" />
           </div>

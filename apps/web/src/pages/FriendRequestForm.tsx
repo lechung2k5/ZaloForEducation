@@ -330,7 +330,7 @@ const FriendRequestForm: React.FC = () => {
 
         <div>
           <h2 className="font-semibold text-slate-800 mb-3">
-            Suggested Friends
+            Gợi ý kết bạn
           </h2>
           <div className="space-y-2">
             {suggestions.length === 0 && (
