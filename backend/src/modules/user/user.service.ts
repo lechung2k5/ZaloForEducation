@@ -284,4 +284,29 @@ export class UserService {
 
     return { notifications: result.Items || [] };
   }
+
+  async markAllNotificationsRead(email: string) {
+    const { notifications } = await this.listNotifications(email);
+    const unreadNotifications = notifications.filter((item: any) => item.read !== true);
+    const now = new Date().toISOString();
+
+    await Promise.all(
+      unreadNotifications.map((item: any) =>
+        this.db.docClient.send(
+          new UpdateCommand({
+            TableName: this.db.tableName,
+            Key: { PK: `USER#${email}`, SK: item.SK },
+            UpdateExpression: 'SET #read = :read, readAt = :readAt',
+            ExpressionAttributeNames: { '#read': 'read' },
+            ExpressionAttributeValues: {
+              ':read': true,
+              ':readAt': now,
+            },
+          }),
+        ),
+      ),
+    );
+
+    return { message: 'Notifications marked as read', updated: unreadNotifications.length };
+  }
 }

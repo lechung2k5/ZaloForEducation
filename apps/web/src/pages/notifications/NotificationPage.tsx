@@ -67,6 +67,21 @@ export const NotificationPage: React.FC = () => {
     };
   }, []);
 
+  const handleMarkAllRead = async () => {
+    markAllSecurityAlertsRead();
+    setAlerts(getSecurityAlerts());
+
+    try {
+      await api.patch('/users/notifications/read-all');
+      const res = await api.get('/users/notifications');
+      setAdminNotifications(res.data.notifications || []);
+    } catch (err) {
+      console.error('Failed to mark user notifications read:', err);
+    } finally {
+      window.dispatchEvent(new CustomEvent('admin-notification-received'));
+    }
+  };
+
   return (
     <div className="flex-1 h-full overflow-y-auto bg-surface-container-lowest p-4 md:p-6">
       <div className="mx-auto w-full max-w-3xl">
@@ -80,10 +95,7 @@ export const NotificationPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                markAllSecurityAlertsRead();
-                setAlerts(getSecurityAlerts());
-              }}
+              onClick={handleMarkAllRead}
               className="rounded-lg border border-outline px-3 py-1.5 text-sm text-on-surface hover:bg-surface-container"
             >
               {t('notif_page.mark_read')}

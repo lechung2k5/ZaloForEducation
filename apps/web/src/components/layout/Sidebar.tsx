@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useChatStore } from '../../store/chatStore';
 import { isUnread } from '../../utils/chatUtils';
+import { getSecurityAlerts } from '../../utils/securityAlerts';
+import api from '../../services/api';
 import { 
   MessageSquare, 
   Users, 
@@ -21,6 +23,7 @@ const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const { conversations, setIsSearching, setSearchQuery, pendingFriendRequestsCount, fetchPendingFriendRequestsCount } = useChatStore();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,6 +41,41 @@ const Sidebar: React.FC = () => {
       window.removeEventListener("friendship-updated", handleFriendRequestEvent);
     };
   }, []);
+
+  useEffect(() => {
+    if (!user?.email) {
+      setNotificationUnreadCount(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncNotificationUnread = async () => {
+      const securityUnread = getSecurityAlerts().filter((item) => !item.read).length;
+      let adminUnread = 0;
+
+      try {
+        const res = await api.get('/users/notifications');
+        adminUnread = (res.data.notifications || []).filter((item: any) => item.read !== true).length;
+      } catch {
+        adminUnread = 0;
+      }
+
+      if (!cancelled) {
+        setNotificationUnreadCount(securityUnread + adminUnread);
+      }
+    };
+
+    syncNotificationUnread();
+    window.addEventListener('security-alerts-updated', syncNotificationUnread);
+    window.addEventListener('admin-notification-received', syncNotificationUnread);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('security-alerts-updated', syncNotificationUnread);
+      window.removeEventListener('admin-notification-received', syncNotificationUnread);
+    };
+  }, [user?.email]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -74,7 +112,7 @@ const Sidebar: React.FC = () => {
   const navItems = [
     { id: 'chat', icon: MessageSquare, label: t('sidebar.chat'), path: '/chat', hasBadge: hasUnreadMessages, count: totalUnreadCount },
     { id: 'contacts', icon: Users, label: t('sidebar.contacts'), path: '/contacts', hasBadge: pendingFriendRequestsCount > 0, count: pendingFriendRequestsCount },
-    { id: 'notifications', icon: Bell, label: t('sidebar.notifications'), path: '/notifications', hasBadge: false },
+    { id: 'notifications', icon: Bell, label: t('sidebar.notifications'), path: '/notifications', hasBadge: notificationUnreadCount > 0, count: notificationUnreadCount },
     { id: 'bot', icon: Bot, label: t('sidebar.bot'), path: '/bot', hasBadge: hasBotUnread, count: botUnreadCount },
     ...(isAdmin ? [{ id: 'admin', icon: ShieldCheck, label: 'Quản trị', path: '/admin', hasBadge: false }] : []),
   ];
