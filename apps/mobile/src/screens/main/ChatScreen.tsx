@@ -53,6 +53,7 @@ import { ChatModals } from "../../components/chat/ChatModals";
 import { ForwardModal } from "../../components/chat/ForwardModal";
 import PollComposer from "../../components/chat/PollComposer";
 import ReminderComposer from "../../components/chat/ReminderComposer";
+import AssignmentComposer from "../../components/chat/AssignmentComposer";
 import { dismissNotificationsByConversation } from "../../utils/reminderNotifications";
 import {
   DEFAULT_CHAT_WALLPAPER_ID,
@@ -145,6 +146,7 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
   const [customMuteEndTime, setCustomMuteEndTime] = useState("07:00");
   const [isPollModalOpen, setIsPollModalOpen] = useState(false);
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
   const [wallpaperId, setWallpaperId] = useState<ChatWallpaperId>(DEFAULT_CHAT_WALLPAPER_ID);
   const [blockedFriendships, setBlockedFriendships] = useState<any[]>([]);
 
@@ -888,6 +890,33 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
     }
   };
 
+  const handleSendAssignment = async (assignment: {
+    title: string;
+    description?: string;
+    deadline: string;
+    assignees: string[];
+    allowedFileTypes: string[];
+    maxFiles: number;
+    maxFileSizeMB: number;
+  }) => {
+    if (!selectedChat?.id) return;
+    try {
+      await sendMessageOptimistic(selectedChat.id, {
+        content: `[Bài tập] ${assignment.title}`,
+        type: "assignment",
+        payload: {
+          assignment: {
+            ...assignment,
+            submissions: {},
+            reminderSent: [],
+          },
+        },
+      });
+    } catch (err) {
+      console.error("Failed to send assignment", err);
+    }
+  };
+
   const handleStartCall = async (type: 'audio' | 'video') => {
     if (!selectedChat) return;
 
@@ -1054,6 +1083,14 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
   }
 
   const partner = selectedChat.partner || (Array.isArray(selectedChat.members) ? selectedChat.members.find((m: string) => m !== user?.email) : undefined);
+  const normalizedUserEmail = normalizeEmail(user?.email || currentUserEmail);
+  const canAssignHomework =
+    selectedChat?.type === "group" &&
+    (normalizeEmail(selectedChat.owner || selectedChat.admin) === normalizedUserEmail ||
+      normalizeEmail(selectedChat.admin) === normalizedUserEmail ||
+      (selectedChat.deputies || []).some(
+        (deputy: string) => normalizeEmail(deputy) === normalizedUserEmail,
+      ));
 
   const partnerProfile = userProfiles[normalizeEmail(partner)];
   const isOnline = selectedChat?.type === 'direct' && partnerProfile?.status === 'online';
@@ -1221,6 +1258,7 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
                 isSelected={selectedMessageIds.includes(m.id)}
                 onVotePoll={handleVotePoll}
                 onClosePoll={handleClosePoll}
+                conversation={selectedChat}
               />
             );
           }}
@@ -1316,6 +1354,9 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
               onTyping={() => { if (SocketService.socket && selectedChat.id && !typingTimeoutRef.current) { SocketService.socket.emit("typing", { convId: selectedChat.id, isTyping: true }); typingTimeoutRef.current = setTimeout(() => { typingTimeoutRef.current = null; }, 2000); } }}
               onOpenPollModal={() => setIsPollModalOpen(true)}
               onOpenReminderModal={() => setIsReminderModalOpen(true)}
+              onOpenAssignmentModal={
+                canAssignHomework ? () => setIsAssignmentModalOpen(true) : undefined
+              }
               isBot={isBot}
               conversationType={selectedChat?.type}
               members={selectedChat?.members || []}
@@ -1390,6 +1431,21 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
             onCreate={(r) => {
               handleSendReminder(r);
               setIsReminderModalOpen(false);
+            }}
+          />
+        </View>
+      </Modal>
+
+      <Modal visible={isAssignmentModalOpen} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <AssignmentComposer
+            members={selectedChat?.members || []}
+            currentUserEmail={user?.email || currentUserEmail}
+            userProfiles={userProfiles}
+            onClose={() => setIsAssignmentModalOpen(false)}
+            onCreate={(assignment) => {
+              handleSendAssignment(assignment);
+              setIsAssignmentModalOpen(false);
             }}
           />
         </View>

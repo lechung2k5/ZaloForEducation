@@ -11,6 +11,7 @@
     "backend:dev": "npm run start:dev -w backend",
     "web:dev": "npm run dev -w apps/web",
     "mobile:dev": "npm run start -w apps/mobile",
+    "backend:db:fields": "npm run db:fields -w backend",
     "install:all": "npm install",
     "android": "expo run:android",
     "ios": "expo run:ios",

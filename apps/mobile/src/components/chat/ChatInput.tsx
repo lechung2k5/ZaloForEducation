@@ -42,6 +42,7 @@ interface ChatInputProps {
   onTyping?: () => void;
   onOpenPollModal?: () => void;
   onOpenReminderModal?: () => void;
+  onOpenAssignmentModal?: () => void;
   isBot?: boolean;
   conversationType?: 'direct' | 'group';
   members?: string[];
@@ -66,6 +67,7 @@ export default function ChatInput({
   onTyping,
   onOpenPollModal,
   onOpenReminderModal,
+  onOpenAssignmentModal,
   isBot,
   conversationType,
   members = [],
@@ -620,6 +622,15 @@ export default function ChatInput({
                   </View>
                   <Text style={styles.toolLabel}>{t('chat_input.reminder')}</Text>
                 </TouchableOpacity>
+
+                {onOpenAssignmentModal && (
+                  <TouchableOpacity style={styles.toolItem} onPress={() => { setShowExtraTools(false); onOpenAssignmentModal(); }}>
+                    <View style={[styles.toolIconBox, { backgroundColor: isDark ? '#10221c' : '#ecfdf5' }]}>
+                      <Text style={[styles.toolIcon, { color: '#059669' }]}>assignment</Text>
+                    </View>
+                    <Text style={styles.toolLabel}>Bài tập</Text>
+                  </TouchableOpacity>
+                )}
               </>
             )}
 

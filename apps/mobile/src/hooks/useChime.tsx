@@ -11,6 +11,20 @@ import {
 } from 'amazon-chime-sdk-js';
 import { mediaDevices } from 'react-native-webrtc';
 
+class MobileChimeLogger extends ConsoleLogger {
+  constructor(private shouldSuppressExpectedClose: (message: string) => boolean) {
+    super('MobileChime', LogLevel.INFO);
+  }
+
+  error(message: string): void {
+    if (this.shouldSuppressExpectedClose(String(message))) {
+      console.log('[Chime-JS] Suppressed expected signaling close during cleanup.');
+      return;
+    }
+    super.error(message);
+  }
+}
+
 export const useChime = () => {
   const { meetingData, attendeeData, callType, callState, remoteTiles: globalRemoteTiles } = useCallStore();
 
@@ -18,6 +32,8 @@ export const useChime = () => {
   const isStarted = useRef(false);
   const localTileIdRef = useRef<number | null>(null);
   const activeVideoDeviceIdRef = useRef<string | null>(null);
+  const isCleaningUpRef = useRef(false);
+  const observerRef = useRef<any>(null);
 
   useEffect(() => {
     localTileIdRef.current = localTileId;
@@ -45,12 +61,29 @@ export const useChime = () => {
 
   const cleanup = useCallback(async (reason: string = 'unknown') => {
     console.log(`[Chime-JS] Cleaning up session. Reason: ${reason}`);
-    
-    if (chimeRef.current?.meetingSession) {
+
+    const meetingSession = chimeRef.current?.meetingSession;
+    if (meetingSession) {
+      isCleaningUpRef.current = true;
       try {
-        chimeRef.current.meetingSession.audioVideo.stop();
+        if (observerRef.current) {
+          meetingSession.audioVideo.removeObserver(observerRef.current);
+          observerRef.current = null;
+        }
+        meetingSession.audioVideo.stopLocalVideoTile();
+        await meetingSession.audioVideo.stopVideoInput();
+        await meetingSession.audioVideo.stopAudioInput();
+        meetingSession.audioVideo.stop();
       } catch (e) {
         console.warn('Error stopping AV:', e);
+      } finally {
+        const currentRef = chimeRef.current;
+        if (currentRef && currentRef.meetingSession === meetingSession) {
+          currentRef.meetingSession = null;
+        }
+        setTimeout(() => {
+          isCleaningUpRef.current = false;
+        }, 1000);
       }
     }
     
@@ -83,7 +116,13 @@ export const useChime = () => {
     }
 
     try {
-      const logger = new ConsoleLogger('MobileChime', LogLevel.INFO);
+      const logger = new MobileChimeLogger((message) => {
+        const currentCallState = useCallStore.getState().callState;
+        return (
+          message.includes('SignalingChannelClosedUnexpectedly') &&
+          (isCleaningUpRef.current || currentCallState === 'ENDED' || currentCallState === 'IDLE')
+        );
+      });
       const deviceController = new DefaultDeviceController(logger, { enableWebAudio: false });
       const configuration = new MeetingSessionConfiguration(meetingData, attendeeData);
       
@@ -142,6 +181,7 @@ export const useChime = () => {
         }
       };
 
+      observerRef.current = observer;
       meetingSession.audioVideo.addObserver(observer);
       
       // Select input devices

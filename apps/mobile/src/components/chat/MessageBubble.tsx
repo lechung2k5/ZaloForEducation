@@ -13,6 +13,7 @@ import { FLUENT_EMOJI_MAP } from '../../constants/Emojis';
 import { useNavigation } from '@react-navigation/native';
 import PollMessage from './PollMessage';
 import ReminderMessage from './ReminderMessage';
+import AssignmentMessage from './AssignmentMessage';
 import CodeSnippet from './CodeSnippet';
 import * as Haptics from 'expo-haptics';
 import { chatGet, chatPost } from '../../utils/api';
@@ -432,7 +433,8 @@ export default function MessageBubble({
   isSelectionMode,
   isSelected,
   onVotePoll,
-  onClosePoll
+  onClosePoll,
+  conversation
 }: {
   message: any;
   isMe: boolean;
@@ -452,6 +454,7 @@ export default function MessageBubble({
   onPress?: (message: any) => void;
   onVotePoll?: (messageId: string, optionIndex: number) => Promise<void>;
   onClosePoll?: (messageId: string) => Promise<void>;
+  conversation?: any;
   isSelectionMode?: boolean;
   isSelected?: boolean;
 }) {
@@ -477,7 +480,11 @@ export default function MessageBubble({
     return false;
   })();
 
-  const shouldHideBubble = isMediaOnly || isSticker || !!message.contactCard || !!message.location || !!message.audioUrl || message.type === 'poll' || message.type === 'reminder';
+  const hasPoll = !!(message.poll || message.payload?.poll);
+  const hasReminder = !!(message.reminder || message.payload?.reminder);
+  const hasAssignment = !!(message.assignment || message.payload?.assignment);
+  const isStructuredMessage = hasPoll || hasReminder || hasAssignment;
+  const shouldHideBubble = isMediaOnly || isSticker || !!message.contactCard || !!message.location || !!message.audioUrl || message.type === 'poll' || message.type === 'reminder' || message.type === 'assignment';
 
   // HIGHLIGHT ANIMATION
   const highlightAnim = useRef(new Animated.Value(0)).current;
@@ -911,6 +918,15 @@ export default function MessageBubble({
               repeatType={(message.reminder || message.payload?.reminder).repeatType}
             />
           )}
+
+          {/* 6. Assignments */}
+          {!message.recalled && (message.assignment || message.payload?.assignment) && (
+            <AssignmentMessage
+              message={message}
+              conversation={conversation}
+              userProfiles={userProfiles}
+            />
+          )}
         </>
       )}
     </>
@@ -920,7 +936,7 @@ export default function MessageBubble({
     <View style={[
       styles.container,
       isMe ? styles.containerMe : styles.containerOther,
-      (message.poll || message.payload?.poll) && { alignSelf: 'center', width: '100%', paddingHorizontal: 10 },
+      isStructuredMessage && { alignSelf: 'center', width: '100%', paddingHorizontal: 10 },
       groupPosition === 'middle' || groupPosition === 'last' ? { marginBottom: 2 } : { marginBottom: 8 }
     ]}>
       {/* Swipe Reply Icon Indicator */}
@@ -937,11 +953,11 @@ export default function MessageBubble({
       <Animated.View
         {...panResponder.panHandlers}
         style={[
-          { flexDirection: 'row', flex: 1, alignItems: 'flex-end', justifyContent: (message.poll || message.payload?.poll) ? 'center' : (isMe ? 'flex-end' : 'flex-start') },
+          { flexDirection: 'row', flex: 1, alignItems: 'flex-end', justifyContent: isStructuredMessage ? 'center' : (isMe ? 'flex-end' : 'flex-start') },
           { transform: [{ translateX }] }
         ]}
       >
-        {!isMe && !(message.poll || message.payload?.poll) && (
+        {!isMe && !isStructuredMessage && (
           <View style={styles.avatarSpace}>
             {showAvatar ? (
               <Image
@@ -955,7 +971,7 @@ export default function MessageBubble({
         <View style={[
           styles.bubbleWrapper,
           isMe ? styles.bubbleWrapperMe : styles.bubbleWrapperOther,
-          (message.poll || message.payload?.poll) && { maxWidth: '85%', alignSelf: 'center' }
+          isStructuredMessage && { maxWidth: '90%', alignSelf: 'center' }
         ]}>
           {isHighlighted && (
             <Animated.View

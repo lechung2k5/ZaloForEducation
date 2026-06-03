@@ -8,6 +8,7 @@ import {
 import { Server, Socket } from "socket.io";
 import { Logger } from "@nestjs/common";
 import { GroupCallService } from "./group-call.service";
+import { NotificationService } from "../chat/notification.service";
 
 @WebSocketGateway({
   cors: { origin: "*" },
@@ -19,7 +20,10 @@ export class GroupCallGateway {
   private readonly logger = new Logger(GroupCallGateway.name);
   private waitForJoinTimeouts = new Map<string, any>();
 
-  constructor(private readonly groupCallService: GroupCallService) {}
+  constructor(
+    private readonly groupCallService: GroupCallService,
+    private readonly notificationService: NotificationService,
+  ) {}
   
   onModuleInit() {
     // [SENIOR] Periodic cleanup of stale participants (every 20s)
@@ -86,6 +90,22 @@ export class GroupCallGateway {
         callType: data.callType,
         callId: data.callId,
       });
+    });
+
+    const recipients = data.recipients
+      .map((email) => String(email || "").trim().toLowerCase())
+      .filter(Boolean);
+    const callerName = data.callerProfile?.fullName || data.fromEmail || "UniChat";
+    void this.notificationService.broadcastNotification(recipients, {
+      title: `Cuộc gọi nhóm ${data.callType === "video" ? "video" : "thoại"}`,
+      body: `${callerName} đang gọi trong ${(data as any).groupName || "nhóm"}.`,
+      data: {
+        convId: data.convId,
+        fromEmail: data.fromEmail,
+        callType: data.callType,
+        callId: data.callId,
+        type: "incoming_group_call",
+      },
     });
 
     // [SENIOR] Broadcast active call status to the whole room for header indicator

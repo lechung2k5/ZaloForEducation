@@ -251,6 +251,10 @@ export const getMessagePreview = (message: any): string => {
   }
 
   if (message.type === "contact_card") return "[Danh thiếp]";
+  if (message.type === "assignment") {
+    const title = message.payload?.assignment?.title;
+    return title ? `[Bài tập] ${title}` : "[Bài tập mới]";
+  }
 
   // ★ Check known placeholder content FIRST before inspecting media
   // This ensures [Sticker] saved in content is always respected

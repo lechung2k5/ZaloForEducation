@@ -12,6 +12,7 @@ import ForwardModal from "../../components/chat/ForwardModal";
 import TagManagerModal from "../../components/chat/TagManagerModal";
 import PollModal from "../../components/chat/PollModal";
 import ReminderModal from "../../components/chat/ReminderModal";
+import AssignmentModal from "../../components/chat/AssignmentModal";
 import SecurityAlertsView from "../../components/chat/SecurityAlertsView";
 import GroupCallOverlay from "../../components/call/GroupCallOverlay";
 import IncomingGroupCallModal from "../../components/call/IncomingGroupCallModal";
@@ -82,6 +83,18 @@ const ChatPage: React.FC = () => {
       : undefined;
 
   const isBot = partnerEmail?.toLowerCase() === 'bot@UniChat.system';
+  const normalizedUserEmail = String(user?.email || "").trim().toLowerCase();
+  const canAssignHomework =
+    activeChat?.type === "group" &&
+    (String(activeChat.owner || activeChat.admin || "")
+      .trim()
+      .toLowerCase() === normalizedUserEmail ||
+      String(activeChat.admin || "").trim().toLowerCase() ===
+        normalizedUserEmail ||
+      (activeChat.deputies || []).some(
+        (deputy) =>
+          String(deputy || "").trim().toLowerCase() === normalizedUserEmail,
+      ));
 
   const { blockedFriendships } = useFriendships();
   const blockedRelation = partnerEmail
@@ -537,6 +550,36 @@ const ChatPage: React.FC = () => {
     );
   };
 
+  const handleSendAssignment = async (assignment: {
+    title: string;
+    description?: string;
+    deadline: string;
+    assignees: string[];
+    allowedFileTypes: string[];
+    maxFiles: number;
+    maxFileSizeMB: number;
+  }) => {
+    if (!activeConvId || !user?.email) return;
+
+    await sendMessageOptimistic(
+      activeConvId,
+      user.email,
+      `[Bài tập] ${assignment.title}`,
+      "assignment",
+      [],
+      null,
+      {
+        payload: {
+          assignment: {
+            ...assignment,
+            submissions: {},
+            reminderSent: [],
+          },
+        },
+      },
+    );
+  };
+
   const handleVotePoll = async (messageId: string, optionIndex: number) => {
     const { votePoll } = useChatStore.getState();
     if (activeConvId) {
@@ -552,6 +595,7 @@ const ChatPage: React.FC = () => {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
   const [isPollModalOpen, setIsPollModalOpen] = useState(false);
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
 
   useEffect(() => {
     const openTagManager: EventListener = () => setIsTagManagerOpen(true);
@@ -819,6 +863,11 @@ const ChatPage: React.FC = () => {
                 onClearReply={() => setReplyTarget(null)}
                 onOpenPollModal={() => setIsPollModalOpen(true)}
                 onOpenReminderModal={() => setIsReminderModalOpen(true)}
+                onOpenAssignmentModal={
+                  canAssignHomework
+                    ? () => setIsAssignmentModalOpen(true)
+                    : undefined
+                }
                 isBot={isBot}
               />
             )}
@@ -898,6 +947,17 @@ const ChatPage: React.FC = () => {
         onClose={() => setIsReminderModalOpen(false)}
         onSendReminder={handleSendReminder}
       />
+
+      {canAssignHomework && (
+        <AssignmentModal
+          isOpen={isAssignmentModalOpen}
+          onClose={() => setIsAssignmentModalOpen(false)}
+          members={activeChat?.members || []}
+          currentUser={user}
+          userProfiles={userProfiles}
+          onSendAssignment={handleSendAssignment}
+        />
+      )}
 
       {/* 3. Info Sidebar */}
       {activeConvId && activeConvId !== "CONV#SYSTEM" && isInfoOpen && (

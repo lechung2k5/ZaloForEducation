@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Logger,
   Post,
@@ -32,6 +33,18 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   async updateProfile(@Req() req, @Body() body: any) {
     return this.userService.updateUserProfile(req.user.email, body);
+  }
+
+  @Post('push-token')
+  @UseGuards(JwtAuthGuard)
+  async registerPushToken(@Req() req, @Body() body: any) {
+    return this.userService.registerPushToken(req.user.email, body);
+  }
+
+  @Delete('push-token')
+  @UseGuards(JwtAuthGuard)
+  async unregisterPushToken(@Req() req, @Body() body: any) {
+    return this.userService.unregisterPushToken(req.user.email, body);
   }
 
   // ─── Avatar — chỉ cho phép upload qua S3, không nhận URL tùy ý ───────────

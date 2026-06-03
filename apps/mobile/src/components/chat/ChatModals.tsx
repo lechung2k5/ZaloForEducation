@@ -86,16 +86,17 @@ export const ChatModals: React.FC<ChatModalsProps> = ({
       {actionMessage && (
         <Pressable style={styles.overlay} onPress={() => setActionMessage(null)}>
           <View style={styles.actionSheet}>
-            <View style={{ paddingHorizontal: 4, paddingTop: 4, paddingBottom: 10 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', marginBottom: 8, textAlign: 'center' }}>
-                Phản ứng nhanh
-              </Text>
-              <View style={[styles.reactionBar, { justifyContent: 'space-between' }]}>
+            <View style={styles.actionSheetHandle} />
+            <Text style={styles.actionSheetTitle}>Tùy chọn tin nhắn</Text>
+
+            <View style={styles.reactionPanel}>
+              <Text style={styles.actionSectionLabel}>Phản ứng nhanh</Text>
+              <View style={styles.reactionBar}>
               {REACTION_OPTIONS.map(e => (
                 <TouchableOpacity
                   key={e}
                   onPress={() => { onReaction(actionMessage, e); setActionMessage(null); }}
-                  style={{ alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.08)' }}
+                  style={styles.reactionOption}
                 >
                   <EmojiItem emoji={e} styles={styles} />
                 </TouchableOpacity>
@@ -103,14 +104,6 @@ export const ChatModals: React.FC<ChatModalsProps> = ({
               </View>
             </View>
             <View style={styles.actionGrid}>
-              {/* RECALL BUTTON - ONLY FOR SENDER AND NOT RECALLED */}
-              {String(actionMessage.senderId || "").trim().toLowerCase() === String(userEmail || "").trim().toLowerCase() && !actionMessage.recalled && (
-                <TouchableOpacity style={styles.actionItem} onPress={() => { onRecall(actionMessage); setActionMessage(null); }}>
-                  <View style={[styles.actionIconBox, { backgroundColor: '#fff1f2' }]}><Text style={[styles.actionIcon, { color: '#f43f5e' }]}>history</Text></View>
-                  <Text style={styles.actionText}>Thu hồi</Text>
-                </TouchableOpacity>
-              )}
-
               <TouchableOpacity style={styles.actionItem} onPress={() => { onReply(actionMessage); setActionMessage(null); }}>
                 <View style={[styles.actionIconBox, { backgroundColor: '#e0f2fe' }]}><Text style={[styles.actionIcon, { color: '#0ea5e9' }]}>reply</Text></View>
                 <Text style={styles.actionText}>Trả lời</Text>
@@ -126,19 +119,9 @@ export const ChatModals: React.FC<ChatModalsProps> = ({
                 <Text style={styles.actionText}>{actionMessage.pinned ? 'Bỏ ghim' : 'Ghim'}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionItem} onPress={() => { onMark(actionMessage); setActionMessage(null); }}>
-                <View style={[styles.actionIconBox, { backgroundColor: '#ecfccb' }]}><Text style={[styles.actionIcon, { color: '#65a30d' }]}>star</Text></View>
-                <Text style={styles.actionText}>{actionMessage.marked ? 'Bỏ đánh dấu' : 'Đánh dấu'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.actionItem} onPress={() => { onStartMultiSelect(actionMessage); setActionMessage(null); }}>
-                <View style={[styles.actionIconBox, { backgroundColor: '#eff6ff' }]}><Text style={[styles.actionIcon, { color: '#2563eb' }]}>checklist</Text></View>
-                <Text style={styles.actionText}>Chọn nhiều</Text>
-              </TouchableOpacity>
-
               <TouchableOpacity style={styles.actionItem} onPress={() => { onViewDetail(actionMessage); setActionMessage(null); }}>
                 <View style={[styles.actionIconBox, { backgroundColor: '#f1f5f9' }]}><Text style={[styles.actionIcon, { color: '#334155' }]}>info</Text></View>
-                <Text style={styles.actionText}>Xem chi tiết</Text>
+                <Text style={styles.actionText}>Chi tiết</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -154,10 +137,19 @@ export const ChatModals: React.FC<ChatModalsProps> = ({
                 <View style={[styles.actionIconBox, { backgroundColor: '#f5f3ff' }]}><Text style={[styles.actionIcon, { color: '#8b5cf6' }]}>content_copy</Text></View>
                 <Text style={styles.actionText}>Sao chép</Text>
               </TouchableOpacity>
+            </View>
 
-              <TouchableOpacity style={styles.actionItem} onPress={() => { onDelete(actionMessage); setActionMessage(null); }}>
-                <View style={[styles.actionIconBox, { backgroundColor: '#fdf2f8' }]}><Text style={[styles.actionIcon, { color: '#db2777' }]}>delete</Text></View>
-                <Text style={styles.actionText}>Xóa chỉ ở phía tôi</Text>
+            <View style={styles.actionList}>
+              {String(actionMessage.senderId || "").trim().toLowerCase() === String(userEmail || "").trim().toLowerCase() && !actionMessage.recalled && (
+                <TouchableOpacity style={styles.actionListItem} onPress={() => { onRecall(actionMessage); setActionMessage(null); }}>
+                  <Text style={[styles.actionListIcon, { color: '#f43f5e' }]}>history</Text>
+                  <Text style={[styles.actionListText, { color: '#f43f5e' }]}>Thu hồi tin nhắn</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity style={styles.actionListItem} onPress={() => { onDelete(actionMessage); setActionMessage(null); }}>
+                <Text style={[styles.actionListIcon, { color: '#db2777' }]}>delete</Text>
+                <Text style={[styles.actionListText, { color: '#db2777' }]}>Xóa chỉ ở phía tôi</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -122,6 +122,45 @@ export class MessageService {
     return metadata;
   }
 
+  sanitizeAssignmentForViewer(message: any, viewerEmail: string) {
+    const assignment = message?.payload?.assignment;
+    if (!assignment?.submissions) return message;
+
+    const normalizedViewer = String(viewerEmail || "").trim().toLowerCase();
+    const creatorEmail = String(message.senderId || "").trim().toLowerCase();
+    const canViewAllSubmissionFiles = normalizedViewer === creatorEmail;
+    const submissions = assignment.submissions || {};
+    const nextSubmissions = Object.fromEntries(
+      Object.entries(submissions).map(([submitterEmail, submission]: [string, any]) => {
+        const normalizedSubmitter = String(submitterEmail || "").trim().toLowerCase();
+        if (canViewAllSubmissionFiles || normalizedSubmitter === normalizedViewer) {
+          return [submitterEmail, submission];
+        }
+
+        const { attachments, ...safeSubmission } = submission || {};
+        return [
+          submitterEmail,
+          {
+            ...safeSubmission,
+            attachments: [],
+            filesHidden: true,
+          },
+        ];
+      }),
+    );
+
+    return {
+      ...message,
+      payload: {
+        ...(message.payload || {}),
+        assignment: {
+          ...assignment,
+          submissions: nextSubmissions,
+        },
+      },
+    };
+  }
+
   /**
    * SEND A NEW MESSAGE
    */
@@ -129,7 +168,7 @@ export class MessageService {
     convId: string,
     senderEmail: string,
     content: string,
-    type: Message["type"] = "text",
+    type: Message["type"] | "assignment" | "poll" | "reminder" = "text",
     media: any[] = [],
     files: any[] = [],
     replyTo?: any,
@@ -226,30 +265,33 @@ export class MessageService {
     );
     const members: string[] = metadata.Item?.members || [];
 
-    // Block-check: if any recipient has blocked the sender OR there is any blocked relation, reject
-    console.debug("[MessageService] members for conv", convId, members);
-    for (const member of members) {
-      if (member === senderEmail) continue;
-      const eitherBlocked = await this.friendshipService.isAnyBlocked(
-        senderEmail,
-        member,
-      );
-      console.debug("[MessageService] block-check (either)", {
-        convId,
-        senderEmail,
-        member,
-        eitherBlocked,
-      });
-      if (eitherBlocked) {
-        console.warn(
-          "[MessageService] Sending blocked due to blocked relation: sender=%s member=%s conv=%s",
+    // Block-check applies only to direct conversations. In group chats, one
+    // blocked relation should not prevent everyone from sending to the group.
+    if (metadata.Item?.type === "direct") {
+      console.debug("[MessageService] members for conv", convId, members);
+      for (const member of members) {
+        if (member === senderEmail) continue;
+        const eitherBlocked = await this.friendshipService.isAnyBlocked(
           senderEmail,
           member,
+        );
+        console.debug("[MessageService] block-check (either)", {
           convId,
-        );
-        throw new BadRequestException(
-          "Một trong hai người đang chặn nhau. Không thể gửi tin nhắn.",
-        );
+          senderEmail,
+          member,
+          eitherBlocked,
+        });
+        if (eitherBlocked) {
+          console.warn(
+            "[MessageService] Sending blocked due to blocked relation: sender=%s member=%s conv=%s",
+            senderEmail,
+            member,
+            convId,
+          );
+          throw new BadRequestException(
+            "Một trong hai người đang chặn nhau. Không thể gửi tin nhắn.",
+          );
+        }
       }
     }
 
@@ -297,6 +339,10 @@ export class MessageService {
               }
               if (type === "contact_card") return "[Danh thiếp]";
               if (type === "location") return "[Vị trí]";
+              if (type === "assignment") {
+                const title = extraFields?.payload?.assignment?.title;
+                return title ? `[Bài tập] ${title}` : "[Bài tập mới]";
+              }
               if (!content || content.startsWith("MSG#")) {
                 if (media && media.length > 0) {
                   const hasSticker = media.some((item: any) => {
@@ -808,7 +854,10 @@ export class MessageService {
     const msg = res.Item as any;
     if (!msg) return null;
 
-    return { ...msg, id: msg.id || msg.SK };
+    return this.sanitizeAssignmentForViewer(
+      { ...msg, id: msg.id || msg.SK },
+      userEmail,
+    );
   }
 
   /**
@@ -887,6 +936,7 @@ export class MessageService {
     return {
       messages: (filteredItems as any[])
         .map((msg) => ({ ...msg, id: msg.id || msg.SK }))
+        .map((msg) => this.sanitizeAssignmentForViewer(msg, userEmail))
         .sort((a, b) => a.id.localeCompare(b.id)), // Force oldest-first (ascending)
       nextCursor,
     };
@@ -1216,7 +1266,8 @@ export class MessageService {
     return {
       messages: (combined as any[])
         .filter((msg) => !msg.removed?.includes(userEmail))
-        .map((msg) => ({ ...msg, id: msg.id || msg.SK })),
+        .map((msg) => ({ ...msg, id: msg.id || msg.SK }))
+        .map((msg) => this.sanitizeAssignmentForViewer(msg, userEmail)),
       nextCursor,
       prevCursor,
     };

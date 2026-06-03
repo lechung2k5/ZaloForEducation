@@ -1,0 +1,330 @@
+@startuml ZaloForEducation_DB_Diagram
+title ZaloForEducation - DynamoDB Single Table Diagram
+
+left to right direction
+hide circle
+skinparam dpi 160
+skinparam backgroundColor #F8FAFC
+skinparam handwritten false
+skinparam linetype ortho
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam roundcorner 10
+skinparam padding 4
+skinparam nodesep 55
+skinparam ranksep 45
+
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 12
+skinparam titleFontName Segoe UI Semibold
+skinparam titleFontSize 22
+skinparam titleFontColor #0F172A
+
+skinparam ArrowColor #64748B
+skinparam ArrowThickness 1.35
+skinparam ArrowFontColor #475569
+skinparam ArrowFontSize 11
+
+skinparam Package {
+  BorderColor #CBD5E1
+  FontColor #0F172A
+  FontStyle bold
+  FontSize 14
+}
+
+skinparam Entity {
+  BackgroundColor #FFFFFF
+  BorderColor #94A3B8
+  FontColor #0F172A
+  FontSize 12
+  FontStyle plain
+  AttributeFontColor #334155
+  AttributeFontSize 11
+}
+
+skinparam Entity<<User>> {
+  BackgroundColor #EFF6FF
+  BorderColor #2563EB
+  FontColor #1E3A8A
+}
+
+skinparam Entity<<Conversation>> {
+  BackgroundColor #F0FDF4
+  BorderColor #16A34A
+  FontColor #14532D
+}
+
+skinparam Entity<<Message>> {
+  BackgroundColor #FDF2F8
+  BorderColor #DB2777
+  FontColor #831843
+}
+
+skinparam Entity<<Call>> {
+  BackgroundColor #FFF7ED
+  BorderColor #EA580C
+  FontColor #7C2D12
+}
+
+skinparam Entity<<Embedded>> {
+  BackgroundColor #F8FAFC
+  BorderColor #64748B
+  FontColor #334155
+}
+
+package "User Partition\nPK = USER#{email}" #F8FBFF {
+  entity "UserMetadata\nSK = METADATA" as UserMetadata <<User>> {
+    * PK : USER#{email}
+    * SK : METADATA
+    --
+    email : string
+    fullName : string
+    phone : string
+    passwordHash : string
+    role : string
+    status : string
+    authProvider : string
+    avatarUrl : string
+    avatar : string
+    backgroundUrl : string
+    bio : string
+    address : string
+    dataOfBirth : string
+    gender : string
+    isOnline : boolean
+    lastSeen : string
+    currentDeviceId : string
+    trusted : boolean
+    showOnlineStatus : boolean
+    createdAt : string
+    updatedAt : string
+  }
+
+  entity "DeviceSession\nSK = DEVICE#{deviceId}" as DeviceSession <<User>> {
+    * PK : USER#{email}
+    * SK : DEVICE#{deviceId}
+    --
+    email : string
+    deviceId : string
+    deviceName : string
+    deviceType : string
+    ip : string
+    userAgent : string
+    platform : string
+    loginAt : string
+    lastActiveAt : string
+    expiresAt : number
+    status : ACTIVE | REVOKED | LOGGED_OUT
+    trusted : boolean
+    createdAt : string
+    updatedAt : string
+  }
+
+  entity "Friendship\nSK = FRIEND#{friendEmail}" as Friendship <<User>> {
+    * PK : USER#{email}
+    * SK : FRIEND#{friendEmail}
+    --
+    sender_id : string
+    receiver_id : string
+    status : pending | accepted | blocked
+    blockedBy : string
+    closeFriend : boolean
+    fullName : string
+    avatarUrl : string
+    phone : string
+    createdAt : string
+    updatedAt : string
+  }
+
+  entity "UserConversation\nSK = CONV#{type}#{id}" as UserConversation <<Conversation>> {
+    * PK : USER#{email}
+    * SK : CONV#{DIRECT|GROUP}#{id}
+    --
+    conversationId : string
+    type : direct | group
+    name : string
+    groupName : string
+    avatar : string
+    members : string[]
+    participants : string[]
+    admin : string
+    deputies : string[]
+    pinned : boolean
+    muted : boolean
+    hidden : boolean
+    archived : boolean
+    unreadCount : number
+    lastMessage : object
+    lastMessageAt : string
+    lastClearedAt : string
+    joinedAt : string
+    autoDeleteDays : number
+    autoDeleteUpdatedAt : string
+    totalMessages : number
+    createdAt : string
+    updatedAt : string
+  }
+}
+
+package "Conversation Partition\nPK = CONV#{DIRECT|GROUP}#{id}" #F8FFF9 {
+  entity "ConversationMetadata\nSK = METADATA" as ConversationMetadata <<Conversation>> {
+    * PK : CONV#{DIRECT|GROUP}#{id}
+    * SK : METADATA
+    --
+    conversationId : string
+    type : direct | group
+    name : string
+    groupName : string
+    members : string[]
+    participants : string[]
+    admin : string
+    deputies : string[]
+    avatar : string
+    backgroundUrl : string
+    status : string
+    totalMessages : number
+    createdAt : string
+    updatedAt : string
+  }
+
+  entity "Message\nSK = MSG#{timestamp}#{uuid}" as Message <<Message>> {
+    * PK : CONV#{DIRECT|GROUP}#{id}
+    * SK : MSG#{timestamp}#{uuid}
+    --
+    id : string
+    conversationId : string
+    senderId : string
+    receiverId : string
+    type : text | image | file | audio | location | contact | system | call
+    content : string
+    status : sent | deleted | revoked
+    files : FileAttachment[]
+    media : MediaAttachment[]
+    location : Location
+    contactCard : ContactCard
+    replyTo : ReplyMessage
+    reactions : object
+    mentions : string[]
+    audioUrl : string
+    fileUrl : string
+    imageUrl : string
+    messageType : string
+    revoked : boolean
+    deletedAt : string
+    systemActionBy : string
+    createdAt : string
+    updatedAt : string
+  }
+
+  entity "ReadReceipt\nSK = READ#{email}" as ReadReceipt <<Message>> {
+    * PK : CONV#{DIRECT|GROUP}#{id}
+    * SK : READ#{email}
+    --
+    email : string
+    userId : string
+    lastReadMessageId : string
+    lastReadAt : string
+    unreadCount : number
+    updatedAt : string
+  }
+}
+
+package "Call Records" #FFFBF5 {
+  entity "CallHistory" as CallHistory <<Call>> {
+    * PK : CONV#{DIRECT|GROUP}#{id}
+    * SK : MSG#{timestamp}#{uuid}
+    --
+    callId : string
+    callType : audio | video
+    callStatus : completed | rejected | cancelled | missed
+    caller : string
+    callerId : string
+    receiverId : string
+    participants : string[]
+    duration : number
+    durationSec : number
+    endedAt : string
+    metadata : object
+    createdAt : string
+    updatedAt : string
+  }
+}
+
+package "Embedded Objects" #FFFFFF {
+  entity "FileAttachment" as FileAttachment <<Embedded>> {
+    name : string
+    url : string
+    dataUrl : string
+    mimeType : string
+    size : number
+    isContact : boolean
+    contactData : ContactCard
+  }
+
+  entity "MediaAttachment" as MediaAttachment <<Embedded>> {
+    name : string
+    url : string
+    dataUrl : string
+    mimeType : string
+    size : number
+  }
+
+  entity "Location" as Location <<Embedded>> {
+    latitude : number
+    longitude : number
+    address : string
+    name : string
+  }
+
+  entity "ContactCard" as ContactCard <<Embedded>> {
+    email : string
+    fullName : string
+    phone : string
+    avatarUrl : string
+    status : string
+    closeFriend : boolean
+    createdAt : string
+    updatedAt : string
+  }
+
+  entity "ReplyMessage" as ReplyMessage <<Embedded>> {
+    id : string
+    PK : string
+    SK : string
+    senderId : string
+    conversationId : string
+    type : string
+    content : string
+    files : FileAttachment[]
+    media : MediaAttachment[]
+    location : Location
+    reactions : object
+    status : string
+    createdAt : string
+    updatedAt : string
+  }
+}
+
+UserMetadata ||-[#2563EB]-o{ DeviceSession : owns
+UserMetadata ||-[#2563EB]-o{ Friendship : has
+UserMetadata ||-[#16A34A]-o{ UserConversation : participates
+UserConversation }o-[#16A34A]-|| ConversationMetadata : maps_to
+ConversationMetadata ||-[#16A34A]-o{ Message : contains
+ConversationMetadata ||-[#DB2777]-o{ ReadReceipt : read_by
+Message }o-[#2563EB]-|| UserMetadata : senderId
+ReadReceipt }o-[#2563EB]-|| UserMetadata : email
+Friendship }o-[#2563EB]-|| UserMetadata : friendEmail
+CallHistory -[#EA580C,dashed,thickness=2]-|> Message : represented_as
+
+Message ||-[#64748B]-o{ FileAttachment : files
+Message ||-[#64748B]-o{ MediaAttachment : media
+Message ||-[#64748B]-o| Location : location
+Message ||-[#64748B]-o| ContactCard : contactCard
+Message ||-[#64748B]-o| ReplyMessage : replyTo
+FileAttachment ||-[#64748B]-o| ContactCard : contactData
+ReplyMessage ||-[#64748B]-o{ FileAttachment : files
+ReplyMessage ||-[#64748B]-o{ MediaAttachment : media
+ReplyMessage ||-[#64748B]-o| Location : location
+
+@enduml

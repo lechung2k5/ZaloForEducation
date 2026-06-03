@@ -13,6 +13,8 @@ import { SessionService } from "../auth/session.service";
 import { UseGuards, Logger, Inject, forwardRef } from "@nestjs/common";
 import { WsJwtGuard } from "./ws-jwt.guard";
 import { RedisService } from "../../infrastructure/redis.service";
+import { MessageService } from "./message.service";
+import { NotificationService } from "./notification.service";
 
 export const userPlatformMap = new Map<string, string>();
 
@@ -31,6 +33,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @Inject(forwardRef(() => SessionService))
     private readonly sessionService: SessionService,
     private readonly redisService: RedisService,
+    @Inject(forwardRef(() => MessageService))
+    private readonly messageService: MessageService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   private async isConversationMember(convId: string, email: string) {
@@ -267,7 +272,28 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /**
    * [SENIOR] Notify members when a message is updated (Recall/React/Pin)
    */
-  emitMessagePatched(convId: string, message: any) {
+  async emitMessagePatched(convId: string, message: any) {
+    const isAssignment = Boolean(message?.payload?.assignment);
+    if (isAssignment) {
+      const metadata = await this.chatService.getConversationMetadata(convId);
+      if (metadata && Array.isArray(metadata.members)) {
+        for (const member of metadata.members) {
+          const memberEmail = String(member).toLowerCase();
+          const userRoom = `user#${memberEmail}`;
+          const safeMessage = this.messageService.sanitizeAssignmentForViewer(
+            message,
+            memberEmail,
+          );
+          this.server.to(userRoom).emit("message_patched", {
+            convId,
+            message: safeMessage,
+          });
+        }
+        this.logger.log(`[SOCKET] Broadcasted sanitized assignment patch for ${message.id} in ${convId}`);
+        return;
+      }
+    }
+
     const room = convId.toLowerCase();
     // Broadcast to the room so active viewers see it
     this.server.to(room).emit("message_patched", { convId, message });
@@ -292,6 +318,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   notifyFriendRequest(email: string, payload: any) {
     const userRoom = `user#${email.toLowerCase()}`;
     this.server.to(userRoom).emit("friend_request_received", payload);
+    const senderName = payload?.senderProfile?.fullName || payload?.senderEmail || "Người dùng";
+    void this.notificationService.sendNotification(email, {
+      title: "Lời mời kết bạn",
+      body: `${senderName} đã gửi lời mời kết bạn.`,
+      data: {
+        type: "friend_request",
+        senderEmail: payload?.senderEmail,
+      },
+    });
     console.log(`Sent friend_request_received to room ${userRoom}`);
   }
 
@@ -375,6 +410,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(userRoom).emit("security_alert", {
       ...payload,
       at: payload.at || new Date().toISOString(),
+    });
+    void this.notificationService.sendNotification(email, {
+      title: payload.title || "Cảnh báo bảo mật",
+      body: payload.message || "Tài khoản của bạn có cảnh báo mới.",
+      data: {
+        type: "security_alert",
+        alertType: payload.type,
+        ...(payload.metadata || {}),
+      },
     });
     this.logger.warn(
       `[SOCKET] security_alert emitted to ${userRoom}: ${payload.type}`,

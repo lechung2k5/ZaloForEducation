@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Platform, View, Text, Image, AppState, NativeModules } from 'react-native';
+import { Platform, View, Text, Image, AppState, NativeModules, PermissionsAndroid } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Alert from '../utils/Alert';
@@ -11,6 +11,7 @@ import { useChatStore } from '../store/chatStore';
 import { chimeRef } from '../utils/chimeRef';
 import { pushSecurityAlert } from '../utils/securityAlerts';
 import { dismissNotificationsByConversation, scheduleReminderNotification } from '../utils/reminderNotifications';
+import { unregisterDevicePushToken } from '../utils/pushNotifications';
 
 
 export interface AuthContextType {
@@ -35,6 +36,7 @@ export interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const INCOMING_CALL_TIMEOUT_MS = 60000;
 
 interface AuthProviderProps {
   children: React.ReactNode;
@@ -53,6 +55,29 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
   const isKickingRef = useRef(false);
   const callTimeoutRef = useRef<any>(null);
   const isListenersSetupRef = useRef(false);
+
+  const requestCallPermissions = useCallback(async () => {
+    if (Platform.OS !== 'android') return true;
+
+    try {
+      const hasAudio = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+      if (!hasAudio) {
+        const grantedAudio = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+        if (grantedAudio !== PermissionsAndroid.RESULTS.GRANTED) return false;
+      }
+
+      const hasVideo = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+      if (!hasVideo) {
+        const grantedVideo = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
+        if (grantedVideo !== PermissionsAndroid.RESULTS.GRANTED) return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.warn('[AUTH] Failed to request call permissions from notification:', error);
+      return false;
+    }
+  }, []);
 
   const checkSessionStatus = async () => {
     const token = await AsyncStorage.getItem('token');
@@ -174,6 +199,82 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
   useEffect(() => {
     handleForceLogoutRef.current = handleForceLogout;
   }, [handleForceLogout]);
+
+  const rejectIncomingCallFromNotification = useCallback((data: any, reason = 'BUSY') => {
+    const callId = data?.callId;
+    const convId = data?.convId;
+    if (!callId || !convId) return;
+
+    SocketService.socket?.emit('call:reject', {
+      convId,
+      callId,
+      fromEmail: user?.email,
+      toEmail: data?.fromEmail,
+      reason,
+    });
+
+    const state = useCallStore.getState();
+    if (state.activeCallId === callId) {
+      if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
+      useCallStore.getState().rejectCall();
+    }
+  }, [user?.email]);
+
+  const acceptIncomingCallFromNotification = useCallback(async (data: any) => {
+    const callId = data?.callId;
+    const convId = data?.convId;
+    if (!callId || !convId) return;
+
+    const state = useCallStore.getState();
+    if (state.callState !== 'IDLE' && state.activeCallId !== callId) return;
+
+    const hasPermission = await requestCallPermissions();
+    if (!hasPermission) return;
+
+    if (state.activeCallId !== callId) {
+      const callerProfile = data?.callerProfile || {
+        email: data?.fromEmail,
+        fullName: data?.callerName || data?.fromEmail,
+      };
+      useCallStore.getState().receiveIncomingCall(
+        callerProfile,
+        data?.callType === 'video' ? 'video' : 'audio',
+        convId,
+        callId,
+      );
+    }
+
+    try {
+      const res = await apiRequest('/call/join', {
+        method: 'POST',
+        body: JSON.stringify({
+          conversationId: convId,
+          callId,
+        }),
+      });
+
+      if (!res.ok) throw new Error(res.message || 'Khong the tham gia cuoc goi');
+
+      const meetingData = res.data || res;
+      const { meeting, attendee } = meetingData;
+      if (!meeting || !attendee) throw new Error('Du lieu cuoc hop khong hop le');
+
+      if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
+      useCallStore.getState().acceptCall({ meeting, attendee });
+
+      SocketService.socket?.emit('call:accept', {
+        convId,
+        callId,
+        fromEmail: user?.email,
+        toEmail: data?.fromEmail || useCallStore.getState().caller?.email,
+      });
+    } catch (error) {
+      console.warn('[AUTH] Failed to accept call from notification:', error);
+      useCallStore.getState().resetCall();
+    }
+  }, [requestCallPermissions, user?.email]);
 
   const setupSocketListeners = useCallback((currentDeviceId: string) => {
     if (!SocketService.socket) return;
@@ -446,7 +547,15 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
             title: `Cuộc gọi ${data.callType === 'video' ? 'video' : 'thoại'} đến`,
             body: `${callerName} đang gọi cho bạn...`,
             sound: true,
-            data: { callId: data.callId, convId: data.convId },
+            data: {
+              callId: data.callId,
+              convId: data.convId,
+              fromEmail: data.fromEmail,
+              callType: data.callType,
+              callerName,
+              callerProfile: data.callerProfile,
+              type: 'incoming_call',
+            },
             categoryIdentifier: 'incoming_call',
             autoDismiss: false,
             sticky: true,
@@ -462,10 +571,14 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
           SocketService.socket?.emit('call:reject', {
             convId: data.convId, callId: data.callId, toEmail: data.fromEmail, reason: 'NO_ANSWER',
           });
+          Notifications.dismissAllNotificationsAsync();
+          if (Platform.OS === 'android' && NativeModules.ChimeModule?.clearWakeUpScreen) {
+            NativeModules.ChimeModule.clearWakeUpScreen();
+          }
           useCallStore.getState().resetCall();
         }
         callTimeoutRef.current = null;
-      }, 30000);
+      }, INCOMING_CALL_TIMEOUT_MS);
     });
 
     SocketService.on('call:dismiss', (data: any) => {
@@ -662,21 +775,18 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
 
     const subscription = require('react-native').AppState.addEventListener('change', handleAppStateChange);
 
-    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+    const responseListener = Notifications.addNotificationResponseReceivedListener(async response => {
       // Xóa thông báo ngay khi có tương tác (Nghe, Từ chối, hoặc bấm thẳng vào thông báo)
       Notifications.dismissAllNotificationsAsync();
-      
+      const notificationData = response.notification.request.content.data as any;
+
       if (response.actionIdentifier === 'REJECT') {
-        const { callId, convId } = response.notification.request.content.data as any;
-        const state = useCallStore.getState();
-        if (state.activeCallId === callId) {
-          SocketService.socket?.emit('call:reject', {
-            convId,
-            callId,
-            reason: 'BUSY'
-          });
-          useCallStore.getState().rejectCall();
-        }
+        rejectIncomingCallFromNotification(notificationData, 'BUSY');
+        return;
+      }
+
+      if (response.actionIdentifier === 'ACCEPT') {
+        await acceptIncomingCallFromNotification(notificationData);
       }
     });
 
@@ -709,7 +819,7 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
       subscription.remove();
       responseListener.remove();
     };
-  }, [setupSocketListeners, handleForceLogout]);
+  }, [setupSocketListeners, handleForceLogout, acceptIncomingCallFromNotification, rejectIncomingCallFromNotification]);
 
   const login = async (userData: any, accessToken: string, currentDeviceId: string) => {
     await AsyncStorage.setItem('user', JSON.stringify(userData));
@@ -728,6 +838,7 @@ export const AuthProvider = ({ children, onForceLogoutNavigate }: AuthProviderPr
 
   const logout = async () => {
     try {
+      await unregisterDevicePushToken();
       await apiRequest('/auth/logout', {
         method: 'POST',
         body: JSON.stringify({ deviceId })

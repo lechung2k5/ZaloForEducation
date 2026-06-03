@@ -18,6 +18,12 @@ export type UpdateProfileInput = {
   showOnlineStatus?: boolean;
 };
 
+export type RegisterPushTokenInput = {
+  token?: string;
+  deviceId?: string;
+  platform?: string;
+};
+
 @Injectable()
 export class UserService {
   private readonly logger = new Logger(UserService.name);
@@ -206,6 +212,86 @@ export class UserService {
     }
 
     return profileData;
+  }
+
+  async registerPushToken(email: string, input: RegisterPushTokenInput) {
+    const normalizedEmail = String(email || '').toLowerCase();
+    const token = String(input?.token || '').trim();
+
+    if (!token) {
+      throw new BadRequestException('Push token is required.');
+    }
+
+    const existingUser = await this.getUserRecord(normalizedEmail);
+    if (!existingUser) {
+      throw new NotFoundException('Khong tim thay thong tin nguoi dung.');
+    }
+
+    const now = new Date().toISOString();
+    const deviceId = input?.deviceId ? String(input.deviceId) : null;
+    const platform = input?.platform ? String(input.platform) : null;
+    const existingTokens = Array.isArray(existingUser.pushTokens)
+      ? existingUser.pushTokens
+      : [];
+
+    const nextTokens = [
+      ...existingTokens.filter((item: any) => {
+        const sameToken = item?.token === token;
+        const sameDevice = deviceId && item?.deviceId === deviceId;
+        return !sameToken && !sameDevice;
+      }),
+      { token, deviceId, platform, updatedAt: now },
+    ].slice(-10);
+
+    await this.db.docClient.send(
+      new UpdateCommand({
+        TableName: this.db.tableName,
+        Key: { PK: `USER#${normalizedEmail}`, SK: 'METADATA' },
+        UpdateExpression: 'SET pushTokens = :pushTokens, updatedAt = :updatedAt',
+        ExpressionAttributeValues: {
+          ':pushTokens': nextTokens,
+          ':updatedAt': now,
+        },
+        ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK)',
+      }),
+    );
+
+    return { ok: true, pushTokenCount: nextTokens.length };
+  }
+
+  async unregisterPushToken(email: string, input: RegisterPushTokenInput) {
+    const normalizedEmail = String(email || '').toLowerCase();
+    const token = String(input?.token || '').trim();
+    const deviceId = input?.deviceId ? String(input.deviceId) : null;
+    const existingUser = await this.getUserRecord(normalizedEmail);
+
+    if (!existingUser) {
+      return { ok: true, pushTokenCount: 0 };
+    }
+
+    const existingTokens = Array.isArray(existingUser.pushTokens)
+      ? existingUser.pushTokens
+      : [];
+
+    const nextTokens = existingTokens.filter((item: any) => {
+      if (token && item?.token === token) return false;
+      if (deviceId && item?.deviceId === deviceId) return false;
+      return true;
+    });
+
+    await this.db.docClient.send(
+      new UpdateCommand({
+        TableName: this.db.tableName,
+        Key: { PK: `USER#${normalizedEmail}`, SK: 'METADATA' },
+        UpdateExpression: 'SET pushTokens = :pushTokens, updatedAt = :updatedAt',
+        ExpressionAttributeValues: {
+          ':pushTokens': nextTokens,
+          ':updatedAt': new Date().toISOString(),
+        },
+      }),
+    );
+
+    return { ok: true, pushTokenCount: nextTokens.length };
   }
 
   async uploadAvatar(email: string, file: any) {

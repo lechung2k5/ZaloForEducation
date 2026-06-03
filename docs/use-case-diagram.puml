@@ -1,0 +1,221 @@
+@startuml ZaloForEducation_Use_Case_Diagram
+title Sơ đồ Use Case tổng quát - ZaloForEducation
+
+left to right direction
+skinparam dpi 160
+skinparam backgroundColor #FFFFFF
+skinparam handwritten false
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundcorner 28
+skinparam padding 5
+skinparam nodesep 85
+skinparam ranksep 32
+
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam titleFontName Arial
+skinparam titleFontSize 20
+skinparam titleFontStyle bold
+skinparam titleFontColor #111827
+
+skinparam Actor {
+  BackgroundColor #FFFFFF
+  BorderColor #111827
+  FontColor #111827
+}
+
+skinparam Usecase {
+  BackgroundColor #DBECFF
+  BorderColor #8EA9C9
+  FontColor #111827
+}
+
+skinparam Rectangle {
+  BackgroundColor transparent
+  BorderColor #6B7280
+  FontColor #111827
+  FontStyle bold
+}
+
+skinparam ArrowColor #6B7280
+skinparam ArrowThickness 1
+skinparam ArrowFontColor #111827
+skinparam ArrowFontSize 10
+
+actor "Người dùng" as User
+actor "Quản trị viên" as Admin
+
+rectangle "HỆ THỐNG ZALO FOR EDUCATION" as System {
+  usecase "Đăng nhập" as Login #D8EFD3
+  usecase "Đăng ký" as Register #FFE9BF
+
+  usecase "Quản lý thông tin cá nhân" as Profile #FFE9BF
+  usecase "Xem thông tin cá nhân" as ViewProfile #DBECFF
+  usecase "Cập nhật thông tin cá nhân" as UpdateProfile #DBECFF
+  usecase "Cập nhật ảnh đại diện" as UploadAvatar #DBECFF
+  usecase "Cập nhật ảnh nền" as UploadBackground #DBECFF
+  usecase "Đổi mật khẩu" as ChangePassword #DBECFF
+  usecase "Khóa / xóa tài khoản" as AccountLifecycle #DBECFF
+
+  usecase "Quản lý bạn bè" as Friends #FFE9BF
+  usecase "Xem danh sách bạn bè" as ViewFriends #DBECFF
+  usecase "Tìm kiếm người dùng" as SearchUsers #DBECFF
+  usecase "Gửi lời mời kết bạn" as SendFriendRequest #DBECFF
+  usecase "Lời mời kết bạn" as FriendRequests #DBECFF
+  usecase "Chặn / bỏ chặn bạn bè" as BlockFriend #DBECFF
+  usecase "Gợi ý kết bạn" as FriendSuggest #DBECFF
+  usecase "Đặt biệt danh / bạn thân" as FriendSettings #DBECFF
+
+  usecase "Quản lý cuộc trò chuyện" as Conversation #FFE9BF
+  usecase "Tạo cuộc trò chuyện" as CreateConversation #DBECFF
+  usecase "Tạo nhóm" as CreateGroup #DBECFF
+  usecase "Thêm thành viên" as AddMember #DBECFF
+  usecase "Xóa thành viên" as RemoveMember #DBECFF
+  usecase "Trao quyền trưởng nhóm" as GroupRole #DBECFF
+  usecase "Rời khỏi nhóm" as LeaveGroup #DBECFF
+  usecase "Xóa cuộc trò chuyện" as DeleteConversation #DBECFF
+  usecase "Tìm kiếm cuộc trò chuyện" as SearchConversation #DBECFF
+
+  usecase "Quản lý tin nhắn" as Message #FFE9BF
+  usecase "Gửi tin nhắn" as SendText #DBECFF
+  usecase "Gửi tin nhắn thoại" as SendAudio #DBECFF
+  usecase "Gửi hình ảnh" as SendImage #DBECFF
+  usecase "Gửi video" as SendVideo #DBECFF
+  usecase "Gửi file" as SendFile #DBECFF
+  usecase "Gửi vị trí" as SendLocation #DBECFF
+  usecase "Gửi danh thiếp" as SendContactCard #DBECFF
+  usecase "Thả cảm xúc" as ReactMessage #DBECFF
+  usecase "Trả lời tin nhắn" as ReplyMessage #DBECFF
+  usecase "Chỉnh sửa tin nhắn" as EditMessage #DBECFF
+  usecase "Thu hồi tin nhắn" as RevokeMessage #DBECFF
+  usecase "Tạo bình chọn" as CreatePoll #DBECFF
+  usecase "Bình chọn" as VotePoll #DBECFF
+
+  usecase "Quản lý gọi điện" as Call #FFE9BF
+  usecase "Gọi audio 1-1 / Nhóm" as AudioCall #DBECFF
+  usecase "Gọi video 1-1 / Nhóm" as VideoCall #DBECFF
+  usecase "Từ chối / Kết thúc cuộc gọi" as EndCall #DBECFF
+  usecase "Nâng cấp audio/video" as UpgradeCall #DBECFF
+
+  usecase "AI CHAT BOT" as Bot #FFE9BF
+  usecase "Chat với AI chatbot" as ChatBot #DBECFF
+  usecase "AI gợi ý nội dung tin nhắn" as SuggestMessage #DBECFF
+  usecase "AI tóm tắt hội thoại" as SummarizeChat #DBECFF
+  usecase "Lịch sử chat với AI" as BotHistory #DBECFF
+}
+
+User --> Register
+User --> Login
+User --> Profile
+User --> Friends
+User --> Conversation
+User --> Message
+User --> Call
+User --> Bot
+
+Admin --|> User
+Admin --> AccountLifecycle
+
+Register ..> Login : <<include>>
+
+' Landscape layout anchors.
+Register -[hidden]right- Login
+Login -[hidden]right- Profile
+Profile -[hidden]right- Friends
+Friends -[hidden]right- Conversation
+Conversation -[hidden]right- Message
+Message -[hidden]right- Call
+Call -[hidden]right- Bot
+
+ViewProfile -[hidden]down- UpdateProfile
+UpdateProfile -[hidden]down- UploadAvatar
+UploadAvatar -[hidden]down- UploadBackground
+UploadBackground -[hidden]down- ChangePassword
+ChangePassword -[hidden]down- AccountLifecycle
+
+ViewFriends -[hidden]down- SearchUsers
+SearchUsers -[hidden]down- SendFriendRequest
+SendFriendRequest -[hidden]down- FriendRequests
+FriendRequests -[hidden]down- BlockFriend
+BlockFriend -[hidden]down- FriendSuggest
+FriendSuggest -[hidden]down- FriendSettings
+
+CreateConversation -[hidden]down- CreateGroup
+CreateGroup -[hidden]down- AddMember
+AddMember -[hidden]down- RemoveMember
+RemoveMember -[hidden]down- GroupRole
+GroupRole -[hidden]down- LeaveGroup
+LeaveGroup -[hidden]down- DeleteConversation
+DeleteConversation -[hidden]down- SearchConversation
+
+SendText -[hidden]down- SendAudio
+SendAudio -[hidden]down- SendImage
+SendImage -[hidden]down- SendVideo
+SendVideo -[hidden]down- SendFile
+SendFile -[hidden]down- SendLocation
+SendLocation -[hidden]down- SendContactCard
+SendContactCard -[hidden]down- ReactMessage
+ReactMessage -[hidden]down- ReplyMessage
+ReplyMessage -[hidden]down- EditMessage
+EditMessage -[hidden]down- RevokeMessage
+RevokeMessage -[hidden]down- CreatePoll
+CreatePoll -[hidden]down- VotePoll
+
+AudioCall -[hidden]down- VideoCall
+VideoCall -[hidden]down- EndCall
+EndCall -[hidden]down- UpgradeCall
+
+ChatBot -[hidden]down- SuggestMessage
+SuggestMessage -[hidden]down- SummarizeChat
+SummarizeChat -[hidden]down- BotHistory
+
+Profile <.. ViewProfile : <<extend>>
+Profile <.. UpdateProfile : <<extend>>
+Profile <.. UploadAvatar : <<extend>>
+Profile <.. UploadBackground : <<extend>>
+Profile <.. ChangePassword : <<extend>>
+Profile <.. AccountLifecycle : <<extend>>
+
+Friends <.. ViewFriends : <<extend>>
+Friends <.. SearchUsers : <<extend>>
+Friends <.. SendFriendRequest : <<extend>>
+Friends <.. FriendRequests : <<extend>>
+Friends <.. BlockFriend : <<extend>>
+Friends <.. FriendSuggest : <<extend>>
+Friends <.. FriendSettings : <<extend>>
+
+Conversation <.. CreateConversation : <<extend>>
+Conversation <.. CreateGroup : <<extend>>
+Conversation <.. AddMember : <<extend>>
+Conversation <.. RemoveMember : <<extend>>
+Conversation <.. GroupRole : <<extend>>
+Conversation <.. LeaveGroup : <<extend>>
+Conversation <.. DeleteConversation : <<extend>>
+Conversation <.. SearchConversation : <<extend>>
+
+Message <.. SendText : <<extend>>
+Message <.. SendAudio : <<extend>>
+Message <.. SendImage : <<extend>>
+Message <.. SendVideo : <<extend>>
+Message <.. SendFile : <<extend>>
+Message <.. SendLocation : <<extend>>
+Message <.. SendContactCard : <<extend>>
+Message <.. ReactMessage : <<extend>>
+Message <.. ReplyMessage : <<extend>>
+Message <.. EditMessage : <<extend>>
+Message <.. RevokeMessage : <<extend>>
+Message <.. CreatePoll : <<extend>>
+Message <.. VotePoll : <<extend>>
+
+Call <.. AudioCall : <<extend>>
+Call <.. VideoCall : <<extend>>
+Call <.. EndCall : <<extend>>
+Call <.. UpgradeCall : <<extend>>
+
+Bot <.. ChatBot : <<extend>>
+Bot <.. SuggestMessage : <<extend>>
+Bot <.. SummarizeChat : <<extend>>
+Bot <.. BotHistory : <<extend>>
+
+@enduml

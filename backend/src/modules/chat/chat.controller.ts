@@ -29,6 +29,7 @@ import { MessageService } from "./message.service";
 import { NotificationService } from "./notification.service";
 import { BotService } from "../bot/bot.service";
 import { BOT_EMAIL } from "@zalo-edu/shared";
+import { AssignmentService } from "./assignment.service";
 
 @Controller("chat")
 @UseGuards(JwtAuthGuard, ProfileCompleteGuard)
@@ -47,6 +48,7 @@ export class ChatController {
     private readonly chatGateway: ChatGateway,
     private readonly notificationService: NotificationService,
     private readonly botService: BotService,
+    private readonly assignmentService: AssignmentService,
   ) {}
 
   // --- CONVERSATIONS ---
@@ -448,6 +450,13 @@ export class ChatController {
           date: string;
           repeatType: "none" | "daily" | "weekly" | "monthly";
         };
+        assignment?: {
+          title: string;
+          description?: string;
+          deadline: string;
+          assignees?: string[];
+          attachments?: any[];
+        };
       };
       poll?: {
         topic: string;
@@ -461,10 +470,51 @@ export class ChatController {
         date: string;
         repeatType: "none" | "daily" | "weekly" | "monthly";
       };
+      assignment?: {
+        title: string;
+        description?: string;
+        deadline: string;
+        assignees?: string[];
+        attachments?: any[];
+      };
     },
     @Req() req: any,
   ) {
     const email = req.user.email;
+    const isAssignmentMessage =
+      body.type === "assignment" ||
+      Boolean(body.payload?.assignment || body.assignment);
+
+    if (isAssignmentMessage) {
+      const metadata = await this.chatService.getConversationMetadata(convId);
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      const ownerEmail = String(metadata?.owner || metadata?.admin || "")
+        .trim()
+        .toLowerCase();
+      const adminEmail = String(metadata?.admin || "")
+        .trim()
+        .toLowerCase();
+      const deputies = Array.isArray(metadata?.deputies)
+        ? metadata.deputies.map((deputy) =>
+            String(deputy || "").trim().toLowerCase(),
+          )
+        : [];
+
+      if (metadata?.type !== "group") {
+        throw new BadRequestException("Chỉ có thể giao bài tập trong nhóm");
+      }
+
+      if (
+        normalizedEmail !== ownerEmail &&
+        normalizedEmail !== adminEmail &&
+        !deputies.includes(normalizedEmail)
+      ) {
+        throw new BadRequestException(
+          "Chỉ trưởng nhóm hoặc phó nhóm mới có quyền giao bài tập",
+        );
+      }
+    }
+
     const res = await this.messageService.sendMessage(
       convId,
       email,
@@ -475,11 +525,12 @@ export class ChatController {
       body.replyTo,
       {
         // Keep backward compatibility while normalizing poll/reminder into payload.
-        ...(!body.payload && (body.poll || body.reminder)
+        ...(!body.payload && (body.poll || body.reminder || body.assignment)
           ? {
               payload: {
                 ...(body.poll ? { poll: body.poll } : {}),
                 ...(body.reminder ? { reminder: body.reminder } : {}),
+                ...(body.assignment ? { assignment: body.assignment } : {}),
               },
             }
           : {}),
@@ -529,10 +580,10 @@ export class ChatController {
         Array.isArray(body.media) &&
         body.media.some((item: any) => item?.isHD === true);
 
-      this.notificationService.broadcastNotification(recipients, {
-        title: convMetadata.name || "Tin nhắn mới",
-        body:
-          body.type === "contact_card"
+      const notificationBody =
+        body.type === "assignment"
+          ? "[Bài tập mới]"
+          : body.type === "contact_card"
             ? "[Danh thiếp]"
             : body.type === "location"
               ? "[Vị trí]"
@@ -541,7 +592,11 @@ export class ChatController {
                   ? "[Sticker]"
                   : hasHDImage
                     ? "[Ảnh HD]"
-                    : "[Hình ảnh/Tệp tin]"),
+                    : "[Hình ảnh/Tệp tin]");
+
+      this.notificationService.broadcastNotification(recipients, {
+        title: convMetadata.name || "Tin nhắn mới",
+        body: notificationBody,
         data: { convId, messageId: res.id },
       });
     }
@@ -563,6 +618,42 @@ export class ChatController {
     }
 
     return res;
+  }
+
+  @Post("conversations/:convId/messages/:messageId/assignment/submit")
+  async submitAssignment(
+    @Param("convId") convId: string,
+    @Param("messageId") messageId: string,
+    @Body() body: { note?: string; attachments?: any[] },
+    @Req() req: any,
+  ) {
+    const email = req.user.email;
+    const updated = await this.assignmentService.submitAssignment(
+      convId,
+      messageId,
+      email,
+      body,
+    );
+
+    this.chatGateway.emitMessagePatched(convId, updated);
+    return updated;
+  }
+
+  @Delete("conversations/:convId/messages/:messageId/assignment/submission")
+  async deleteAssignmentSubmission(
+    @Param("convId") convId: string,
+    @Param("messageId") messageId: string,
+    @Req() req: any,
+  ) {
+    const email = req.user.email;
+    const updated = await this.assignmentService.deleteSubmission(
+      convId,
+      messageId,
+      email,
+    );
+
+    this.chatGateway.emitMessagePatched(convId, updated);
+    return updated;
   }
 
   @Post("conversations/:convId/messages/:messageId/poll/vote")

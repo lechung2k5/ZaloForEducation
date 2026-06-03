@@ -10,11 +10,12 @@ import { BotModule } from "../bot/bot.module";
 
 import { NotificationService } from "./notification.service";
 import { WsJwtGuard } from "./ws-jwt.guard";
+import { AssignmentService } from "./assignment.service";
 
 @Module({
   imports: [forwardRef(() => AuthModule), forwardRef(() => UserModule), forwardRef(() => BotModule)],
   controllers: [ChatController],
-  providers: [ChatGateway, ChatService, MessageService, FriendshipService, NotificationService, WsJwtGuard],
-  exports: [ChatGateway, ChatService, MessageService, FriendshipService, NotificationService, WsJwtGuard],
+  providers: [ChatGateway, ChatService, MessageService, FriendshipService, NotificationService, WsJwtGuard, AssignmentService],
+  exports: [ChatGateway, ChatService, MessageService, FriendshipService, NotificationService, WsJwtGuard, AssignmentService],
 })
 export class ChatModule {}

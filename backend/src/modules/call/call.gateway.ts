@@ -9,6 +9,7 @@ import { Server, Socket } from "socket.io";
 import { Logger } from "@nestjs/common";
 import { userPlatformMap } from "../chat/chat.gateway";
 import { CallService } from "./call.service";
+import { NotificationService } from "../chat/notification.service";
 
 /**
  * CallGateway — Xử lý signaling cho cuộc gọi AWS Chime.
@@ -27,7 +28,10 @@ export class CallGateway {
   private readonly logger = new Logger(CallGateway.name);
   private waitForJoinTimeouts = new Map<string, any>(); // ✅ Lưu Timer chống Ghost Hangup
 
-  constructor(private readonly callService: CallService) {}
+  constructor(
+    private readonly callService: CallService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   // ─── Call Signaling ────────────────────────────────────────────────────────
 
@@ -86,6 +90,22 @@ export class CallGateway {
         callId: data.callId,
         engine,
       });
+    });
+
+    const callerName = data.callerProfile?.fullName || data.fromEmail || "UniChat";
+    void this.notificationService.broadcastNotification(recipients, {
+      title: `Cuộc gọi ${data.callType === "video" ? "video" : "thoại"} đến`,
+      body: `${callerName} đang gọi cho bạn.`,
+      categoryId: "incoming_call",
+      data: {
+        convId: data.convId,
+        fromEmail: data.fromEmail,
+        callerName,
+        callerProfile: data.callerProfile,
+        callType: data.callType,
+        callId: data.callId,
+        type: "incoming_call",
+      },
     });
   }
 

@@ -36,7 +36,7 @@ Notifications.setNotificationCategoryAsync('incoming_call', [
   },
   {
     identifier: 'REJECT',
-    buttonTitle: 'Từ chối',
+    buttonTitle: 'Tắt',
     options: {
       isDestructive: true,
       opensAppToForeground: false,
@@ -54,6 +54,7 @@ import { useGroupSocketListeners } from './src/hooks/useGroupSocketListeners';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ensureDefaultNotificationChannel, registerDevicePushToken } from './src/utils/pushNotifications';
 
 function MainApp() {
   useGroupSocketListeners();
@@ -74,23 +75,21 @@ function MainApp() {
       staysActiveInBackground: true,
     }).catch(err => console.warn('Audio mode set failed', err));
 
-    // Yêu cầu quyền thông báo
-    const requestPushPermissions = async () => {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      if (finalStatus !== 'granted') {
-        console.log('Failed to get push token for push notification!');
-        return;
-      }
-    };
-    requestPushPermissions();
+    // Prepare the Android channel before any local or remote notification is shown.
+    ensureDefaultNotificationChannel().catch((error) => {
+      console.warn('Notification channel setup failed', error);
+    });
 
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (!user?.email || authLoading) return;
+
+    registerDevicePushToken().catch((error) => {
+      console.warn('Push token registration failed', error);
+    });
+  }, [user?.email, authLoading]);
 
   useEffect(() => {
     async function loadFonts() {

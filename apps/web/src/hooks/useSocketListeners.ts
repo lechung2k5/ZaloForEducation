@@ -458,6 +458,41 @@ export const useSocketListeners = () => {
       pushSecurityAlert(data);
     };
 
+    const handleAssignmentDeadlineReminder = (data: any) => {
+      if (!data?.messageId) return;
+      playNotificationChime();
+
+      const title = data.title || "Sắp đến hạn bài tập";
+      const body =
+        data.body ||
+        `Bài tập "${data.assignment?.title || "chưa đặt tên"}" sắp đến hạn.`;
+
+      Swal.fire({
+        icon: "warning",
+        title,
+        text: body,
+        timer: 5000,
+        showConfirmButton: false,
+      });
+
+      if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
+        try {
+          new Notification(title, {
+            body,
+            icon: "/logo_blue.png",
+            badge: "/logo_blue.png",
+            tag: `assignment-${data.messageId}-${data.window || "deadline"}`,
+          });
+        } catch (error) {
+          console.warn("[notify] Failed to show assignment notification", error);
+        }
+      }
+    };
+
     // ── Call Events ──────────────────────────────────────────────────────────
 
     const handleCallIncoming = (data: CallEventData) => {
@@ -749,6 +784,7 @@ export const useSocketListeners = () => {
     socket.on("group_dissolved", handleGroupDissolved);
     socket.on("participant_read", handleParticipantRead);
     socket.on("security_alert", handleSecurityAlert);
+    socket.on("assignment_deadline_reminder", handleAssignmentDeadlineReminder);
 
     socket.on("call:incoming", handleCallIncoming);
     socket.on("call:accept", handleCallAccept);
@@ -779,6 +815,7 @@ export const useSocketListeners = () => {
       socket.off("group_dissolved", handleGroupDissolved);
       socket.off("participant_read", handleParticipantRead);
       socket.off("security_alert", handleSecurityAlert);
+      socket.off("assignment_deadline_reminder", handleAssignmentDeadlineReminder);
 
       socket.off("call:incoming", handleCallIncoming);
       socket.off("call:accept", handleCallAccept);

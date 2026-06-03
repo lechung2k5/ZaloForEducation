@@ -22,6 +22,7 @@ import {
   X,
   BarChart3,
   Clock,
+  ClipboardList,
 } from "lucide-react";
 
 import React, { useRef, useState, useEffect, useMemo } from "react";
@@ -61,6 +62,7 @@ interface ChatInputProps {
   onClearReply: () => void;
   onOpenPollModal?: () => void;
   onOpenReminderModal?: () => void;
+  onOpenAssignmentModal?: () => void;
   isBot?: boolean;
 }
 
@@ -72,6 +74,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
   onClearReply,
   onOpenPollModal,
   onOpenReminderModal,
+  onOpenAssignmentModal,
   isBot,
 }) => {
   const [text, setText] = useState("");
@@ -1037,6 +1040,19 @@ const ChatInput: React.FC<ChatInputProps> = ({
                       >
                         <Clock size={16} className="text-primary" />
                         <span>Tạo nhắc hẹn</span>
+                      </button>
+                    )}
+                    {onOpenAssignmentModal && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpenAssignmentModal();
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full px-4 py-2 flex items-center gap-3 hover:bg-surface-container-high text-on-surface text-sm font-medium transition-colors"
+                      >
+                        <ClipboardList size={16} className="text-primary" />
+                        <span>Giao bài tập</span>
                       </button>
                     )}
                   </div>

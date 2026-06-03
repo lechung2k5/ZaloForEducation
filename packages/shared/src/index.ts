@@ -116,7 +116,7 @@ export interface Message {
   replyTo?: any; // msg object or id
   recalled?: boolean;
   removed?: string[]; // user emails
-  type: "text" | "image" | "video" | "file" | "system" | "contact_card" | "location" | "SYSTEM_CALL";
+  type: "text" | "image" | "video" | "file" | "system" | "contact_card" | "location" | "poll" | "reminder" | "assignment" | "SYSTEM_CALL";
   contactCard?: {
     email: string;
     fullName?: string;
@@ -131,6 +131,27 @@ export interface Message {
     liveSessionId?: string;
     sentAt?: string;
     expiresAt?: string;
+  };
+  payload?: {
+    assignment?: {
+      title: string;
+      description?: string;
+      deadline: string;
+      assignees?: string[];
+      allowedFileTypes?: string[];
+      maxFiles?: number;
+      maxFileSizeMB?: number;
+      attachments?: FileURL[];
+      submissions?: Record<string, {
+        submittedAt: string;
+        note?: string;
+        attachments?: FileURL[];
+        status: "submitted";
+      }>;
+      reminderSent?: string[];
+    };
+    poll?: any;
+    reminder?: any;
   };
   createdAt: string;
   updatedAt?: string;

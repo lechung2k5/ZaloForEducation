@@ -64,7 +64,6 @@ export const ensureReminderNotificationChannel = async () => {
   await Notifications.setNotificationChannelAsync(REMINDER_CHANNEL_ID, {
     name: "Nhắc hẹn",
     importance: Notifications.AndroidImportance.HIGH,
-    sound: "default",
     vibrationPattern: [0, 250, 250, 250],
     lightColor: "#0068FF",
   });

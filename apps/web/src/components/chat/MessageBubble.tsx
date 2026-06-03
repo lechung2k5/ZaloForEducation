@@ -32,6 +32,7 @@ import { useCallActions } from "../../hooks/useCallActions";
 import SystemCallMessageItem from "./SystemCallMessageItem";
 import PollMessage from "./PollMessage";
 import ReminderMessage from "./ReminderMessage";
+import AssignmentMessage from "./AssignmentMessage";
 import CodeSnippet from "./CodeSnippet";
 import api from "../../services/api";
 import Swal from "sweetalert2";
@@ -1100,6 +1101,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                   time={message.payload.reminder.time}
                   date={message.payload.reminder.date}
                   repeatType={message.payload.reminder.repeatType}
+                />
+              </div>
+            )}
+
+            {!isRecalled && message.payload?.assignment && (
+              <div className="mt-2">
+                <AssignmentMessage
+                  message={message}
+                  userProfiles={userProfiles}
                 />
               </div>
             )}
