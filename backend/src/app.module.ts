@@ -8,6 +8,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { OtpModule } from './modules/otp/otp.module';
 import { CallModule } from './modules/call/call.module';
 import { BotModule } from './modules/bot/bot.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
 import { AiModule } from './infrastructure/ai/ai.module';
 
@@ -24,7 +25,8 @@ import { AiModule } from './infrastructure/ai/ai.module';
     OtpModule,
     CallModule,
     AiModule,
-    BotModule
+    BotModule,
+    AdminModule
   ],
   controllers: [],
   providers: [],

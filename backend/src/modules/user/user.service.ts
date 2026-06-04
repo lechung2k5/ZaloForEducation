@@ -1,4 +1,4 @@
-import { GetCommand, UpdateCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, UpdateCommand, ScanCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
 import { DynamoDBService } from '../../infrastructure/dynamodb.service';
 import { S3Service } from '../../infrastructure/s3.service';
@@ -67,6 +67,7 @@ export class UserService {
       avatarUrl,
       backgroundUrl,
       status: record.status || 'offline',
+      role: record.role || 'user',
       showOnlineStatus: record.showOnlineStatus ?? true,
       createdAt: record.createdAt ?? '',
       updatedAt: record.updatedAt ?? '',
@@ -352,5 +353,46 @@ export class UserService {
     const { profile } = await this.getUserProfile(email);
     this.chatGateway.notifyProfileUpdate(email, profile);
     return { message: 'Background updated successfully', profile };
+  }
+
+  async listNotifications(email: string) {
+    const result = await this.db.docClient.send(
+      new QueryCommand({
+        TableName: this.db.tableName,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+        ExpressionAttributeValues: {
+          ':pk': `USER#${email}`,
+          ':prefix': 'NOTIF#',
+        },
+        ScanIndexForward: false,
+      }),
+    );
+
+    return { notifications: result.Items || [] };
+  }
+
+  async markAllNotificationsRead(email: string) {
+    const { notifications } = await this.listNotifications(email);
+    const unreadNotifications = notifications.filter((item: any) => item.read !== true);
+    const now = new Date().toISOString();
+
+    await Promise.all(
+      unreadNotifications.map((item: any) =>
+        this.db.docClient.send(
+          new UpdateCommand({
+            TableName: this.db.tableName,
+            Key: { PK: `USER#${email}`, SK: item.SK },
+            UpdateExpression: 'SET #read = :read, readAt = :readAt',
+            ExpressionAttributeNames: { '#read': 'read' },
+            ExpressionAttributeValues: {
+              ':read': true,
+              ':readAt': now,
+            },
+          }),
+        ),
+      ),
+    );
+
+    return { message: 'Notifications marked as read', updated: unreadNotifications.length };
   }
 }

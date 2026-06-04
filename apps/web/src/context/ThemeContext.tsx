@@ -89,7 +89,7 @@ const translations: Record<Language, Record<string, string>> = {
     'theme.dark': 'Tối',
     'language.label': 'Ngôn ngữ ứng dụng',
     'language.vi': 'Tiếng Việt',
-    'language.en': 'English',
+    'language.en': 'Tiếng Việt',
 
     // Chat Wallpaper Settings
     'info.change_wallpaper': 'Thay đổi hình nền',
@@ -1016,7 +1016,7 @@ export const translateKey = (
   } catch {
     // localStorage not available (SSR / test env)
   }
-  let text = translations[lang][key] || key;
+  let text = translations.vi[key] || translations[lang][key] || key;
   if (params) {
     Object.keys(params).forEach((param) => {
       text = text.replace(`{${param}}`, String(params[param]));
@@ -1104,7 +1104,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const t = (key: string, params?: Record<string, string | number>): string => {
-    let text = translations[language][key] || key;
+  let text = translations.vi[key] || translations[language][key] || key;
     
     // Replace parameters like {count}, {email}, etc.
     if (params) {

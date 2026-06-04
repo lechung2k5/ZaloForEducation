@@ -1,5 +1,9 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@zalo-edu/shared": ["../packages/shared/dist/index.d.ts"]
+    },
     "module": "commonjs",
     "declaration": true,
     "removeComments": true,

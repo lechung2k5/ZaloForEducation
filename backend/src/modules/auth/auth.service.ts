@@ -347,6 +347,7 @@ export class AuthService {
         gender: user.gender,
         dataOfBirth: user.dataOfBirth,
         bio: user.bio,
+        role: user.role || "user",
       },
     };
   }
@@ -525,6 +526,7 @@ export class AuthService {
         gender: user.gender,
         dataOfBirth: user.dataOfBirth,
         bio: user.bio,
+        role: user.role || "user",
       },
     };
   }
@@ -819,6 +821,45 @@ export class AuthService {
     };
   }
 
+  async refreshAccessToken(token: string) {
+    let payload: any;
+    try {
+      payload = await this.jwtService.verifyAsync(token, {
+        secret: this.configService.get<string>("JWT_SECRET") || "UniChat_secret",
+        ignoreExpiration: true,
+      });
+    } catch {
+      throw new UnauthorizedException("Token khong hop le.");
+    }
+
+    if (!payload?.email || !payload?.deviceId) {
+      throw new UnauthorizedException("Token thieu thong tin phien.");
+    }
+
+    const session = await this.sessionService.getSession(payload.email, payload.deviceId);
+    if (!session) {
+      throw new UnauthorizedException("SESSION_INVALIDATED");
+    }
+
+    const dbDevice = await this.deviceService.getDeviceStatus(payload.email, payload.deviceId);
+    if (!dbDevice || dbDevice.status !== "ACTIVE") {
+      throw new UnauthorizedException("SESSION_INVALIDATED");
+    }
+
+    const userRes = await this.db.docClient.send(
+      new GetCommand({
+        TableName: this.db.tableName,
+        Key: { PK: `USER#${payload.email}`, SK: "METADATA" },
+      }),
+    );
+    const user = userRes.Item;
+    if (!user || user.status === "LOCKED" || user.isDeleted === true) {
+      throw new UnauthorizedException("SESSION_INVALIDATED");
+    }
+
+    return this.refreshToken(payload.email, payload.deviceId);
+  }
+
   async testEmail(email: string) {
     email = this.normalizeEmail(email);
     await this.emailService.sendMail(
@@ -932,6 +973,7 @@ export class AuthService {
         avatarUrl: user.avatarUrl,
         backgroundUrl: user.backgroundUrl || "",
         phone: user.phone,
+        role: user.role || "user",
       },
     };
 
@@ -1228,6 +1270,7 @@ export class AuthService {
         phone: newUser.phone,
         gender: newUser.gender,
         dataOfBirth: newUser.dataOfBirth,
+        role: newUser.role || "user",
       },
     };
   }

@@ -27,6 +27,62 @@ const resolveApiUrl = (): string => {
 export const API_URL = resolveApiUrl();
 const DEFAULT_TIMEOUT_MS = 12000;
 
+const decodeJwtPayload = (token: string): { exp?: number } | null => {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(globalThis.atob(normalized));
+  } catch {
+    return null;
+  }
+};
+
+let refreshPromise: Promise<string | null> | null = null;
+
+export async function refreshAccessToken() {
+  const token = await AsyncStorage.getItem("token");
+  if (!token) return null;
+
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({}),
+    })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data?.accessToken) {
+          await AsyncStorage.setItem("token", data.accessToken);
+          return data.accessToken;
+        }
+        return null;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+export async function ensureFreshAccessToken() {
+  const token = await AsyncStorage.getItem("token");
+  if (!token) return null;
+
+  const payload = decodeJwtPayload(token);
+  const expiresAtMs = (payload?.exp || 0) * 1000;
+  if (expiresAtMs && expiresAtMs - Date.now() > 60_000) {
+    return token;
+  }
+
+  return refreshAccessToken();
+}
+
 export interface ApiResponse<T = any> {
   ok: boolean;
   status: number;
@@ -39,7 +95,7 @@ export async function apiRequest<T = any>(
   endpoint: string,
   options: any = {},
 ): Promise<ApiResponse<T>> {
-  const token = await AsyncStorage.getItem("token");
+  const token = await ensureFreshAccessToken();
   const timeoutMs = Number(options.timeoutMs || DEFAULT_TIMEOUT_MS);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -78,6 +134,11 @@ export async function apiRequest<T = any>(
         console.error("[API] Session invalidated detected.");
         // handleForceLogout globally if needed
         throw new Error("SESSION_INVALIDATED");
+      }
+
+      const refreshedToken = await refreshAccessToken();
+      if (refreshedToken && !options.__retried) {
+        return apiRequest(endpoint, { ...options, __retried: true });
       }
 
       return { ok: false, status: 401, ...data };

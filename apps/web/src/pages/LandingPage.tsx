@@ -210,7 +210,7 @@ const StatsSection: React.FC = () => {
             { label: "Bảo mật", val: "AES-256" },
             { label: "Sync", val: "Real-time" },
             { label: "Auth", val: "QR Scan" },
-            { label: "User", val: "100k+" }
+            { label: "Người dùng", val: "100k+" }
           ].map((s, i) => (
             <motion.div
               key={i}

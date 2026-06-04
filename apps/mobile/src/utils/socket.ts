@@ -1,6 +1,6 @@
 import { io, Socket } from "socket.io-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { API_URL } from "./api";
+import { API_URL, ensureFreshAccessToken } from "./api";
 
 class SocketService {
   socket: Socket | null = null;
@@ -28,7 +28,7 @@ class SocketService {
   async connect(email: string, deviceId: string, tokenOverride?: string) {
     if (!email) return;
 
-    const token = tokenOverride || (await AsyncStorage.getItem("token"));
+    const token = tokenOverride || (await ensureFreshAccessToken());
     if (!token) {
       console.log("Socket connect skipped: missing auth token");
       return;

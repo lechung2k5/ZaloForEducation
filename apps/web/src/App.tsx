@@ -51,6 +51,7 @@ import {
   NotificationPage,
 } from "./pages/notifications/NotificationPage";
 import BotChatPage from "./pages/chat/bot/BotChatPage";
+import AdminPage from "./pages/admin/AdminPage";
 
 const AppContent: React.FC = () => {
   const { loading } = useAuth();
@@ -117,6 +118,7 @@ const AppContent: React.FC = () => {
             <Route path="/friends" element={<Navigate to="/contacts" />} />
             <Route path="/notifications" element={<NotificationPage />} />
             <Route path="/bot" element={<BotChatPage />} />
+            <Route path="/admin" element={<AdminPage />} />
 
             {/* These pages now have the Sidebar too */}
             <Route path="/sessions" element={<SessionsPage />} />
