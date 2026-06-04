@@ -437,6 +437,8 @@ export class ChatController {
         sentAt?: string;
         expiresAt?: string;
       };
+      audioUrl?: string;
+      isVoiceMessage?: boolean;
       payload?: {
         poll?: {
           topic: string;
@@ -536,6 +538,8 @@ export class ChatController {
           : {}),
         ...(body.contactCard ? { contactCard: body.contactCard } : {}),
         ...(body.location ? { location: body.location } : {}),
+        ...(body.audioUrl ? { audioUrl: body.audioUrl } : {}),
+        ...(body.isVoiceMessage ? { isVoiceMessage: body.isVoiceMessage } : {}),
         ...(body.payload ? { payload: body.payload } : {}),
         ...(body.mentions?.length ? { mentions: body.mentions } : {}),
         ...(body.mentions?.length ? { mentions: body.mentions } : {}),

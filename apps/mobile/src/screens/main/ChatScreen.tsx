@@ -678,6 +678,9 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
     const name = String(a.name || a.fileName || "").toLowerCase();
     return mime.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|heic|heif)(\?.*)?$/.test(name);
   };
+  const isVoiceMessageAttachment = (a: any) => {
+    return a?.isVoiceMessage === true || a?.metadata?.isVoiceMessage === true;
+  };
 
   const handleChatSend = async (content: string, attachments: any[], mentions: MentionPayload[] = []) => {
     const chatId = selectedChat?.id || conversationId;
@@ -689,17 +692,17 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
       url: a.dataUrl,
       status: 'sending'
     }));
-    const optimisticFiles = attachments.filter(a => !isImage(a) && !isVideo(a)).map(a => ({
+    const optimisticVoice = attachments.find(isVoiceMessageAttachment);
+    const optimisticFiles = attachments.filter(a => !isImage(a) && !isVideo(a) && !isVoiceMessageAttachment(a)).map(a => ({
       ...a,
       url: a.dataUrl,
       status: 'sending'
     }));
 
-    const isAudio = attachments.some(a => {
-      const mime = String(a.mimeType || "").toLowerCase();
-      const name = String(a.name || "").toLowerCase();
-      return mime.startsWith("audio/") && (name.startsWith("audio_") || name.startsWith("voice-"));
-    });
+    const optimisticAudioUrl = optimisticVoice
+      ? optimisticVoice.dataUrl || optimisticVoice.uri || optimisticVoice.file?.uri
+      : undefined;
+    const isAudio = !!optimisticAudioUrl;
     
     let messageType: any = "text";
     if (isAudio) messageType = "audio";
@@ -734,7 +737,10 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
       replyTo: replyToData,
       media: optimisticMedia,
       files: optimisticFiles,
-      extraFields: messageMentions.length > 0 ? { mentions: messageMentions } : undefined,
+      extraFields: {
+        ...(messageMentions.length > 0 ? { mentions: messageMentions } : {}),
+        ...(optimisticAudioUrl ? { audioUrl: optimisticAudioUrl, isVoiceMessage: true } : {}),
+      },
       skipApi: true
     });
 
@@ -787,7 +793,7 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
           isHD: a.isHD === true,
         }));
 
-        const files = uploaded.filter(a => !isImage(a) && !isVideo(a)).map(a => ({
+        const files = uploaded.filter(a => !isImage(a) && !isVideo(a) && !isVoiceMessageAttachment(a)).map(a => ({
           url: a.fileUrl || a.url || a.dataUrl,
           dataUrl: a.fileUrl || a.url || a.dataUrl,
           name: a.name || a.fileName,
@@ -795,11 +801,7 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
           size: a.size,
         }));
 
-        const audioFile = uploaded.find(a => {
-          const mime = String(a.mimeType || a.fileType || "").toLowerCase();
-          const name = String(a.name || a.fileName || "").toLowerCase();
-          return mime.startsWith("audio/") && (name.startsWith("audio_") || name.startsWith("voice-"));
-        });
+        const audioFile = uploaded.find(isVoiceMessageAttachment);
         const audioUrl = audioFile ? (audioFile.fileUrl || audioFile.url || audioFile.dataUrl) : undefined;
 
         const payload: any = {
@@ -808,6 +810,7 @@ export default function ChatScreen({ navigation, onNavigate, goBack, params }: C
           media: media.length > 0 ? media : undefined,
           files: files.length > 0 ? files : undefined,
           audioUrl,
+          isVoiceMessage: !!audioUrl,
           replyTo: replyToData,
           mentions: messageMentions.length > 0 ? messageMentions : undefined
         };

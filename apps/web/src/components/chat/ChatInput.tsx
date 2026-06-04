@@ -370,6 +370,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
           size: data.size || blob.size,
           dataUrl: data.fileUrl || data.url,
           file: undefined,
+          isVoiceMessage: true,
+          duration: durationSec,
         },
       ]);
       return true;

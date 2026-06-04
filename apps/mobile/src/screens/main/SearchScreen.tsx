@@ -26,6 +26,13 @@ import SafeImage from '../../components/common/SafeImage';
 import { PinModal } from '../../components/home/PinModal';
 import Alert from '../../utils/Alert';
 import { useTheme } from '../../context/ThemeContext';
+import { chatGet, chatPost } from '../../utils/api';
+import {
+  buildFriendSearchParams,
+  getFriendAvatar,
+  getFriendDisplayName,
+  unpackFriendSearchResponse,
+} from '../../utils/friendSearch';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -112,10 +119,12 @@ interface SearchItemProps {
   query: string;
   onPress: () => void;
   userProfiles: Record<string, any>;
+  onAddFriend?: (item: any) => void;
+  addingFriendEmail?: string | null;
 }
 
 const SearchItem = memo(
-  ({ item, isActive, isHighlighting, highlightAnim, query, onPress, userProfiles }: SearchItemProps) => {
+  ({ item, isActive, isHighlighting, highlightAnim, query, onPress, userProfiles, onAddFriend, addingFriendEmail }: SearchItemProps) => {
     const { t } = useTheme();
     const TAG_CONFIG = getTagConfig(t);
     const tag = TAG_CONFIG[item.type as keyof typeof TAG_CONFIG];
@@ -139,8 +148,24 @@ const SearchItem = memo(
       : (isMessage || isFile) ? item.content : '';
     const fileMeta = isFile ? formatFileSize(item.size) : null;
 
-    const itemAvatarUri = item.isHiddenMatch ? DEFAULT_AVATAR : (profile?.avatarUrl || item.sender?.avatar || item.sender?.avatarUrl || item.avatar);
+    const itemAvatarUri = item.isHiddenMatch
+      ? DEFAULT_AVATAR
+      : item.source === "friendSearch"
+        ? getFriendAvatar(item)
+        : (profile?.avatarUrl || item.sender?.avatar || item.sender?.avatarUrl || item.avatar);
     const avatarSource = itemAvatarUri === DEFAULT_AVATAR ? DEFAULT_AVATAR : (itemAvatarUri ? { uri: itemAvatarUri } : DEFAULT_AVATAR);
+    const friendshipStatus = item?.friendship?.status;
+    const friendActionVisible = isContact && (item.source === "friendSearch" || item.friendship || item.isSelf);
+    const canAddFriend = friendActionVisible && !item.isSelf && friendshipStatus !== "accepted" && friendshipStatus !== "pending";
+    const friendStatusText = item.isSelf
+      ? "Bạn"
+      : friendshipStatus === "accepted"
+        ? "Bạn bè"
+        : friendshipStatus === "pending"
+          ? "Đã gửi"
+          : "";
+    const friendEmail = String(item.email || item.userId || item.id || "").toLowerCase();
+    const isAddingFriend = addingFriendEmail === friendEmail;
 
     const animatedBorderColor = isHighlighting
       ? highlightAnim.interpolate({
@@ -196,7 +221,34 @@ const SearchItem = memo(
               </Text>
             )}
           </View>
-          {tag ? (
+          {canAddFriend ? (
+            <TouchableOpacity
+              style={{
+                minWidth: 72,
+                height: 32,
+                borderRadius: 9,
+                backgroundColor: '#0068FF',
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingHorizontal: 10,
+              }}
+              onPress={(event: any) => {
+                event?.stopPropagation?.();
+                onAddFriend?.(item);
+              }}
+              disabled={isAddingFriend}
+            >
+              {isAddingFriend ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Kết bạn</Text>
+              )}
+            </TouchableOpacity>
+          ) : friendActionVisible && friendStatusText ? (
+            <Text style={{ color: '#0068FF', fontSize: 12, fontWeight: '700', marginLeft: 6 }}>
+              {friendStatusText}
+            </Text>
+          ) : tag ? (
             <Text style={[styles.resultTypeTag, { color: tag.color }]}>
               {tag.label}
             </Text>
@@ -258,11 +310,13 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
     handleSelect,
   } = useSearchStore();
 
-  const { userProfiles, hiddenConversations, conversations } = useChatStore();
+  const { userProfiles, hiddenConversations, conversations, upsertProfiles } = useChatStore();
 
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pinTargetConvId, setPinTargetConvId] = useState<string | null>(null);
   const [pinTargetItem, setPinTargetItem] = useState<any>(null);
+  const [friendLookupResult, setFriendLookupResult] = useState<any>(null);
+  const [addingFriendEmail, setAddingFriendEmail] = useState<string | null>(null);
 
   // Auto-focus on mount & Cleanup on exit
   useEffect(() => {
@@ -332,6 +386,42 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
     if (query.trim().length >= 2) searchNow(query.trim());
   }, [query, searchNow]);
 
+  useEffect(() => {
+    const params = buildFriendSearchParams(query);
+    if (!params) {
+      setFriendLookupResult(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await chatGet("/friends/search", params);
+        const data = unpackFriendSearchResponse(res);
+        if (cancelled) return;
+        if (data.found && data.user?.email) {
+          const email = String(data.user.email).toLowerCase();
+          upsertProfiles({
+            [email]: {
+              ...data.user,
+              email,
+            },
+          });
+          setFriendLookupResult(data);
+        } else {
+          setFriendLookupResult(null);
+        }
+      } catch (error) {
+        if (!cancelled) setFriendLookupResult(null);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, upsertProfiles]);
+
   const handleSelectResult = useCallback(
     (item: any) => {
       const id = getItemId(item);
@@ -369,6 +459,30 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
       return next;
     });
   }, []);
+
+  const handleAddFriend = useCallback(async (item: any) => {
+    const targetEmail = String(item?.email || item?.userId || item?.id || "").toLowerCase();
+    if (!targetEmail || addingFriendEmail) return;
+
+    setAddingFriendEmail(targetEmail);
+    try {
+      const res = await chatPost("/friends/request", { targetEmail });
+      if (!res?.ok) throw new Error("REQUEST_FAILED");
+      setFriendLookupResult((prev: any) => {
+        const prevEmail = String(prev?.user?.email || "").toLowerCase();
+        if (prevEmail !== targetEmail) return prev;
+        return {
+          ...prev,
+          friendship: { ...(prev.friendship || {}), status: "pending" },
+        };
+      });
+      Alert.alert("Thành công", "Đã gửi lời mời kết bạn.");
+    } catch (error) {
+      Alert.alert("Lỗi", "Không thể gửi lời mời kết bạn.");
+    } finally {
+      setAddingFriendEmail(null);
+    }
+  }, [addingFriendEmail]);
 
   // ── Derived data ──────────────────────────────────────────────────────────
 
@@ -432,8 +546,37 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
       }
     }
 
+    if (friendLookupResult?.user?.email) {
+      const email = String(friendLookupResult.user.email).toLowerCase();
+      const alreadyInResults = baseSections.some((section: any) =>
+        (section.data || []).some((item: any) =>
+          item.type === "CONTACT" &&
+          String(item.email || item.userId || item.id || "").toLowerCase() === email
+        )
+      );
+
+      if (!alreadyInResults) {
+        baseSections.unshift({
+          title: "Tìm bạn bè",
+          data: [{
+            ...friendLookupResult.user,
+            id: email,
+            userId: email,
+            email,
+            type: "CONTACT",
+            source: "friendSearch",
+            friendship: friendLookupResult.friendship,
+            isSelf: friendLookupResult.isSelf,
+            fullName: getFriendDisplayName(friendLookupResult.user),
+          }],
+          actualDataCount: 1,
+          isExpanded: true,
+        });
+      }
+    }
+
     return baseSections;
-  }, [sections, expandedSections, query, hiddenConversations, conversations]);
+  }, [sections, expandedSections, query, hiddenConversations, conversations, friendLookupResult]);
 
   const showRecents =
     !query.trim() && recentSearches?.length > 0;
@@ -452,10 +595,12 @@ export default function SearchScreen({ onNavigate, goBack }: SearchScreenProps) 
           query={query}
           onPress={() => handleSelectResult(item)}
           userProfiles={userProfiles}
+          onAddFriend={handleAddFriend}
+          addingFriendEmail={addingFriendEmail}
         />
       );
     },
-    [activeId, highlightingId, query, getItemId, getOrCreateAnim, handleSelectResult, userProfiles],
+    [activeId, addingFriendEmail, highlightingId, query, getItemId, getOrCreateAnim, handleSelectResult, handleAddFriend, userProfiles],
   );
 
   const renderRecent = useCallback(

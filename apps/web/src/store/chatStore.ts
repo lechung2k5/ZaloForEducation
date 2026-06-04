@@ -1033,11 +1033,17 @@ export const useChatStore = create<ChatState>((originalSet, get) => {
   ) => {
     const tempId = `TEMP#${Date.now()}#${Math.random().toString(36).slice(2, 8)}`;
     const timestamp = new Date().toISOString();
+    const isVoiceAttachment = (a: Attachment) =>
+      a.isVoiceMessage === true || (a as any).metadata?.isVoiceMessage === true;
+    const voiceAttachment = attachments.find(isVoiceAttachment);
+    const voiceAudioUrl = voiceAttachment?.dataUrl;
+    const effectiveMsgType = voiceAudioUrl ? "audio" : msgType;
 
     const media = attachments
       .filter(
         (a) =>
-          a.mimeType.startsWith("image/") || a.mimeType.startsWith("video/"),
+          !isVoiceAttachment(a) &&
+          (a.mimeType.startsWith("image/") || a.mimeType.startsWith("video/")),
       )
       .map((a) => ({
         url: a.dataUrl,
@@ -1052,6 +1058,7 @@ export const useChatStore = create<ChatState>((originalSet, get) => {
     const files = attachments
       .filter(
         (a) =>
+          !isVoiceAttachment(a) &&
           !a.mimeType.startsWith("image/") && !a.mimeType.startsWith("video/"),
       )
       .map((a) => ({
@@ -1067,12 +1074,13 @@ export const useChatStore = create<ChatState>((originalSet, get) => {
       conversationId: convId,
       senderId: senderEmail,
       content,
-      type: (msgType || (attachments.length > 0 ? "media" : "text")) as any,
+      type: (effectiveMsgType || (attachments.length > 0 ? "media" : "text")) as any,
       status: "sending",
       createdAt: timestamp,
       media: media.length > 0 ? media : undefined,
       files: files.length > 0 ? files : undefined,
       replyTo: replyTo || undefined,
+      ...(voiceAudioUrl ? { audioUrl: voiceAudioUrl, isVoiceMessage: true } : {}),
       ...extraFields,
     };
 
@@ -1118,9 +1126,10 @@ export const useChatStore = create<ChatState>((originalSet, get) => {
         `/chat/conversations/${encodeURIComponent(convId)}/messages`,
         {
           content,
-          type: msgType,
+          type: effectiveMsgType,
           media: media.length > 0 ? media : undefined,
           files: files.length > 0 ? files : undefined,
+          ...(voiceAudioUrl ? { audioUrl: voiceAudioUrl, isVoiceMessage: true } : {}),
           replyTo: replyTo || undefined,
           ...extraFields,
         },

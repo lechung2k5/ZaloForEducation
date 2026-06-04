@@ -757,7 +757,7 @@ function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp
               <Text style={[modalStyles.icon, { color: accentColor }]}>{icon}</Text>
             </View>
             <Text style={modalStyles.title}>{title}</Text>
-            <Text style={modalStyles.subtitle}>{step === 1 ? warningMsg : (t('settings.otp_sent') || 'Nhập mã OTP đã được gửi về email của bạn.')}</Text>
+            <Text style={modalStyles.subtitle}>{step === 1 ? warningMsg : t('settings.otp_sent')}</Text>
 
             {!!error && (
               <View style={modalStyles.errorBox}>
@@ -767,11 +767,11 @@ function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp
 
             {step === 1 ? (
               <View style={modalStyles.form}>
-                <Text style={modalStyles.label}>{t('settings.current_password') || 'Mật khẩu hiện tại'}</Text>
+                <Text style={modalStyles.label}>{t('settings.current_password')}</Text>
                 <TextInput
                   style={modalStyles.input}
                   secureTextEntry
-                  placeholder={t('settings.verify_identity') || 'Xác nhận danh tính'}
+                  placeholder={t('settings.verify_identity')}
                   placeholderTextColor="#9ca3af"
                   value={currentPassword}
                   onChangeText={setCurrentPassword}
@@ -783,7 +783,7 @@ function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp
                   disabled={loading || !currentPassword}
                   activeOpacity={0.85}
                 >
-                  <Text style={modalStyles.btnText}>{loading ? (t('common.sending') || 'Đang gửi...') : (t('common.continue') || 'Tiếp tục')}</Text>
+                  <Text style={modalStyles.btnText}>{loading ? t('common.sending') : t('common.continue')}</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -804,16 +804,16 @@ function AccountActionModal({ visible, onClose, mode, onRequestOtp, onConfirmOtp
                   disabled={loading || otp.length < 6}
                   activeOpacity={0.85}
                 >
-                  <Text style={modalStyles.btnText}>{loading ? (t('common.processing') || 'Đang xử lý...') : confirmLabel}</Text>
+                  <Text style={modalStyles.btnText}>{loading ? t('common.processing') : confirmLabel}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={modalStyles.backBtn} onPress={() => setStep(1)}>
-                  <Text style={modalStyles.backBtnText}>{t('common.go_back') || 'Quay lại'}</Text>
+                  <Text style={modalStyles.backBtnText}>{t('common.go_back')}</Text>
                 </TouchableOpacity>
               </View>
             )}
 
             <TouchableOpacity style={modalStyles.cancelBtn} onPress={handleClose}>
-              <Text style={modalStyles.cancelText}>{t('common.close') || 'Đóng'}</Text>
+              <Text style={modalStyles.cancelText}>{t('common.close')}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>

@@ -19,6 +19,94 @@ const getFileIcon = (mimeType: string, fileName: string) => {
   return "draft";
 };
 
+const formatVoiceDuration = (seconds: number) => {
+  const safeSeconds = Math.max(0, Math.floor(seconds || 0));
+  const mins = Math.floor(safeSeconds / 60);
+  const secs = safeSeconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
+const VoiceDraftPreview = ({
+  attachment,
+  onRemove,
+  styles,
+}: {
+  attachment: any;
+  onRemove: () => void;
+  styles: any;
+}) => {
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [positionMs, setPositionMs] = useState(0);
+  const durationSec = Number(attachment?.duration || 0);
+  const durationMs = durationSec * 1000;
+
+  const playPause = async () => {
+    const uri = attachment?.dataUrl || attachment?.uri || attachment?.file?.uri;
+    if (!uri) return;
+
+    try {
+      if (sound) {
+        if (isPlaying) {
+          await sound.pauseAsync();
+        } else {
+          await sound.playAsync();
+        }
+        return;
+      }
+
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true },
+        (status: any) => {
+          if (!status?.isLoaded) return;
+          setIsPlaying(status.isPlaying);
+          setPositionMs(status.positionMillis || 0);
+          if (status.didJustFinish) {
+            setIsPlaying(false);
+            setPositionMs(0);
+            newSound.setPositionAsync(0).catch(() => {});
+          }
+        },
+      );
+      setSound(newSound);
+    } catch (err) {
+      console.warn('Voice preview play error', err);
+      Alert.alert('Lỗi', 'Không thể phát bản ghi âm này.');
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (sound) sound.unloadAsync();
+    };
+  }, [sound]);
+
+  const progress = durationMs > 0 ? Math.min(100, Math.max(0, (positionMs / durationMs) * 100)) : 0;
+
+  return (
+    <View style={styles.voiceDraftItem}>
+      <TouchableOpacity style={styles.voiceDraftPlayBtn} onPress={playPause}>
+        <Text style={styles.voiceDraftPlayIcon}>{isPlaying ? 'pause' : 'play_arrow'}</Text>
+      </TouchableOpacity>
+      <View style={styles.voiceDraftBody}>
+        <View style={styles.voiceDraftHeader}>
+          <Text style={styles.voiceDraftTitle}>Tin nhắn thoại</Text>
+          <Text style={styles.voiceDraftTime}>
+            {formatVoiceDuration(Math.floor(positionMs / 1000))} / {formatVoiceDuration(durationSec)}
+          </Text>
+        </View>
+        <View style={styles.voiceDraftTrack}>
+          <View style={[styles.voiceDraftFill, { width: `${progress}%` }]} />
+        </View>
+      </View>
+      <TouchableOpacity style={styles.voiceDraftRemoveBtn} onPress={onRemove}>
+        <Text style={styles.voiceDraftRemoveIcon}>close</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 import StickerPicker from './StickerPicker';
 
 import * as Location from 'expo-location';
@@ -275,6 +363,8 @@ export default function ChatInput({
       dataUrl: f.uri,
       isHD: f.isHD,
       isSticker: f.isSticker,
+      isVoiceMessage: f.isVoiceMessage === true,
+      duration: f.duration,
     }));
     setAttachments(prev => [...prev, ...formatted]);
   };
@@ -387,12 +477,13 @@ export default function ChatInput({
       }
       
       if (uri) {
-        setText(t('chat.voice_msg'));
         processFiles([{
           uri,
           type: 'audio/m4a',
           name: `audio_${Date.now()}.m4a`,
           size: 0,
+          isVoiceMessage: true,
+          duration: recordingDuration,
         }]);
       }
     } catch (err) {
@@ -536,9 +627,12 @@ export default function ChatInput({
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.attachmentStrip}>
             {attachments.map((a, i) => {
               const isImage = a.mimeType.startsWith('image/');
+              const isVoice = a.isVoiceMessage === true;
               return (
-                <View key={i} style={styles.attachmentItem}>
-                  {isImage ? (
+                <View key={i} style={isVoice ? styles.voiceDraftWrapper : styles.attachmentItem}>
+                  {isVoice ? (
+                    <VoiceDraftPreview attachment={a} onRemove={() => removeAttachment(i)} styles={styles} />
+                  ) : isImage ? (
                     <Image source={{ uri: a.dataUrl }} style={styles.attachmentThumb} resizeMode="cover" />
                   ) : (
                     <View style={styles.attachmentFileBox}>
@@ -546,14 +640,16 @@ export default function ChatInput({
                       <Text style={styles.attachmentFileExt}>{a.name.split('.').pop()}</Text>
                     </View>
                   )}
-                  {(a.isHD || a.isSticker) && (
+                  {!isVoice && (a.isHD || a.isSticker) && (
                     <View style={styles.aBadgeBg}>
                       <Text style={styles.aBadgeText}>{a.isSticker ? "STK" : "HD"}</Text>
                     </View>
                   )}
-                  <TouchableOpacity style={styles.attachmentRemoveBtn} onPress={() => removeAttachment(i)}>
-                    <Text style={styles.attachmentRemoveIcon}>close</Text>
-                  </TouchableOpacity>
+                  {!isVoice && (
+                    <TouchableOpacity style={styles.attachmentRemoveBtn} onPress={() => removeAttachment(i)}>
+                      <Text style={styles.attachmentRemoveIcon}>close</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               );
             })}
@@ -909,6 +1005,86 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOpacity: isDark ? 0.4 : 0.1,
     shadowRadius: 2,
     elevation: 2,
+  },
+  voiceDraftWrapper: {
+    width: 260,
+    minHeight: 64,
+  },
+  voiceDraftItem: {
+    minHeight: 64,
+    borderRadius: 16,
+    backgroundColor: isDark ? '#242b3d' : '#eef6ff',
+    borderWidth: 1,
+    borderColor: isDark ? '#34415b' : '#c7ddff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 10,
+  },
+  voiceDraftPlayBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  voiceDraftPlayIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 22,
+    color: '#fff',
+  },
+  voiceDraftBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  voiceDraftHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 8,
+  },
+  voiceDraftTitle: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    color: isDark ? '#eef4ff' : '#10233f',
+  },
+  voiceDraftTime: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: isDark ? '#9ba8bd' : '#4f6b8c',
+  },
+  voiceDraftTrack: {
+    height: 4,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: isDark ? '#3a465e' : '#c9dfff',
+  },
+  voiceDraftFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+  },
+  voiceDraftRemoveBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#fff',
+  },
+  voiceDraftRemoveIcon: {
+    fontFamily: 'Material Symbols Outlined',
+    fontSize: 18,
+    color: isDark ? '#c4ccd8' : '#526173',
   },
   attachmentThumb: {
     width: '100%',

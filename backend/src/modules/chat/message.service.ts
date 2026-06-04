@@ -194,7 +194,9 @@ export class MessageService {
     if (filteredFiles.length > 0) {
       filteredFiles = filteredFiles.filter((f) => {
         const fileName = (f.name || "").toLowerCase();
-        const mimeType = (f.mimeType || "").toLowerCase();
+        const isVoiceMessage =
+          f.isVoiceMessage === true ||
+          f.metadata?.isVoiceMessage === true;
 
         // 1. Extract Contact Card data
         if (fileName === "contact.json") {
@@ -229,8 +231,8 @@ export class MessageService {
         }
 
         // 3. Extract audio recordings to top-level field and remove from files array
-        if (mimeType.startsWith("audio/") && (fileName.startsWith("audio_") || fileName.startsWith("voice-"))) {
-          if (!audioUrl) audioUrl = f.url || f.dataUrl;
+        if (isVoiceMessage) {
+          if (!audioUrl) audioUrl = f.url || f.fileUrl || f.dataUrl;
           return false;
         }
 

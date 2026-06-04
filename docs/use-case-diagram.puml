@@ -1,19 +1,18 @@
-@startuml ZaloForEducation_Use_Case_Diagram
-title Sơ đồ Use Case tổng quát - ZaloForEducation
+@startuml UniChat_UseCase
+title Sơ đồ Use Case tổng quát - UniChat
 
 left to right direction
+
 skinparam dpi 160
 skinparam backgroundColor #FFFFFF
-skinparam handwritten false
-skinparam linetype ortho
 skinparam shadowing false
-skinparam roundcorner 28
-skinparam padding 5
-skinparam nodesep 85
+skinparam linetype ortho
+skinparam roundcorner 22
+skinparam nodesep 45
 skinparam ranksep 32
 
 skinparam defaultFontName Arial
-skinparam defaultFontSize 12
+skinparam defaultFontSize 11
 skinparam titleFontName Arial
 skinparam titleFontSize 20
 skinparam titleFontStyle bold
@@ -27,12 +26,12 @@ skinparam Actor {
 
 skinparam Usecase {
   BackgroundColor #DBECFF
-  BorderColor #8EA9C9
+  BorderColor #9DB7D6
   FontColor #111827
 }
 
 skinparam Rectangle {
-  BackgroundColor transparent
+  BackgroundColor #FFFFFF
   BorderColor #6B7280
   FontColor #111827
   FontStyle bold
@@ -40,182 +39,256 @@ skinparam Rectangle {
 
 skinparam ArrowColor #6B7280
 skinparam ArrowThickness 1
-skinparam ArrowFontColor #111827
-skinparam ArrowFontSize 10
+skinparam ArrowFontColor #374151
+skinparam ArrowFontSize 9
 
 actor "Người dùng" as User
-actor "Quản trị viên" as Admin
+actor "Email/OTP\nService" as EmailOtp
+actor "Amazon\nChime" as Chime
+actor "AI\nService" as AI
 
-rectangle "HỆ THỐNG ZALO FOR EDUCATION" as System {
-  usecase "Đăng nhập" as Login #D8EFD3
+rectangle "HỆ THỐNG UNICHAT" as System {
   usecase "Đăng ký" as Register #FFE9BF
+  usecase "Đăng nhập" as Login #D8EFD3
 
-  usecase "Quản lý thông tin cá nhân" as Profile #FFE9BF
-  usecase "Xem thông tin cá nhân" as ViewProfile #DBECFF
-  usecase "Cập nhật thông tin cá nhân" as UpdateProfile #DBECFF
-  usecase "Cập nhật ảnh đại diện" as UploadAvatar #DBECFF
-  usecase "Cập nhật ảnh nền" as UploadBackground #DBECFF
-  usecase "Đổi mật khẩu" as ChangePassword #DBECFF
-  usecase "Khóa / xóa tài khoản" as AccountLifecycle #DBECFF
+  usecase "Quản lý tài khoản\ncá nhân" as Account #FFE9BF
+  usecase "Quên / đặt lại\nmật khẩu" as ResetPassword
+  usecase "Đổi mật khẩu" as ChangePassword
+  usecase "Khóa tài khoản" as LockAccount
+  usecase "Xóa tài khoản" as DeleteAccount
 
-  usecase "Quản lý bạn bè" as Friends #FFE9BF
-  usecase "Xem danh sách bạn bè" as ViewFriends #DBECFF
-  usecase "Tìm kiếm người dùng" as SearchUsers #DBECFF
-  usecase "Gửi lời mời kết bạn" as SendFriendRequest #DBECFF
-  usecase "Lời mời kết bạn" as FriendRequests #DBECFF
-  usecase "Chặn / bỏ chặn bạn bè" as BlockFriend #DBECFF
-  usecase "Gợi ý kết bạn" as FriendSuggest #DBECFF
-  usecase "Đặt biệt danh / bạn thân" as FriendSettings #DBECFF
+  usecase "Quản lý hồ sơ\ncá nhân" as Profile #FFE9BF
+  usecase "Cập nhật thông tin\ncá nhân" as UpdateProfile
+  usecase "Cập nhật ảnh đại diện\n/ ảnh bìa" as UpdateAvatar
 
-  usecase "Quản lý cuộc trò chuyện" as Conversation #FFE9BF
-  usecase "Tạo cuộc trò chuyện" as CreateConversation #DBECFF
-  usecase "Tạo nhóm" as CreateGroup #DBECFF
-  usecase "Thêm thành viên" as AddMember #DBECFF
-  usecase "Xóa thành viên" as RemoveMember #DBECFF
-  usecase "Trao quyền trưởng nhóm" as GroupRole #DBECFF
-  usecase "Rời khỏi nhóm" as LeaveGroup #DBECFF
-  usecase "Xóa cuộc trò chuyện" as DeleteConversation #DBECFF
-  usecase "Tìm kiếm cuộc trò chuyện" as SearchConversation #DBECFF
+  usecase "Quản lý phiên đăng nhập\nvà thiết bị" as Sessions #FFE9BF
+  usecase "Xem thiết bị\nđăng nhập" as ViewSessions
+  usecase "Đăng xuất\nthiết bị" as LogoutDevice
+  usecase "Đăng xuất tất cả\nthiết bị" as LogoutAll
 
-  usecase "Quản lý tin nhắn" as Message #FFE9BF
-  usecase "Gửi tin nhắn" as SendText #DBECFF
-  usecase "Gửi tin nhắn thoại" as SendAudio #DBECFF
-  usecase "Gửi hình ảnh" as SendImage #DBECFF
-  usecase "Gửi video" as SendVideo #DBECFF
-  usecase "Gửi file" as SendFile #DBECFF
-  usecase "Gửi vị trí" as SendLocation #DBECFF
-  usecase "Gửi danh thiếp" as SendContactCard #DBECFF
-  usecase "Thả cảm xúc" as ReactMessage #DBECFF
-  usecase "Trả lời tin nhắn" as ReplyMessage #DBECFF
-  usecase "Chỉnh sửa tin nhắn" as EditMessage #DBECFF
-  usecase "Thu hồi tin nhắn" as RevokeMessage #DBECFF
-  usecase "Tạo bình chọn" as CreatePoll #DBECFF
-  usecase "Bình chọn" as VotePoll #DBECFF
+  usecase "Cài đặt\nứng dụng" as Settings #FFE9BF
+  usecase "Đổi giao diện\n/ ngôn ngữ" as ThemeLanguage
+  usecase "Thiết lập quyền\nriêng tư" as Privacy
 
-  usecase "Quản lý gọi điện" as Call #FFE9BF
-  usecase "Gọi audio 1-1 / Nhóm" as AudioCall #DBECFF
-  usecase "Gọi video 1-1 / Nhóm" as VideoCall #DBECFF
-  usecase "Từ chối / Kết thúc cuộc gọi" as EndCall #DBECFF
-  usecase "Nâng cấp audio/video" as UpgradeCall #DBECFF
+  usecase "Quản lý\nbạn bè" as Friends #FFE9BF
+  usecase "Tìm kiếm\nngười dùng" as SearchUser
+  usecase "Gửi lời mời\nkết bạn" as SendFriendRequest
+  usecase "Chấp nhận / từ chối\nlời mời" as HandleFriendRequest
+  usecase "Hủy kết bạn" as Unfriend
+  usecase "Chặn / bỏ chặn\nngười dùng" as BlockUser
+  usecase "Đặt biệt danh\n/ bạn thân" as FriendPrefs
+  usecase "Xem gợi ý\nkết bạn" as FriendSuggestions
 
-  usecase "AI CHAT BOT" as Bot #FFE9BF
-  usecase "Chat với AI chatbot" as ChatBot #DBECFF
-  usecase "AI gợi ý nội dung tin nhắn" as SuggestMessage #DBECFF
-  usecase "AI tóm tắt hội thoại" as SummarizeChat #DBECFF
-  usecase "Lịch sử chat với AI" as BotHistory #DBECFF
+  usecase "Nhắn tin\n1-1" as DirectChat #FFE9BF
+  usecase "Nhắn tin\nnhóm" as GroupChat #FFE9BF
+  usecase "Gửi tin nhắn\nvăn bản" as SendText
+  usecase "Gửi hình ảnh\n/ video / file" as SendFile
+  usecase "Gửi vị trí\n/ danh thiếp" as SendSpecial
+  usecase "Trả lời tin nhắn" as ReplyMessage
+  usecase "Thả cảm xúc" as ReactMessage
+  usecase "Ghim / thu hồi\n/ xóa tin nhắn" as MessageActions
+
+  usecase "Quản lý\nnhóm chat" as GroupManagement #FFE9BF
+  usecase "Tạo nhóm" as CreateGroup
+  usecase "Tham gia nhóm\nbằng link / QR" as JoinGroup
+  usecase "Cập nhật thông tin\nnhóm" as UpdateGroup
+  usecase "Thêm / xóa\nthành viên" as GroupMembers
+  usecase "Phân quyền trưởng nhóm\n/ phó nhóm" as GroupRoles
+  usecase "Rời nhóm\n/ giải tán nhóm" as LeaveDisbandGroup
+
+  usecase "Tìm kiếm" as Search #FFE9BF
+  usecase "Tìm người dùng" as FindUser
+  usecase "Tìm hội thoại" as FindConversation
+  usecase "Tìm tin nhắn" as FindMessage
+  usecase "Tìm file" as FindFile
+
+  usecase "Quản lý kho media/file/link\ntrong hội thoại" as MediaLibrary #FFE9BF
+  usecase "Xem ảnh\n/ video" as ViewMedia
+  usecase "Xem file" as ViewFiles
+  usecase "Xem liên kết" as ViewLinks
+
+  usecase "Gọi audio / video\n1-1" as DirectCall #FFE9BF
+  usecase "Gọi audio / video\nnhóm" as GroupCall #FFE9BF
+  usecase "Tạo cuộc gọi" as CreateCall
+  usecase "Nhận / tham gia\ncuộc gọi" as JoinCall
+  usecase "Từ chối / kết thúc\ncuộc gọi" as EndCall
+  usecase "Bật / tắt\nmic, camera" as CallControls
+  usecase "Chia sẻ\nmàn hình" as ScreenShare
+
+  usecase "Giao và nộp bài tập\ntrong nhóm" as Assignment #FFE9BF
+  usecase "Tạo bài tập" as CreateAssignment
+  usecase "Thiết lập deadline" as AssignmentDeadline
+  usecase "Quy định loại file\n/ số lượng file" as AssignmentRule
+  usecase "Nộp bài\nkèm file" as SubmitAssignment
+  usecase "Xóa / thay thế bài nộp\ntrước deadline" as ReplaceSubmission
+  usecase "Xem bài nộp" as ViewSubmissions
+  usecase "Nhắc hạn\nbài tập" as AssignmentReminder
+
+  usecase "Quản lý\nthông báo" as Notification #FFE9BF
+  usecase "Thông báo\ntin nhắn" as MessageNotification
+  usecase "Thông báo\ncuộc gọi" as CallNotification
+  usecase "Thông báo\nbài tập" as AssignmentNotification
+
+  usecase "Cảnh báo bảo mật\ntài khoản" as SecurityAlerts #FFE9BF
+  usecase "Cảnh báo\nđăng nhập lạ" as LoginAlert
+  usecase "Xem thông tin\nthiết bị" as DeviceInfo
+  usecase "Đăng xuất\nthiết bị lạ" as LogoutUnknownDevice
+
+  usecase "Chat với\nAI chatbot" as AIChat #FFE9BF
+  usecase "Mở hội thoại AI" as OpenAI
+  usecase "Gửi câu hỏi\ncho AI" as AskAI
+  usecase "Gửi file / hình ảnh\ncho AI" as SendAIFile
+  usecase "Nhận phản hồi\nAI" as AIResponse
 }
 
+' Actor đứng hai bên, chỉ nối vào use case chính để hạn chế rối.
 User --> Register
 User --> Login
+User --> Account
 User --> Profile
+User --> Sessions
+User --> Settings
 User --> Friends
-User --> Conversation
-User --> Message
-User --> Call
-User --> Bot
+User --> DirectChat
+User --> GroupChat
+User --> GroupManagement
+User --> Search
+User --> MediaLibrary
+User --> DirectCall
+User --> GroupCall
+User --> Assignment
+User --> Notification
+User --> SecurityAlerts
+User --> AIChat
 
-Admin --|> User
-Admin --> AccountLifecycle
+EmailOtp -left-> Register
+EmailOtp -left-> Login
+EmailOtp -left-> Account
+Chime -left-> DirectCall
+Chime -left-> GroupCall
+AI -left-> AIChat
 
+' Quan hệ nghiệp vụ cục bộ trong từng cụm chức năng.
 Register ..> Login : <<include>>
 
-' Landscape layout anchors.
+ResetPassword ..> Account : <<extend>>
+ChangePassword ..> Account : <<extend>>
+LockAccount ..> Account : <<extend>>
+DeleteAccount ..> Account : <<extend>>
+
+UpdateProfile ..> Profile : <<extend>>
+UpdateAvatar ..> Profile : <<extend>>
+
+ViewSessions ..> Sessions : <<extend>>
+LogoutDevice ..> Sessions : <<extend>>
+LogoutAll ..> Sessions : <<extend>>
+
+ThemeLanguage ..> Settings : <<extend>>
+Privacy ..> Settings : <<extend>>
+
+SearchUser ..> Friends : <<extend>>
+SendFriendRequest ..> Friends : <<extend>>
+HandleFriendRequest ..> Friends : <<extend>>
+Unfriend ..> Friends : <<extend>>
+BlockUser ..> Friends : <<extend>>
+FriendPrefs ..> Friends : <<extend>>
+FriendSuggestions ..> Friends : <<extend>>
+
+SendText ..> DirectChat : <<extend>>
+SendFile ..> DirectChat : <<extend>>
+SendSpecial ..> DirectChat : <<extend>>
+ReplyMessage ..> DirectChat : <<extend>>
+ReactMessage ..> DirectChat : <<extend>>
+MessageActions ..> DirectChat : <<extend>>
+
+SendText ..> GroupChat : <<extend>>
+SendFile ..> GroupChat : <<extend>>
+SendSpecial ..> GroupChat : <<extend>>
+ReplyMessage ..> GroupChat : <<extend>>
+ReactMessage ..> GroupChat : <<extend>>
+MessageActions ..> GroupChat : <<extend>>
+
+CreateGroup ..> GroupManagement : <<extend>>
+JoinGroup ..> GroupManagement : <<extend>>
+UpdateGroup ..> GroupManagement : <<extend>>
+GroupMembers ..> GroupManagement : <<extend>>
+GroupRoles ..> GroupManagement : <<extend>>
+LeaveDisbandGroup ..> GroupManagement : <<extend>>
+
+FindUser ..> Search : <<extend>>
+FindConversation ..> Search : <<extend>>
+FindMessage ..> Search : <<extend>>
+FindFile ..> Search : <<extend>>
+
+ViewMedia ..> MediaLibrary : <<extend>>
+ViewFiles ..> MediaLibrary : <<extend>>
+ViewLinks ..> MediaLibrary : <<extend>>
+
+CreateCall ..> DirectCall : <<extend>>
+JoinCall ..> DirectCall : <<extend>>
+EndCall ..> DirectCall : <<extend>>
+CallControls ..> DirectCall : <<extend>>
+ScreenShare ..> DirectCall : <<extend>>
+
+CreateCall ..> GroupCall : <<extend>>
+JoinCall ..> GroupCall : <<extend>>
+EndCall ..> GroupCall : <<extend>>
+CallControls ..> GroupCall : <<extend>>
+ScreenShare ..> GroupCall : <<extend>>
+
+CreateAssignment ..> Assignment : <<extend>>
+AssignmentDeadline ..> Assignment : <<extend>>
+AssignmentRule ..> Assignment : <<extend>>
+SubmitAssignment ..> Assignment : <<extend>>
+ReplaceSubmission ..> Assignment : <<extend>>
+ViewSubmissions ..> Assignment : <<extend>>
+AssignmentReminder ..> Assignment : <<extend>>
+
+MessageNotification ..> Notification : <<extend>>
+CallNotification ..> Notification : <<extend>>
+AssignmentNotification ..> Notification : <<extend>>
+
+LoginAlert ..> SecurityAlerts : <<extend>>
+DeviceInfo ..> SecurityAlerts : <<extend>>
+LogoutUnknownDevice ..> SecurityAlerts : <<extend>>
+
+OpenAI ..> AIChat : <<extend>>
+AskAI ..> AIChat : <<extend>>
+SendAIFile ..> AIChat : <<extend>>
+AIResponse ..> AIChat : <<include>>
+
+' Hidden links tạo bố cục ngang theo cụm, giống mẫu báo cáo.
 Register -[hidden]right- Login
-Login -[hidden]right- Profile
-Profile -[hidden]right- Friends
-Friends -[hidden]right- Conversation
-Conversation -[hidden]right- Message
-Message -[hidden]right- Call
-Call -[hidden]right- Bot
+Login -[hidden]right- Account
+Account -[hidden]right- Profile
+Profile -[hidden]right- Sessions
+Sessions -[hidden]right- Settings
 
-ViewProfile -[hidden]down- UpdateProfile
-UpdateProfile -[hidden]down- UploadAvatar
-UploadAvatar -[hidden]down- UploadBackground
-UploadBackground -[hidden]down- ChangePassword
-ChangePassword -[hidden]down- AccountLifecycle
+Friends -[hidden]right- DirectChat
+DirectChat -[hidden]right- GroupChat
+GroupChat -[hidden]right- GroupManagement
+GroupManagement -[hidden]right- Search
+Search -[hidden]right- MediaLibrary
 
-ViewFriends -[hidden]down- SearchUsers
-SearchUsers -[hidden]down- SendFriendRequest
-SendFriendRequest -[hidden]down- FriendRequests
-FriendRequests -[hidden]down- BlockFriend
-BlockFriend -[hidden]down- FriendSuggest
-FriendSuggest -[hidden]down- FriendSettings
+DirectCall -[hidden]right- GroupCall
+GroupCall -[hidden]right- Assignment
+Assignment -[hidden]right- Notification
+Notification -[hidden]right- SecurityAlerts
+SecurityAlerts -[hidden]right- AIChat
 
-CreateConversation -[hidden]down- CreateGroup
-CreateGroup -[hidden]down- AddMember
-AddMember -[hidden]down- RemoveMember
-RemoveMember -[hidden]down- GroupRole
-GroupRole -[hidden]down- LeaveGroup
-LeaveGroup -[hidden]down- DeleteConversation
-DeleteConversation -[hidden]down- SearchConversation
+User -[hidden]right- System
+System -[hidden]right- EmailOtp
+EmailOtp -[hidden]down- Chime
+Chime -[hidden]down- AI
 
-SendText -[hidden]down- SendAudio
-SendAudio -[hidden]down- SendImage
-SendImage -[hidden]down- SendVideo
-SendVideo -[hidden]down- SendFile
-SendFile -[hidden]down- SendLocation
-SendLocation -[hidden]down- SendContactCard
-SendContactCard -[hidden]down- ReactMessage
-ReactMessage -[hidden]down- ReplyMessage
-ReplyMessage -[hidden]down- EditMessage
-EditMessage -[hidden]down- RevokeMessage
-RevokeMessage -[hidden]down- CreatePoll
-CreatePoll -[hidden]down- VotePoll
+note top of Login
+  Các chức năng trong hệ thống yêu cầu người dùng đăng nhập,
+  trừ chức năng Đăng ký và Đăng nhập.
+end note
 
-AudioCall -[hidden]down- VideoCall
-VideoCall -[hidden]down- EndCall
-EndCall -[hidden]down- UpgradeCall
-
-ChatBot -[hidden]down- SuggestMessage
-SuggestMessage -[hidden]down- SummarizeChat
-SummarizeChat -[hidden]down- BotHistory
-
-Profile <.. ViewProfile : <<extend>>
-Profile <.. UpdateProfile : <<extend>>
-Profile <.. UploadAvatar : <<extend>>
-Profile <.. UploadBackground : <<extend>>
-Profile <.. ChangePassword : <<extend>>
-Profile <.. AccountLifecycle : <<extend>>
-
-Friends <.. ViewFriends : <<extend>>
-Friends <.. SearchUsers : <<extend>>
-Friends <.. SendFriendRequest : <<extend>>
-Friends <.. FriendRequests : <<extend>>
-Friends <.. BlockFriend : <<extend>>
-Friends <.. FriendSuggest : <<extend>>
-Friends <.. FriendSettings : <<extend>>
-
-Conversation <.. CreateConversation : <<extend>>
-Conversation <.. CreateGroup : <<extend>>
-Conversation <.. AddMember : <<extend>>
-Conversation <.. RemoveMember : <<extend>>
-Conversation <.. GroupRole : <<extend>>
-Conversation <.. LeaveGroup : <<extend>>
-Conversation <.. DeleteConversation : <<extend>>
-Conversation <.. SearchConversation : <<extend>>
-
-Message <.. SendText : <<extend>>
-Message <.. SendAudio : <<extend>>
-Message <.. SendImage : <<extend>>
-Message <.. SendVideo : <<extend>>
-Message <.. SendFile : <<extend>>
-Message <.. SendLocation : <<extend>>
-Message <.. SendContactCard : <<extend>>
-Message <.. ReactMessage : <<extend>>
-Message <.. ReplyMessage : <<extend>>
-Message <.. EditMessage : <<extend>>
-Message <.. RevokeMessage : <<extend>>
-Message <.. CreatePoll : <<extend>>
-Message <.. VotePoll : <<extend>>
-
-Call <.. AudioCall : <<extend>>
-Call <.. VideoCall : <<extend>>
-Call <.. EndCall : <<extend>>
-Call <.. UpgradeCall : <<extend>>
-
-Bot <.. ChatBot : <<extend>>
-Bot <.. SuggestMessage : <<extend>>
-Bot <.. SummarizeChat : <<extend>>
-Bot <.. BotHistory : <<extend>>
+note bottom of Assignment
+  Bài tập nằm trong chat nhóm.
+  Chỉ trưởng nhóm hoặc phó nhóm được giao bài.
+end note
 
 @enduml

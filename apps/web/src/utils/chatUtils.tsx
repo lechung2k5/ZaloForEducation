@@ -9,6 +9,8 @@ export interface Attachment {
   file?: File;
   isSticker?: boolean;
   isHD?: boolean;
+  isVoiceMessage?: boolean;
+  duration?: number;
 }
 
 export interface ConversationMuteSchedule {

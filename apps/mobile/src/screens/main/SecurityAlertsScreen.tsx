@@ -177,7 +177,7 @@ export default function SecurityAlertsScreen({ navigation }: any) {
 }
 
 const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: 'colors.surface' },
+  safeArea: { flex: 1, backgroundColor: colors.surface },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

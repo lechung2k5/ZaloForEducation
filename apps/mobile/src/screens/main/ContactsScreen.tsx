@@ -7,7 +7,11 @@ import React, {
   useState,
 } from "react";
 import {
+  ActivityIndicator,
+  Image,
   ScrollView,
+  Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,6 +37,13 @@ import { GroupsList } from "../../components/contacts/GroupsList";
 import { BlockedList } from "../../components/contacts/BlockedList";
 import { ContactRequests } from "../../components/contacts/ContactRequests";
 import { ContactModals } from "../../components/contacts/ContactModals";
+import AddFriendModal from "../../components/contacts/AddFriendModal";
+import {
+  buildFriendSearchParams,
+  getFriendAvatar,
+  getFriendDisplayName,
+  unpackFriendSearchResponse,
+} from "../../utils/friendSearch";
 
 const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=UniChat&background=0052AA&color=fff&bold=true";
 
@@ -64,6 +75,9 @@ export default function ContactsScreen({
   const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
 
   const [searchText, setSearchText] = useState("");
+  const [addFriendVisible, setAddFriendVisible] = useState(false);
+  const [friendSearchResult, setFriendSearchResult] = useState<any>(null);
+  const [friendSearchLoading, setFriendSearchLoading] = useState(false);
   const [sortMode, setSortMode] = useState("asc");
   const [filterMode, setFilterMode] = useState("all");
 
@@ -160,6 +174,35 @@ export default function ContactsScreen({
     });
     return rows;
   }, [acceptedFriends, filterMode, searchText, sortMode]);
+
+  useEffect(() => {
+    const params = buildFriendSearchParams(searchText);
+    if (activeSection !== "friends" || !params) {
+      setFriendSearchResult(null);
+      setFriendSearchLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setFriendSearchLoading(true);
+      try {
+        const res = await chatGet("/friends/search", params);
+        const data = unpackFriendSearchResponse(res);
+        if (cancelled) return;
+        setFriendSearchResult(data.found ? data : null);
+      } catch (error) {
+        if (!cancelled) setFriendSearchResult(null);
+      } finally {
+        if (!cancelled) setFriendSearchLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [activeSection, searchText]);
 
   const friendGroups = useMemo(() => {
     const grouped = filteredFriends.reduce((acc: Record<string, any[]>, item) => {
@@ -325,13 +368,91 @@ export default function ContactsScreen({
     }
   };
 
+  const sendSearchRequest = async () => {
+    const email = String(friendSearchResult?.user?.email || "").toLowerCase();
+    if (!email || busyAction || sendingRequestMap[email]) return;
+    setSendingRequestMap(prev => ({ ...prev, [email]: true }));
+    try {
+      const res = await chatPost("/friends/request", { targetEmail: email });
+      if (!res?.ok) throw new Error("REQUEST_FAILED");
+      setFriendSearchResult((prev: any) => prev ? {
+        ...prev,
+        friendship: { ...(prev.friendship || {}), status: "pending" },
+      } : prev);
+      await loadContactsData();
+    } catch (error) {
+      Alert.alert("Lỗi", "Không thể gửi lời mời.");
+    } finally {
+      setSendingRequestMap(prev => ({ ...prev, [email]: false }));
+    }
+  };
+
+  const renderFriendSearchResult = () => {
+    const foundUser = friendSearchResult?.user;
+    if (!searchText.trim()) return null;
+
+    if (friendSearchLoading) {
+      return (
+        <View style={styles.requestItem}>
+          <ActivityIndicator color="#1f8fff" size="small" />
+          <Text style={styles.contactSub}>Đang tìm bạn...</Text>
+        </View>
+      );
+    }
+
+    if (!foundUser) return null;
+
+    const email = String(foundUser.email || "").toLowerCase();
+    const status = friendSearchResult?.friendship?.status;
+    const isAccepted = status === "accepted";
+    const isPending = status === "pending";
+    const isSelf = friendSearchResult?.isSelf;
+    const isSending = sendingRequestMap[email];
+    const canAdd = email && !isSelf && !isAccepted && !isPending;
+
+    return (
+      <View>
+        <View style={styles.groupHeader}>
+          <Text style={styles.groupHeaderText}>TÌM BẠN BÈ</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.requestItem}
+          activeOpacity={0.75}
+          onPress={() => onNavigate?.("Profile", { userId: email })}
+        >
+          <Image source={{ uri: getFriendAvatar(foundUser) }} style={styles.requestAvatar} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.contactName} numberOfLines={1}>{getFriendDisplayName(foundUser)}</Text>
+            <Text style={styles.contactSub} numberOfLines={1}>{email}</Text>
+          </View>
+          {canAdd ? (
+            <TouchableOpacity
+              style={[styles.addBtn, isSending && styles.disabledBtn]}
+              onPress={(event: any) => {
+                event?.stopPropagation?.();
+                sendSearchRequest();
+              }}
+              disabled={isSending}
+            >
+              <Text style={styles.addText}>{isSending ? "Đang gửi" : "Kết bạn"}</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={[styles.contactSub, { color: "#1f8fff", fontWeight: "700" }]}>
+              {isSelf ? "Bạn" : isAccepted ? "Bạn bè" : "Đã gửi"}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.safeArea}>
       <ContactsHeader 
         insets={insets} 
         searchText={searchText} 
         setSearchText={setSearchText} 
-        onAddPress={() => setActiveSection("friends")}
+        onAddPress={() => setAddFriendVisible(true)}
       />
       
       <SectionTabs activeSection={activeSection} setActiveSection={setActiveSection} />
@@ -339,6 +460,7 @@ export default function ContactsScreen({
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         {activeSection === "friends" && (
           <>
+            {renderFriendSearchResult()}
             <ContactRequests 
               incomingRequests={incomingRequests}
               visibleSuggestions={visibleSuggestions}
@@ -396,6 +518,11 @@ export default function ContactsScreen({
         onToggleCloseFriend={setCloseFriendStatus}
         onOpenDirectChat={onOpenDirectChat}
         formatBirthDate={formatBirthDate}
+      />
+      <AddFriendModal
+        visible={addFriendVisible}
+        onClose={() => setAddFriendVisible(false)}
+        onRequestSent={loadContactsData}
       />
     </View>
   );

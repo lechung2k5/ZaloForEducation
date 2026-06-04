@@ -31,6 +31,7 @@ import { ClassifyFilterModal } from "../../components/home/ClassifyFilterModal";
 import { ConversationTagPicker } from "../../components/home/ConversationTagPicker";
 import { PinModal } from "../../components/home/PinModal";
 import { ProfileTab } from "../../components/home/ProfileTab";
+import AddFriendModal from "../../components/contacts/AddFriendModal";
 import { Conversation, Message } from "../../store/types";
 import { BOT_EMAIL } from "../../constants/bot";
 import { ASSETS } from "../../utils/assets";
@@ -81,6 +82,7 @@ export default function HomeScreen({
   const [actionMessage, setActionMessage] = useState<Message | null>(null);
   const [actionConv, setActionConv] = useState<Conversation | null>(null);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
 
   // Inbox Parity States
   const [chatFilter, setChatFilter] = useState<"all" | "unread">("all");
@@ -380,7 +382,7 @@ export default function HomeScreen({
           <View style={[styles.addMenu, { top: insets.top + 50 }]}>
             <TouchableOpacity 
               style={styles.addMenuItem} 
-              onPress={() => { setIsAddMenuOpen(false); navigation.navigate('Search'); }}
+              onPress={() => { setIsAddMenuOpen(false); setIsAddFriendOpen(true); }}
             >
               <Text style={styles.addMenuIcon}>person_add</Text>
               <Text style={styles.addMenuLabel}>{t('home.add_friend')}</Text>
@@ -400,6 +402,11 @@ export default function HomeScreen({
           </View>
         </Pressable>
       </Modal>
+      <AddFriendModal
+        visible={isAddFriendOpen}
+        onClose={() => setIsAddFriendOpen(false)}
+        onRequestSent={fetchConversationsData}
+      />
     </View>
   );
 }
