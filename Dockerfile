@@ -10,7 +10,8 @@ COPY backend/package*.json ./backend/
 COPY apps/web/package*.json ./apps/web/
 
 # Install dependencies using the workspace lockfile so local packages resolve correctly.
-RUN npm install
+# The web build runs on Linux inside Docker, so install Rolldown's Linux native binding explicitly.
+RUN npm install && npm install @rolldown/binding-linux-x64-gnu --no-save
 
 # Copy source code for building
 COPY packages/shared ./packages/shared
