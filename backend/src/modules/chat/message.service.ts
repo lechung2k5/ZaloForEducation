@@ -11,21 +11,51 @@ import { Message } from "@zalo-edu/shared";
 import { v4 as uuidv4 } from "uuid";
 import { DynamoDBService } from "../../infrastructure/dynamodb.service";
 import { S3Service } from "../../infrastructure/s3.service";
+import { MessageEncryptionService } from "../../infrastructure/message-encryption.service";
 import { FriendshipService } from "./friendship.service";
 import { ChatGateway } from "./chat.gateway";
 import { ChatService } from "./chat.service";
 
 @Injectable()
 export class MessageService {
+  private readonly encryptedContentMarker = "[encrypted:v1]";
+
   constructor(
     private readonly db: DynamoDBService,
     private readonly s3Service: S3Service,
+    private readonly messageEncryption: MessageEncryptionService,
     private readonly friendshipService: FriendshipService,
     @Inject(forwardRef(() => ChatGateway))
     private readonly chatGateway: ChatGateway,
     @Inject(forwardRef(() => ChatService))
     private readonly chatService: ChatService,
   ) {}
+
+  private restoreMessageContent<T extends Record<string, any>>(message: T): T {
+    const decrypted = this.messageEncryption.decryptText(message?.encryptedContent);
+    if (!decrypted) return message;
+    return { ...message, content: decrypted };
+  }
+
+  private restoreMessagesContent<T extends Record<string, any>>(messages: T[]): T[] {
+    return messages.map((message) => this.restoreMessageContent(message));
+  }
+
+  private buildStoredContent(content: string) {
+    const encryptedContent = this.messageEncryption.encryptText(content);
+    return {
+      content: encryptedContent ? this.encryptedContentMarker : content,
+      encryptedContent: encryptedContent || undefined,
+    };
+  }
+
+  private buildPreviewContent(content: string) {
+    const encryptedContent = this.messageEncryption.encryptText(content);
+    return {
+      content: encryptedContent ? this.encryptedContentMarker : content,
+      encryptedContent: encryptedContent || null,
+    };
+  }
 
   private normalizeConvId(id: string): { raw: string; prefixed: string; original: string; veryRaw: string } {
     const input = id.toUpperCase().startsWith("CONV#") ? id.substring(5) : id;
@@ -303,6 +333,40 @@ export class MessageService {
         .filter(Boolean),
     );
 
+    const storedContent = this.buildStoredContent(content);
+    const lastMessagePreview = (() => {
+      if (type === "system") return content;
+      if (type === "SYSTEM_CALL") {
+        const callType = extraFields?.callType || "audio";
+        const isGroup = !!extraFields?.isGroup;
+        if (isGroup) return callType === "video" ? "[Cuộc gọi video nhóm]" : "[Cuộc gọi thoại nhóm]";
+        return callType === "video" ? "[Cuộc gọi video]" : "[Cuộc gọi thoại]";
+      }
+      if (type === "contact_card") return "[Danh thiếp]";
+      if (type === "location") return "[Vị trí]";
+      if (type === "assignment") {
+        const title = extraFields?.payload?.assignment?.title;
+        return title ? `[Bài tập] ${title}` : "[Bài tập mới]";
+      }
+      if (!content || content.startsWith("MSG#")) {
+        if (media && media.length > 0) {
+          const hasSticker = media.some((item: any) => {
+            const mime = String(item?.mimeType || item?.fileType || "").toLowerCase();
+            return mime.includes("sticker") || item?.isSticker === true;
+          });
+          if (hasSticker) return "[Sticker]";
+          const hasHDImage = media.some((item: any) => item?.isHD === true);
+          if (hasHDImage) return "[Ảnh HD]";
+          return "[Hình ảnh]";
+        }
+        if (files && files.length > 0) return "[Tệp tin]";
+        return "Tin nhắn mới";
+      }
+      return content.length > 100 ? content.substring(0, 97) + "..." : content;
+    })();
+    const storedLastMessagePreview = this.buildPreviewContent(lastMessagePreview);
+    const storedMentionPreview = this.buildPreviewContent(content);
+
     const transactItems: any[] = [
       // 1. Save Message
       {
@@ -312,6 +376,7 @@ export class MessageService {
             PK: prefixedConvId,
             SK: SK,
             ...newMessage,
+            ...storedContent,
             conversationId: rawConvId,
           },
         },
@@ -322,53 +387,11 @@ export class MessageService {
           TableName: this.db.tableName,
           Key: { PK: prefixedConvId, SK: "METADATA" },
           UpdateExpression:
-            "SET lastMessage = :sk, lastMessageContent = :content, lastMessageSenderId = :senderId, lastMessageTimestamp = :ts, updatedAt = :time, listClearedAt = :cleared ADD totalMessages :inc",
+            "SET lastMessage = :sk, lastMessageContent = :content, lastMessageEncryptedContent = :encryptedContent, lastMessageSenderId = :senderId, lastMessageTimestamp = :ts, updatedAt = :time, listClearedAt = :cleared ADD totalMessages :inc",
           ExpressionAttributeValues: {
             ":sk": SK,
-            ":content": (() => {
-              if (type === "system") return content;
-              if (type === "SYSTEM_CALL") {
-                const callType = extraFields?.callType || "audio";
-                const isGroup = !!extraFields?.isGroup;
-                if (isGroup) {
-                  return callType === "video"
-                    ? "[Cuộc gọi video nhóm]"
-                    : "[Cuộc gọi thoại nhóm]";
-                }
-                return callType === "video"
-                  ? "[Cuộc gọi video]"
-                  : "[Cuộc gọi thoại]";
-              }
-              if (type === "contact_card") return "[Danh thiếp]";
-              if (type === "location") return "[Vị trí]";
-              if (type === "assignment") {
-                const title = extraFields?.payload?.assignment?.title;
-                return title ? `[Bài tập] ${title}` : "[Bài tập mới]";
-              }
-              if (!content || content.startsWith("MSG#")) {
-                if (media && media.length > 0) {
-                  const hasSticker = media.some((item: any) => {
-                    const mime = String(
-                      item?.mimeType || item?.fileType || "",
-                    ).toLowerCase();
-                    return mime.includes("sticker") || item?.isSticker === true;
-                  });
-                  if (hasSticker) return "[Sticker]";
-
-                  const hasHDImage = media.some(
-                    (item: any) => item?.isHD === true,
-                  );
-                  if (hasHDImage) return "[Ảnh HD]";
-
-                  return "[Hình ảnh]";
-                }
-                if (files && files.length > 0) return "[Tệp tin]";
-                return "Tin nhắn mới";
-              }
-              return content.length > 100
-                ? content.substring(0, 97) + "..."
-                : content;
-            })(),
+            ":content": storedLastMessagePreview.content,
+            ":encryptedContent": storedLastMessagePreview.encryptedContent,
             ":senderId": senderEmail,
             ":ts": Date.now(),
             ":time": timestamp,
@@ -403,7 +426,7 @@ export class MessageService {
           Key: { PK: `USER#${normalizedMember}`, SK: prefixedConvId },
           // [PRODUCTION] Atomic increment unreadCount
           UpdateExpression: isMentioned
-            ? "SET updatedAt = :ts, hasUnreadMention = :mentioned, lastMentionMessageId = :messageId, lastMentionAt = :time, lastMentionContent = :mentionContent, lastMentionSenderId = :mentionSenderId ADD unreadCount :inc, mentionCount :inc"
+            ? "SET updatedAt = :ts, hasUnreadMention = :mentioned, lastMentionMessageId = :messageId, lastMentionAt = :time, lastMentionContent = :mentionContent, lastMentionEncryptedContent = :mentionEncryptedContent, lastMentionSenderId = :mentionSenderId ADD unreadCount :inc, mentionCount :inc"
             : "SET updatedAt = :ts ADD unreadCount :inc",
           ExpressionAttributeValues: isMentioned
             ? {
@@ -412,7 +435,8 @@ export class MessageService {
                 ":mentioned": true,
                 ":messageId": SK,
                 ":time": timestamp,
-                ":mentionContent": content,
+                ":mentionContent": storedMentionPreview.content,
+                ":mentionEncryptedContent": storedMentionPreview.encryptedContent,
                 ":mentionSenderId": senderEmail,
               }
             : {
@@ -519,7 +543,7 @@ export class MessageService {
           TableName: this.db.tableName,
           Key: { PK: prefixedConvId, SK: messageId },
           UpdateExpression:
-            "SET content = :content, recalled = :recalled, media = :media, files = :files, reactions = :reactions, updatedAt = :updatedAt",
+            "SET content = :content, recalled = :recalled, media = :media, files = :files, reactions = :reactions, updatedAt = :updatedAt REMOVE encryptedContent",
           ExpressionAttributeValues: {
             ":content": "Tin nhắn đã được thu hồi",
             ":recalled": true,
@@ -857,7 +881,7 @@ export class MessageService {
     if (!msg) return null;
 
     return this.sanitizeAssignmentForViewer(
-      { ...msg, id: msg.id || msg.SK },
+      this.restoreMessageContent({ ...msg, id: msg.id || msg.SK }),
       userEmail,
     );
   }
@@ -937,6 +961,7 @@ export class MessageService {
 
     return {
       messages: (filteredItems as any[])
+        .map((msg) => this.restoreMessageContent(msg))
         .map((msg) => ({ ...msg, id: msg.id || msg.SK }))
         .map((msg) => this.sanitizeAssignmentForViewer(msg, userEmail))
         .sort((a, b) => a.id.localeCompare(b.id)), // Force oldest-first (ascending)
@@ -1268,6 +1293,7 @@ export class MessageService {
     return {
       messages: (combined as any[])
         .filter((msg) => !msg.removed?.includes(userEmail))
+        .map((msg) => this.restoreMessageContent(msg))
         .map((msg) => ({ ...msg, id: msg.id || msg.SK }))
         .map((msg) => this.sanitizeAssignmentForViewer(msg, userEmail)),
       nextCursor,
@@ -1308,10 +1334,7 @@ export class MessageService {
       expAttrNames["#t"] = "type";
       expAttrValues[":fileType"] = "file";
     } else if (type === "link") {
-      filterExp = "contains(content, :http) AND #t = :textType";
-      expAttrNames["#t"] = "type";
-      expAttrValues[":http"] = "http";
-      expAttrValues[":textType"] = "text";
+      filterExp = "";
     }
 
     let items: any[] = [];
@@ -1322,7 +1345,7 @@ export class MessageService {
       const command = new QueryCommand({
         TableName: this.db.tableName,
         KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
-        FilterExpression: filterExp,
+        FilterExpression: filterExp || undefined,
         ExpressionAttributeNames: Object.keys(expAttrNames).length > 0 ? expAttrNames : undefined,
         ExpressionAttributeValues: expAttrValues,
         Limit: limit * 5, // Overshoot limit to account for filtered items
@@ -1331,7 +1354,7 @@ export class MessageService {
       });
 
       const res = await this.db.docClient.send(command);
-      let batch = res.Items || [];
+      let batch = this.restoreMessagesContent((res.Items || []) as any[]);
 
       // Final filtering for links to avoid system messages or false positives
       if (type === "link") {
@@ -1378,7 +1401,7 @@ export class MessageService {
     };
 
     const result = await this.db.docClient.send(new QueryCommand(params));
-    const items = (result.Items || []) as any[];
+    const items = this.restoreMessagesContent((result.Items || []) as any[]);
 
     const lowerQuery = query.toLowerCase();
 

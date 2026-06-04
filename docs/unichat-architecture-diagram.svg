@@ -1,0 +1,287 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <style>
+      .bg { fill: #f7fbff; }
+      .panel { fill: #ffffff; stroke: #b7cdf2; stroke-width: 2; }
+      .layer-blue { fill: #0757c8; }
+      .layer-green { fill: #118144; }
+      .layer-purple { fill: #6742b6; }
+      .layer-orange { fill: #fffaf2; stroke: #f2a643; stroke-width: 2; }
+      .layer-red { fill: #fff6f7; stroke: #e46372; stroke-width: 2; }
+      .layer-dashed { fill: #ffffff; stroke: #6bb58a; stroke-width: 2; stroke-dasharray: 8 8; }
+      .security { fill: #ffffff; stroke: #9a7de0; stroke-width: 2; }
+      .service { fill: #f9fffb; stroke: #82c79c; stroke-width: 2; }
+      .client { fill: #ffffff; stroke: #d5e3fa; stroke-width: 2; }
+      .title { font: 700 30px Arial, sans-serif; fill: #0f172a; }
+      .section { font: 700 20px Arial, sans-serif; fill: #0b55c7; }
+      .heading { font: 700 25px Arial, sans-serif; fill: #0f172a; }
+      .subhead { font: 700 18px Arial, sans-serif; fill: #0f172a; }
+      .body { font: 15px Arial, sans-serif; fill: #243044; }
+      .small { font: 13px Arial, sans-serif; fill: #344054; }
+      .white { fill: #ffffff; }
+      .muted { fill: #667085; }
+      .blue { fill: #0b55c7; }
+      .green { fill: #118144; }
+      .purple { fill: #6d48c9; }
+      .orange { fill: #ef7d22; }
+      .red { fill: #d92d20; }
+      .arrow-blue { stroke: #135edb; stroke-width: 3; fill: none; marker-start: url(#blueStart); marker-end: url(#blueEnd); }
+      .arrow-green { stroke: #13804b; stroke-width: 3; fill: none; marker-start: url(#greenStart); marker-end: url(#greenEnd); }
+      .arrow-db { stroke: #169957; stroke-width: 3; fill: none; marker-end: url(#greenEnd); }
+      .arrow-orange { stroke: #f28c28; stroke-width: 3; fill: none; marker-start: url(#orangeStart); marker-end: url(#orangeEnd); }
+      .arrow-red { stroke: #e5485d; stroke-width: 3; fill: none; marker-start: url(#redStart); marker-end: url(#redEnd); }
+      .divider { stroke: #d6e2f5; stroke-width: 2; }
+      .soft-line { stroke: #d0d5dd; stroke-width: 2; fill: none; }
+    </style>
+    <marker id="blueEnd" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#135edb"/></marker>
+    <marker id="blueStart" markerWidth="9" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M9,0 L0,4.5 L9,9 Z" fill="#135edb"/></marker>
+    <marker id="greenEnd" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#13804b"/></marker>
+    <marker id="greenStart" markerWidth="9" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M9,0 L0,4.5 L9,9 Z" fill="#13804b"/></marker>
+    <marker id="orangeEnd" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#f28c28"/></marker>
+    <marker id="orangeStart" markerWidth="9" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M9,0 L0,4.5 L9,9 Z" fill="#f28c28"/></marker>
+    <marker id="redEnd" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#e5485d"/></marker>
+    <marker id="redStart" markerWidth="9" markerHeight="9" refX="1" refY="4.5" orient="auto"><path d="M9,0 L0,4.5 L9,9 Z" fill="#e5485d"/></marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#101828" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect class="bg" width="1920" height="1080"/>
+  <text x="960" y="38" text-anchor="middle" class="title">Sơ đồ kiến trúc tổng quan hệ thống ZaloEdu</text>
+
+  <!-- Left layer labels -->
+  <rect x="24" y="58" width="240" height="250" rx="12" class="layer-blue" filter="url(#shadow)"/>
+  <text x="144" y="94" text-anchor="middle" class="subhead white">1. PRESENTATION</text>
+  <text x="144" y="122" text-anchor="middle" class="subhead white">LAYER</text>
+  <rect x="100" y="150" width="88" height="62" rx="8" fill="none" stroke="#fff" stroke-width="4"/>
+  <circle cx="116" cy="166" r="4" class="white"/>
+  <circle cx="132" cy="166" r="4" class="white"/>
+  <path d="M100 178 H188" stroke="#fff" stroke-width="4"/>
+  <text x="144" y="238" text-anchor="middle" class="subhead white">Client</text>
+  <text x="144" y="264" text-anchor="middle" class="subhead white">và tương tác</text>
+
+  <rect x="24" y="382" width="240" height="250" rx="12" class="layer-green" filter="url(#shadow)"/>
+  <text x="144" y="418" text-anchor="middle" class="subhead white">2. APPLICATION /</text>
+  <text x="144" y="446" text-anchor="middle" class="subhead white">BACKEND LAYER</text>
+  <circle cx="144" cy="520" r="40" fill="none" stroke="#fff" stroke-width="6"/>
+  <path d="M144 470 V492 M144 548 V570 M94 520 H116 M172 520 H194 M109 485 L124 500 M173 540 L188 555 M109 555 L124 540 M173 500 L188 485" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
+  <text x="144" y="584" text-anchor="middle" class="subhead white">Business Logic</text>
+  <text x="144" y="610" text-anchor="middle" class="subhead white">và Realtime Engine</text>
+
+  <rect x="24" y="720" width="240" height="250" rx="12" class="layer-purple" filter="url(#shadow)"/>
+  <text x="144" y="756" text-anchor="middle" class="subhead white">3. DATA &amp;</text>
+  <text x="144" y="784" text-anchor="middle" class="subhead white">INTEGRATION LAYER</text>
+  <ellipse cx="144" cy="835" rx="48" ry="18" fill="none" stroke="#fff" stroke-width="5"/>
+  <path d="M96 835 V900 C96 910 118 918 144 918 C170 918 192 910 192 900 V835" fill="none" stroke="#fff" stroke-width="5"/>
+  <path d="M96 868 C96 878 118 886 144 886 C170 886 192 878 192 868" fill="none" stroke="#fff" stroke-width="5"/>
+  <text x="144" y="944" text-anchor="middle" class="subhead white">Lưu trữ dữ liệu</text>
+  <text x="144" y="970" text-anchor="middle" class="subhead white">và dịch vụ ngoài</text>
+
+  <!-- Presentation panel -->
+  <rect x="290" y="58" width="1628" height="250" rx="12" class="panel" filter="url(#shadow)"/>
+
+  <g transform="translate(330 82)">
+    <text x="220" y="0" text-anchor="middle" class="section">Web App</text>
+    <rect x="78" y="50" width="284" height="130" rx="12" fill="#f4f8ff" stroke="#cad8ee" stroke-width="2"/>
+    <rect x="110" y="74" width="220" height="106" rx="8" fill="#111827"/>
+    <rect x="122" y="84" width="208" height="94" rx="4" fill="#ffffff"/>
+    <rect x="122" y="84" width="44" height="94" fill="#1f354d"/>
+    <circle cx="187" cy="108" r="12" fill="#e5e7eb"/>
+    <rect x="204" y="100" width="88" height="8" rx="4" fill="#79aef8"/>
+    <rect x="204" y="116" width="124" height="8" rx="4" fill="#d8e8ff"/>
+    <rect x="188" y="142" width="110" height="12" rx="6" fill="#e9edf5"/>
+    <rect x="228" y="158" width="94" height="12" rx="6" fill="#b7d6ff"/>
+    <text x="220" y="214" text-anchor="middle" class="subhead">React + Vite</text>
+    <text x="220" y="238" text-anchor="middle" class="small">DuckDNS + Caddy / HTTPS</text>
+  </g>
+
+  <line x1="692" y1="82" x2="692" y2="278" class="divider"/>
+  <g transform="translate(710 82)">
+    <text x="220" y="0" text-anchor="middle" class="section">Mobile App</text>
+    <rect x="118" y="45" width="74" height="144" rx="16" fill="#ffffff" stroke="#1f2937" stroke-width="4"/>
+    <rect x="129" y="58" width="52" height="104" rx="6" fill="#f8fafc"/>
+    <circle cx="155" cy="109" r="30" fill="#e7f8ee"/>
+    <text x="155" y="120" text-anchor="middle" font-family="Arial" font-size="34" fill="#1e9a47">A</text>
+    <rect x="238" y="45" width="74" height="144" rx="16" fill="#ffffff" stroke="#1f2937" stroke-width="4"/>
+    <rect x="249" y="58" width="52" height="104" rx="6" fill="#f8fafc"/>
+    <circle cx="275" cy="109" r="30" fill="#111827"/>
+    <text x="275" y="120" text-anchor="middle" font-family="Arial" font-size="34" fill="#ffffff">i</text>
+    <text x="220" y="214" text-anchor="middle" class="subhead">React Native + Expo</text>
+    <text x="220" y="238" text-anchor="middle" class="small">Android APK, hỗ trợ iOS</text>
+  </g>
+
+  <line x1="1088" y1="82" x2="1088" y2="278" class="divider" stroke-dasharray="6 5"/>
+  <g transform="translate(1110 76)">
+    <text x="140" y="0" text-anchor="middle" class="section">Client Capabilities</text>
+    <text x="12" y="42" class="body">💬 Nhắn tin realtime 1-1</text>
+    <text x="12" y="70" class="body">👥 Nhắn tin nhóm</text>
+    <text x="12" y="98" class="body">📎 Chia sẻ file / media / voice</text>
+    <text x="12" y="126" class="body">📞 Gọi audio / video</text>
+    <text x="12" y="154" class="body">🔔 Thông báo &amp; bảo mật</text>
+    <text x="12" y="182" class="body">⚙️ Hồ sơ, bạn bè, cài đặt</text>
+  </g>
+
+  <!-- Client to backend arrows -->
+  <path d="M480 308 V382" class="arrow-blue"/>
+  <path d="M545 308 V382" class="arrow-green"/>
+  <path d="M805 308 V382" class="arrow-blue"/>
+  <path d="M870 308 V382" class="arrow-green"/>
+
+  <text x="420" y="342" class="small" text-anchor="middle">HTTPS</text>
+  <text x="420" y="360" class="small" text-anchor="middle">REST API</text>
+  <text x="612" y="342" class="small" text-anchor="middle">WebSocket (WSS)</text>
+  <text x="612" y="360" class="small" text-anchor="middle">Realtime messaging</text>
+  <text x="760" y="342" class="small" text-anchor="middle">HTTPS</text>
+  <text x="760" y="360" class="small" text-anchor="middle">REST API</text>
+  <text x="940" y="342" class="small" text-anchor="middle">WebSocket (WSS)</text>
+  <text x="940" y="360" class="small" text-anchor="middle">Push realtime</text>
+
+
+  <!-- Backend panel -->
+  <rect x="290" y="382" width="1222" height="282" rx="12" class="panel" stroke="#62b07f" filter="url(#shadow)"/>
+  <g transform="translate(540 404)">
+    <circle cx="40" cy="32" r="26" fill="#e8f7ee" stroke="#16834b" stroke-width="3"/>
+    <text x="40" y="42" text-anchor="middle" font-family="Arial" font-weight="700" font-size="21" fill="#16834b">N</text>
+    <text x="78" y="28" class="heading green">NestJS API Service</text>
+    <text x="78" y="56" class="body">REST API + WebSocket Gateway + Socket.IO</text>
+    <circle cx="490" cy="32" r="26" fill="#ffffff" stroke="#0f172a" stroke-width="3"/>
+    <text x="490" y="43" text-anchor="middle" font-family="Arial" font-size="32">⚡</text>
+    <text x="528" y="39" class="heading">Socket.IO</text>
+  </g>
+
+  <g transform="translate(310 500)">
+    <rect width="162" height="132" rx="8" class="service"/>
+    <text x="82" y="30" text-anchor="middle" class="subhead">Xác thực</text>
+    <text x="18" y="58" class="small">• JWT Authentication</text>
+    <text x="18" y="80" class="small">• bcrypt password</text>
+    <text x="18" y="102" class="small">• OTP / Email</text>
+    <text x="18" y="124" class="small">• Session devices</text>
+  </g>
+  <g transform="translate(518 500)">
+    <rect width="162" height="132" rx="8" class="service"/>
+    <text x="82" y="30" text-anchor="middle" class="subhead">Tin nhắn</text>
+    <text x="18" y="58" class="small">• Chat 1-1 / nhóm</text>
+    <text x="18" y="80" class="small">• Seen / typing</text>
+    <text x="18" y="102" class="small">• Reply / pin / reaction</text>
+    <text x="18" y="124" class="small">• Voice message</text>
+  </g>
+  <g transform="translate(726 500)">
+    <rect width="162" height="132" rx="8" class="service"/>
+    <text x="82" y="30" text-anchor="middle" class="subhead">Bạn bè / nhóm</text>
+    <text x="18" y="58" class="small">• Kết bạn / chặn</text>
+    <text x="18" y="80" class="small">• Tạo nhóm chat</text>
+    <text x="18" y="102" class="small">• Vai trò nhóm</text>
+    <text x="18" y="124" class="small">• Link / QR nhóm</text>
+  </g>
+  <g transform="translate(934 500)">
+    <rect width="162" height="132" rx="8" class="service"/>
+    <text x="82" y="30" text-anchor="middle" class="subhead">Cuộc gọi</text>
+    <text x="18" y="58" class="small">• Audio / video 1-1</text>
+    <text x="18" y="80" class="small">• Group call</text>
+    <text x="18" y="102" class="small">• Share màn hình</text>
+    <text x="18" y="124" class="small">• AWS Chime meeting</text>
+  </g>
+  <g transform="translate(1142 500)">
+    <rect width="162" height="132" rx="8" class="service"/>
+    <text x="82" y="30" text-anchor="middle" class="subhead">Thông báo</text>
+    <text x="18" y="58" class="small">• In-app notification</text>
+    <text x="18" y="80" class="small">• Mobile push</text>
+    <text x="18" y="102" class="small">• Cảnh báo bảo mật</text>
+    <text x="18" y="124" class="small">• Socket.io push</text>
+  </g>
+  <g transform="translate(1350 500)">
+    <rect width="162" height="132" rx="8" class="service"/>
+    <text x="82" y="30" text-anchor="middle" class="subhead">Admin / AI</text>
+    <text x="18" y="58" class="small">• Quản lý user</text>
+    <text x="18" y="80" class="small">• Thống kê hệ thống</text>
+    <text x="18" y="102" class="small">• Gửi thông báo</text>
+    <text x="18" y="124" class="small">• Chatbot AI</text>
+  </g>
+
+  <!-- Realtime flow panel -->
+  <path d="M1512 520 H1588" class="arrow-green"/>
+  <rect x="1594" y="382" width="322" height="282" rx="12" class="layer-dashed"/>
+  <text x="1755" y="448" text-anchor="middle" class="section">Luồng realtime hai chiều</text>
+  <circle cx="1692" cy="526" r="18" fill="#317bdc"/>
+  <path d="M1665 582 C1668 552 1716 552 1720 582" fill="#317bdc"/>
+  <circle cx="1810" cy="526" r="18" fill="#317bdc"/>
+  <path d="M1783 582 C1786 552 1834 552 1838 582" fill="#317bdc"/>
+  <path d="M1726 520 H1775" class="arrow-green"/>
+  <path d="M1775 568 H1726" class="arrow-green"/>
+  <text x="1755" y="616" text-anchor="middle" class="subhead">WebSocket (WSS)</text>
+  <text x="1755" y="642" text-anchor="middle" class="body">Kết nối liên tục qua Socket.IO</text>
+
+  <!-- Data layer cards -->
+  <path d="M590 664 V782" class="arrow-db"/>
+  <path d="M648 664 V782" class="arrow-green" stroke-dasharray="7 7"/>
+  <text x="500" y="720" text-anchor="middle" class="small">User / chat / group /</text>
+  <text x="500" y="738" text-anchor="middle" class="small">assignment data</text>
+
+  <rect x="300" y="782" width="390" height="190" rx="10" class="panel" stroke="#62b07f" filter="url(#shadow)"/>
+  <text x="495" y="828" text-anchor="middle" class="heading">AWS DynamoDB</text>
+  <text x="495" y="854" text-anchor="middle" class="body">(Primary Database)</text>
+  <path d="M392 846 C414 806 436 786 456 786 C438 824 428 860 454 916 C418 904 395 884 392 846 Z" fill="#13a14f"/>
+  <text x="520" y="888" class="small">• Users, profiles, devices</text>
+  <text x="520" y="912" class="small">• Conversations, messages</text>
+  <text x="520" y="936" class="small">• Groups, friends</text>
+
+  <path d="M928 664 V782" class="arrow-orange"/>
+  <text x="912" y="720" text-anchor="middle" class="small">Upload / download file</text>
+  <text x="912" y="738" text-anchor="middle" class="small">ảnh, video, audio, tài liệu</text>
+  <rect x="740" y="782" width="390" height="190" rx="10" class="layer-orange" filter="url(#shadow)"/>
+  <text x="935" y="828" text-anchor="middle" class="heading">Amazon S3</text>
+  <text x="935" y="854" text-anchor="middle" class="body">(File &amp; Media Storage)</text>
+  <text x="800" y="906" class="small">• Avatar / ảnh bìa</text>
+  <text x="800" y="930" class="small">• Chat media / file / voice</text>
+  <path d="M1018 902 h42 a20 20 0 0 0 -31 -18 a28 28 0 0 0 -53 10 a18 18 0 0 0 0 36 h84" fill="none" stroke="#7a8798" stroke-width="4"/>
+
+  <path d="M1195 664 V782" class="arrow-red"/>
+  <path d="M1308 664 V782" class="arrow-red" stroke-dasharray="7 7"/>
+  <text x="1248" y="720" text-anchor="middle" class="small">OTP / presence / call session</text>
+  <text x="1248" y="738" text-anchor="middle" class="small">cache &amp; pub/sub</text>
+  <rect x="1175" y="782" width="350" height="190" rx="10" class="layer-red" filter="url(#shadow)"/>
+  <text x="1350" y="828" text-anchor="middle" class="heading">Redis</text>
+  <text x="1350" y="854" text-anchor="middle" class="body">(Cache, OTP, Socket Adapter)</text>
+  <text x="1245" y="894" class="small">• OTP TTL / rate limit</text>
+  <text x="1245" y="918" class="small">• Online presence</text>
+  <text x="1245" y="942" class="small">• Realtime pub/sub</text>
+
+  <rect x="1560" y="782" width="356" height="190" rx="10" class="panel" stroke="#8794ff" filter="url(#shadow)"/>
+  <text x="1738" y="824" text-anchor="middle" class="heading">External Services</text>
+  <text x="1630" y="872" class="small">• AWS Chime SDK Meetings</text>
+  <text x="1630" y="896" class="small">• SMTP / Nodemailer Email OTP</text>
+  <text x="1630" y="920" class="small">• AI Chatbot service</text>
+  <text x="1630" y="944" class="small">• EC2 + Docker + Caddy</text>
+
+  <path d="M1280 782 C1320 732 1460 706 1615 782" class="arrow-red"/>
+  <path d="M1280 664 C1390 702 1530 708 1640 782" class="arrow-blue"/>
+
+  <!-- Security components -->
+  <rect x="1530" y="690" width="386" height="92" rx="10" fill="#fbf9ff" stroke="#9a7de0" stroke-width="2" stroke-dasharray="7 6"/>
+  <text x="1723" y="718" text-anchor="middle" class="subhead purple">4. SECURITY COMPONENTS</text>
+  <rect x="1548" y="734" width="170" height="32" rx="6" class="security"/>
+  <text x="1562" y="755" class="small">JWT + role guard</text>
+  <rect x="1728" y="734" width="170" height="32" rx="6" class="security"/>
+  <text x="1742" y="755" class="small">HTTPS / WSS</text>
+
+  <!-- Legend -->
+  <rect x="24" y="1002" width="1892" height="58" rx="10" class="panel"/>
+  <text x="50" y="1038" class="subhead blue">LEGEND</text>
+  <path d="M190 1030 H250" class="arrow-blue"/>
+  <text x="270" y="1024" class="small">HTTPS REST API</text>
+  <text x="270" y="1044" class="small">Request / Response</text>
+  <path d="M470 1030 H530" class="arrow-green"/>
+  <text x="550" y="1024" class="small">WebSocket (WSS)</text>
+  <text x="550" y="1044" class="small">Realtime hai chiều</text>
+  <path d="M760 1030 H820" class="arrow-db"/>
+  <text x="840" y="1024" class="small">Database access</text>
+  <text x="840" y="1044" class="small">DynamoDB</text>
+  <path d="M1050 1030 H1110" class="arrow-orange"/>
+  <text x="1130" y="1024" class="small">File upload / download</text>
+  <text x="1130" y="1044" class="small">Amazon S3</text>
+  <path d="M1370 1030 H1430" class="arrow-red"/>
+  <text x="1450" y="1024" class="small">OTP / cache / session</text>
+  <text x="1450" y="1044" class="small">Redis / External service</text>
+  <path d="M1715 1040 h38 a18 18 0 0 0 -28 -16 a24 24 0 0 0 -46 8 a16 16 0 0 0 0 32 h74" fill="none" stroke="#7a8798" stroke-width="4"/>
+  <text x="1770" y="1044" class="small">Cloud services</text>
+</svg>

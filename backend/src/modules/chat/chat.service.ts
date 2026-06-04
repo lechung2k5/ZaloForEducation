@@ -16,6 +16,7 @@ import {
 import { Conversation } from "@zalo-edu/shared";
 import { v4 as uuidv4 } from "uuid";
 import { DynamoDBService } from "../../infrastructure/dynamodb.service";
+import { MessageEncryptionService } from "../../infrastructure/message-encryption.service";
 import { ChatGateway } from "./chat.gateway";
 import { FriendshipService } from "./friendship.service";
 import { UserService } from "../user/user.service";
@@ -24,12 +25,23 @@ import { UserService } from "../user/user.service";
 export class ChatService {
   constructor(
     private readonly db: DynamoDBService,
+    private readonly messageEncryption: MessageEncryptionService,
     @Inject(forwardRef(() => ChatGateway))
     private readonly chatGateway: ChatGateway,
     @Inject(forwardRef(() => FriendshipService))
     private readonly friendshipService: FriendshipService,
     public readonly userService: UserService,
   ) {}
+
+  private restoreEncryptedText(encrypted: unknown, fallback: unknown): string {
+    return this.messageEncryption.decryptText(encrypted) || String(fallback || "");
+  }
+
+  private restoreMessageContent<T extends Record<string, any>>(message: T): T {
+    const content = this.messageEncryption.decryptText(message?.encryptedContent);
+    if (!content) return message;
+    return { ...message, content };
+  }
 
   private normalizeConvId(id: string): { raw: string; prefixed: string; original: string; veryRaw: string } {
     const input = id.startsWith("CONV#") ? id.substring(5) : id;
@@ -911,7 +923,10 @@ export class ChatService {
           mentionCount: m.mentionCount || 0,
           lastMentionMessageId: m.lastMentionMessageId,
           lastMentionAt: m.lastMentionAt,
-          lastMentionContent: m.lastMentionContent,
+          lastMentionContent: this.restoreEncryptedText(
+            m.lastMentionEncryptedContent,
+            m.lastMentionContent,
+          ),
           lastMentionSenderId: m.lastMentionSenderId,
         },
       ]),
@@ -933,7 +948,18 @@ export class ChatService {
           lastMentionAt: undefined,
         };
 
-        const sanitizedConv = { ...c, lastReadAt, unreadCount, isMuted, isPinned, ...mentionState };
+        const sanitizedConv = {
+          ...c,
+          lastMessageContent: this.restoreEncryptedText(
+            (c as any).lastMessageEncryptedContent,
+            (c as any).lastMessageContent,
+          ),
+          lastReadAt,
+          unreadCount,
+          isMuted,
+          isPinned,
+          ...mentionState,
+        };
 
         if (
           sanitizedConv.autoDeleteDays &&
@@ -1235,7 +1261,9 @@ export class ChatService {
     );
 
     const queryResults = await Promise.all(messageQueries);
-    const allMessages = queryResults.flatMap((res) => res.Items || []);
+    const allMessages = queryResults
+      .flatMap((res) => res.Items || [])
+      .map((message) => this.restoreMessageContent(message));
 
     // Smart Filtering in Memory (Case-Insensitive + Deep File Search)
     const matchedMessages = allMessages.filter((m) => {

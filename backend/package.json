@@ -18,6 +18,7 @@
     "prestart:prod": "npm run build -w @zalo-edu/shared",
     "start:prod": "node dist/main.js",
     "db:fields": "node scripts/list-table-fields.js",
+    "db:encrypt-messages": "node scripts/encrypt-message-content.js",
     "kill-port": "powershell -Command \"Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\""
   },
   "dependencies": {
