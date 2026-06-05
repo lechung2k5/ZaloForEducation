@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Req, Param, Delete, Headers, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Req, Param, Delete, Headers, UnauthorizedException, Query } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterRequestDto, LoginRequestDto } from '@zalo-edu/shared';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -189,6 +189,11 @@ export class AuthController {
   @Get('qr-code')
   async getQrCode() {
     return this.authService.generateQrCodeId();
+  }
+
+  @Get('qr-status')
+  async getQrStatus(@Query('qrCodeId') qrCodeId: string) {
+    return this.authService.getQrCodeStatus(qrCodeId);
   }
 
   @Post('qr-confirm')

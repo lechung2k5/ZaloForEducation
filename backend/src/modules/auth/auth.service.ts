@@ -879,6 +879,32 @@ export class AuthService {
     return { qrCodeId };
   }
 
+  async getQrCodeStatus(qrCodeId: string) {
+    qrCodeId = this.requireString(qrCodeId, "Ma QR khong hop le.");
+    const redisKey = `qr_login:${qrCodeId}`;
+    const status = await this.redisService.get(redisKey);
+
+    if (!status) {
+      return { status: "EXPIRED" };
+    }
+
+    if (status === "PENDING") {
+      return { status: "PENDING" };
+    }
+
+    try {
+      const parsed = JSON.parse(status);
+      if (parsed?.status === "CONFIRMED" && parsed?.tokens) {
+        await this.redisService.del(redisKey);
+        return { status: "CONFIRMED", tokens: parsed.tokens };
+      }
+    } catch {
+      // Fall through to INVALID for unexpected legacy values.
+    }
+
+    return { status: "INVALID" };
+  }
+
   async confirmQrCode(
     email: string,
     qrCodeId: string,
@@ -977,12 +1003,16 @@ export class AuthService {
       },
     };
 
-    // 6. Thông báo cho Web qua Socket
+    // 6. Lưu kết quả ngắn hạn để web có thể poll dự phòng nếu Socket.IO bị rơi trên deploy.
+    await this.redisService.set(
+      redisKey,
+      JSON.stringify({ status: "CONFIRMED", tokens }),
+      60,
+    );
+
+    // 7. Thông báo cho Web qua Socket
     this.chatGateway.server.to(qrCodeId).emit("login_success", tokens);
     this.chatGateway.notifySessionsUpdate(email);
-
-    // 7. Vô hiệu hóa mã QR ngay lập tức
-    await this.redisService.del(redisKey);
 
     return { message: "Đăng nhập thành công trên trình duyệt." };
   }

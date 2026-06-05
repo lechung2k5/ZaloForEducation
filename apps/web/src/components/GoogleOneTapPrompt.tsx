@@ -3,7 +3,12 @@ import { useGoogleOneTapLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
 
 interface GoogleOneTapPromptProps {
-  onSuccess?: (response: unknown) => void;
+  onSuccess?: (response: {
+    isProfileComplete?: boolean;
+    requireOtp?: boolean;
+    email?: string;
+    success?: boolean;
+  }) => void;
   onError?: (error: unknown) => void;
 }
 

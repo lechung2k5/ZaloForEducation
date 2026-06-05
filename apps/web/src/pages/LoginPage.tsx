@@ -6,6 +6,7 @@ import { io } from 'socket.io-client';
 import { GoogleLogin } from '@react-oauth/google';
 import GoogleOneTapPrompt from '../components/GoogleOneTapPrompt';
 import ProfileCompletionModal from '../components/ProfileCompletionModal';
+import { getApiUrl } from '../services/api';
 
 
 const LoginPage: React.FC = () => {
@@ -30,6 +31,31 @@ const LoginPage: React.FC = () => {
   const [pendingEmail, setPendingEmail] = useState('');
 
   const qrSocketRef = useRef<any>(null);
+
+  const completeQrLogin = useCallback((tokens: any) => {
+    setLoading(true);
+
+    localStorage.setItem('token', tokens.accessToken);
+    localStorage.setItem('user', JSON.stringify(tokens.user));
+
+    try {
+      const payloadPart = tokens.accessToken.split('.')[1];
+      const normalizedPayload = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(normalizedPayload));
+      if (payload.deviceId) {
+        localStorage.setItem('deviceId', payload.deviceId);
+      }
+    } catch (e) {
+      console.warn('[QR] Could not decode JWT payload', e);
+    }
+
+    if (qrSocketRef.current) {
+      qrSocketRef.current.disconnect();
+      qrSocketRef.current = null;
+    }
+
+    window.location.href = '/chat';
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,7 +130,7 @@ const LoginPage: React.FC = () => {
     setQrExpired(false);
     setQrTimer(120);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const apiUrl = getApiUrl();
       const response = await fetch(`${apiUrl}/auth/qr-code`);
       const data = await response.json();
       setQrCodeId(data.qrCodeId);
@@ -114,7 +140,8 @@ const LoginPage: React.FC = () => {
       if (qrSocketRef.current) {
         qrSocketRef.current.disconnect();
       }
-      const qrSocket = io(apiUrl, { reconnection: false });
+      const socketUrl = apiUrl === '/api' ? '/' : apiUrl;
+      const qrSocket = io(socketUrl, { reconnection: false });
       qrSocketRef.current = qrSocket;
 
       qrSocket.on('connect', () => {
@@ -124,27 +151,7 @@ const LoginPage: React.FC = () => {
 
       qrSocket.on('login_success', (tokens: any) => {
         console.log('[QR] Login success received');
-        setLoading(true);
-
-        // FIX 2: Lưu đầy đủ token + user + deviceId
-        localStorage.setItem('token', tokens.accessToken);
-        localStorage.setItem('user', JSON.stringify(tokens.user));
-
-        // Decode JWT để lấy deviceId
-        try {
-          const payload = JSON.parse(atob(tokens.accessToken.split('.')[1]));
-          if (payload.deviceId) {
-            localStorage.setItem('deviceId', payload.deviceId);
-          }
-        } catch (e) {
-          console.warn('[QR] Could not decode JWT payload', e);
-        }
-
-        // FIX 3: Disconnect qrSocket trước khi navigate
-        qrSocket.disconnect();
-        qrSocketRef.current = null;
-
-        window.location.href = '/chat';
+        completeQrLogin(tokens);
       });
 
     } catch (err) {
@@ -152,7 +159,7 @@ const LoginPage: React.FC = () => {
     } finally {
       setQrLoading(false);
     }
-  }, []);
+  }, [completeQrLogin]);
 
   useEffect(() => {
     if (activeTab === 'qr') {
@@ -182,6 +189,31 @@ const LoginPage: React.FC = () => {
     }
     return () => clearInterval(interval);
   }, [activeTab, qrCodeId, qrExpired]);
+
+  useEffect(() => {
+    let interval: any;
+    if (activeTab === 'qr' && qrCodeId && !qrExpired) {
+      interval = setInterval(async () => {
+        try {
+          const apiUrl = getApiUrl();
+          const response = await fetch(`${apiUrl}/auth/qr-status?qrCodeId=${encodeURIComponent(qrCodeId)}`);
+          const data = await response.json();
+
+          if (data.status === 'CONFIRMED' && data.tokens) {
+            clearInterval(interval);
+            completeQrLogin(data.tokens);
+          } else if (data.status === 'EXPIRED' || data.status === 'INVALID') {
+            clearInterval(interval);
+            setQrExpired(true);
+          }
+        } catch (err) {
+          console.warn('[QR] Status polling failed', err);
+        }
+      }, 2000);
+    }
+
+    return () => clearInterval(interval);
+  }, [activeTab, qrCodeId, qrExpired, completeQrLogin]);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-x-hidden bg-surface text-on-surface w-full font-sans">
